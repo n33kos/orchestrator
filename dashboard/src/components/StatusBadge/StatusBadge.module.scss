@@ -1,0 +1,40 @@
+.Root {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.queued {
+  background: var(--color-warning-muted);
+  color: var(--color-warning);
+}
+
+.planning {
+  background: var(--color-primary-muted);
+  color: var(--color-primary);
+}
+
+.active {
+  background: var(--color-success-muted);
+  color: var(--color-success);
+}
+
+.review {
+  background: var(--color-primary-muted);
+  color: var(--color-primary);
+}
+
+.completed {
+  background: var(--color-success-muted);
+  color: var(--color-success);
+}
+
+.paused {
+  background: var(--color-error-muted);
+  color: var(--color-error);
+}
