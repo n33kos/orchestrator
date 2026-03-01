@@ -6,9 +6,12 @@ import { WorkStreamList } from './components/WorkStreamList/WorkStreamList.tsx'
 import { AddWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import { useQueue } from './hooks/useQueue.ts'
+import { useTheme } from './hooks/useTheme.ts'
+import type { WorkItemStatus } from './types.ts'
 
 export function App() {
   const queue = useQueue()
+  const { theme, toggle: toggleTheme } = useTheme()
   const [activeTab, setActiveTab] = useState('projects')
   const [showAddForm, setShowAddForm] = useState(false)
 
@@ -38,6 +41,18 @@ export function App() {
     }
   }
 
+  function handleStatusChange(id: string, status: WorkItemStatus) {
+    queue.updateItem(id, { status })
+  }
+
+  function handlePriorityChange(id: string, priority: number) {
+    queue.updateItem(id, { priority })
+  }
+
+  function handleDelete(id: string) {
+    queue.deleteItem(id)
+  }
+
   return (
     <div className={styles.Root}>
       <Header
@@ -47,6 +62,8 @@ export function App() {
         blockedCount={queue.blockedItems.length}
         onAddClick={() => setShowAddForm(!showAddForm)}
         showingAddForm={showAddForm}
+        theme={theme}
+        onThemeToggle={toggleTheme}
       />
       <main className={styles.Main}>
         <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
@@ -59,6 +76,9 @@ export function App() {
         <WorkStreamList
           items={displayItems}
           loading={queue.loading}
+          onStatusChange={handleStatusChange}
+          onPriorityChange={handlePriorityChange}
+          onDelete={handleDelete}
         />
       </main>
     </div>

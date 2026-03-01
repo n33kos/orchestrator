@@ -1,13 +1,16 @@
 import styles from './WorkStreamList.module.scss'
 import { WorkStreamCard } from '../WorkStreamCard/WorkStreamCard.tsx'
-import type { WorkItem } from '../../types.ts'
+import type { WorkItem, WorkItemStatus } from '../../types.ts'
 
 interface WorkStreamListProps {
   items: WorkItem[]
   loading: boolean
+  onStatusChange: (id: string, status: WorkItemStatus) => void
+  onPriorityChange: (id: string, priority: number) => void
+  onDelete: (id: string) => void
 }
 
-export function WorkStreamList({ items, loading }: WorkStreamListProps) {
+export function WorkStreamList({ items, loading, onStatusChange, onPriorityChange, onDelete }: WorkStreamListProps) {
   if (loading) {
     return (
       <div className={styles.Root}>
@@ -37,7 +40,6 @@ export function WorkStreamList({ items, loading }: WorkStreamListProps) {
     )
   }
 
-  // Group by status for display ordering: active first, then queued, paused, review, completed
   const statusOrder: Record<string, number> = {
     active: 0,
     review: 1,
@@ -56,7 +58,13 @@ export function WorkStreamList({ items, loading }: WorkStreamListProps) {
   return (
     <div className={styles.Root}>
       {sorted.map(item => (
-        <WorkStreamCard key={item.id} item={item} />
+        <WorkStreamCard
+          key={item.id}
+          item={item}
+          onStatusChange={onStatusChange}
+          onPriorityChange={onPriorityChange}
+          onDelete={onDelete}
+        />
       ))}
     </div>
   )

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { WorkItem, QueueData } from '../types.ts'
+import type { WorkItem, QueueData, WorkItemStatus } from '../types.ts'
 
 function normalizeItem(raw: Record<string, unknown>): WorkItem {
   return {
@@ -30,6 +30,24 @@ export function useQueue() {
     fetchQueue()
   }, [fetchQueue])
 
+  const updateItem = useCallback(async (id: string, updates: { status?: WorkItemStatus; priority?: number }) => {
+    await fetch('/api/queue/update', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, ...updates }),
+    })
+    await fetchQueue()
+  }, [fetchQueue])
+
+  const deleteItem = useCallback(async (id: string) => {
+    await fetch('/api/queue/delete', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    await fetchQueue()
+  }, [fetchQueue])
+
   const projects = items.filter(i => i.type === 'project')
   const quickFixes = items.filter(i => i.type === 'quick_fix')
   const activeItems = items.filter(i => i.status === 'active')
@@ -51,5 +69,7 @@ export function useQueue() {
     blockedItems,
     loading,
     refresh: fetchQueue,
+    updateItem,
+    deleteItem,
   }
 }

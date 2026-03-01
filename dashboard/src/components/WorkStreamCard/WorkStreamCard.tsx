@@ -2,10 +2,13 @@ import { useState } from 'react'
 import classnames from 'classnames'
 import styles from './WorkStreamCard.module.scss'
 import { StatusBadge } from '../StatusBadge/StatusBadge.tsx'
-import type { WorkItem } from '../../types.ts'
+import type { WorkItem, WorkItemStatus } from '../../types.ts'
 
 interface WorkStreamCardProps {
   item: WorkItem
+  onStatusChange: (id: string, status: WorkItemStatus) => void
+  onPriorityChange: (id: string, priority: number) => void
+  onDelete: (id: string) => void
 }
 
 function formatDate(iso: string | null): string {
@@ -14,7 +17,7 @@ function formatDate(iso: string | null): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-export function WorkStreamCard({ item }: WorkStreamCardProps) {
+export function WorkStreamCard({ item, onStatusChange, onPriorityChange, onDelete }: WorkStreamCardProps) {
   const [expanded, setExpanded] = useState(false)
   const hasSession = !!item.session_id
   const hasDelegator = !!item.delegator_id
@@ -184,6 +187,61 @@ export function WorkStreamCard({ item }: WorkStreamCardProps) {
               </svg>
               Delegator: {hasDelegator ? 'Active' : item.delegator_enabled ? 'Enabled (not running)' : 'Disabled'}
             </span>
+          </div>
+
+          {/* Actions */}
+          <div className={styles.ActionBar} onClick={e => e.stopPropagation()}>
+            <div className={styles.PriorityActions}>
+              <button
+                className={styles.ActionButton}
+                onClick={() => onPriorityChange(item.id, Math.max(1, item.priority - 1))}
+                title="Increase priority"
+                disabled={item.priority <= 1}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="18 15 12 9 6 15" />
+                </svg>
+              </button>
+              <span className={styles.PriorityLabel}>Priority {item.priority}</span>
+              <button
+                className={styles.ActionButton}
+                onClick={() => onPriorityChange(item.id, item.priority + 1)}
+                title="Decrease priority"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+            </div>
+
+            <div className={styles.StatusActions}>
+              {item.status === 'active' && (
+                <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'paused')}>
+                  Pause
+                </button>
+              )}
+              {item.status === 'paused' && (
+                <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'active')}>
+                  Resume
+                </button>
+              )}
+              {item.status === 'queued' && (
+                <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'active')}>
+                  Activate
+                </button>
+              )}
+              {(item.status === 'active' || item.status === 'review') && (
+                <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'completed')}>
+                  Complete
+                </button>
+              )}
+              <button
+                className={classnames(styles.ActionButtonText, styles.ActionDanger)}
+                onClick={() => onDelete(item.id)}
+              >
+                Remove
+              </button>
+            </div>
           </div>
         </div>
       )}
