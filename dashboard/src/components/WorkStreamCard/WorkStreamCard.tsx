@@ -6,6 +6,8 @@ import { BlockerManager } from '../BlockerManager/BlockerManager.tsx'
 import { InlineEdit } from '../InlineEdit/InlineEdit.tsx'
 import { ActivityLog } from '../ActivityLog/ActivityLog.tsx'
 import { MessageComposer } from '../MessageComposer/MessageComposer.tsx'
+import { ContextMenu } from '../ContextMenu/ContextMenu.tsx'
+import type { ContextMenuItem } from '../ContextMenu/ContextMenu.tsx'
 import { timeAgo, formatDate } from '../../utils/time.ts'
 import type { WorkItem, WorkItemStatus, SessionInfo, MessageEntry } from '../../types.ts'
 
@@ -40,6 +42,7 @@ interface WorkStreamCardProps {
 
 export function WorkStreamCard({ item, position, totalCount, isDragging, isDragOver, selectable, selected, onSelect, focused, onClearFocus, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
   const [expanded, setExpanded] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -83,6 +86,56 @@ export function WorkStreamCard({ item, position, totalCount, isDragging, isDragO
 
   const quickAction = getQuickAction()
 
+  function buildContextMenuItems(): ContextMenuItem[] {
+    const items: ContextMenuItem[] = []
+    if (quickAction) {
+      items.push({
+        id: 'quick-action',
+        label: quickAction.label,
+        icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3" /></svg>,
+        action: () => onStatusChange(item.id, quickAction.status),
+      })
+    }
+    items.push({
+      id: 'sep-1', label: '', separator: true, action: () => {},
+    })
+    if (item.status === 'active') {
+      items.push({
+        id: 'pause',
+        label: 'Pause',
+        icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>,
+        action: () => onStatusChange(item.id, 'paused'),
+      })
+    }
+    if (onDuplicate) {
+      items.push({
+        id: 'duplicate',
+        label: 'Duplicate',
+        icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>,
+        action: () => onDuplicate(item.id),
+      })
+    }
+    if (item.branch) {
+      items.push({
+        id: 'copy-branch',
+        label: 'Copy branch name',
+        icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2" /><rect x="8" y="2" width="8" height="4" rx="1" /></svg>,
+        action: () => navigator.clipboard.writeText(item.branch),
+      })
+    }
+    items.push({
+      id: 'sep-2', label: '', separator: true, action: () => {},
+    })
+    items.push({
+      id: 'delete',
+      label: 'Remove',
+      danger: true,
+      icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>,
+      action: () => onDelete(item.id),
+    })
+    return items
+  }
+
   return (
     <div
       ref={cardRef}
@@ -96,6 +149,11 @@ export function WorkStreamCard({ item, position, totalCount, isDragging, isDragO
         isDragOver && styles.dragOver,
       )}
       onClick={() => setExpanded(!expanded)}
+      onContextMenu={e => {
+        e.preventDefault()
+        e.stopPropagation()
+        setContextMenu({ x: e.clientX, y: e.clientY })
+      }}
       draggable={!expanded}
       onDragStart={e => {
         e.dataTransfer.effectAllowed = 'move'
@@ -476,6 +534,14 @@ export function WorkStreamCard({ item, position, totalCount, isDragging, isDragO
             </div>
           </div>
         </div>
+      )}
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={buildContextMenuItems()}
+          onClose={() => setContextMenu(null)}
+        />
       )}
     </div>
   )
