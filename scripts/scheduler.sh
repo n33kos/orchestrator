@@ -20,15 +20,73 @@ AUTO_ACTIVATE="$(grep 'auto_activate:' "$CONFIG" | sed 's/.*: *//')"
 
 ONCE=false
 DRY_RUN=false
+CLEANUP=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --once) ONCE=true ;;
         --dry-run) DRY_RUN=true ;;
+        --cleanup) CLEANUP=true ;;
         *) echo "Unknown flag: $1" >&2; exit 1 ;;
     esac
     shift
 done
+
+function cleanup_completed() {
+    # Archive completed items older than 7 days
+    local archive_dir
+    archive_dir="$(dirname "$QUEUE_FILE")/archive"
+    mkdir -p "$archive_dir"
+
+    python3 -c "
+import json
+from datetime import datetime, timezone, timedelta
+
+with open('$QUEUE_FILE') as f:
+    data = json.load(f)
+
+cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+keep = []
+archive = []
+
+for item in data['items']:
+    if item['status'] == 'completed' and item.get('completed_at'):
+        try:
+            completed = datetime.fromisoformat(item['completed_at'].replace('Z', '+00:00'))
+            if completed.tzinfo is None:
+                completed = completed.replace(tzinfo=timezone.utc)
+            if completed < cutoff:
+                archive.append(item)
+                continue
+        except (ValueError, TypeError):
+            pass
+    keep.append(item)
+
+if not archive:
+    print('[cleanup] No completed items older than 7 days')
+else:
+    # Write archive
+    archive_file = '$archive_dir/archived-' + datetime.now().strftime('%Y-%m-%d') + '.json'
+    try:
+        with open(archive_file) as f:
+            existing = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        existing = []
+    existing.extend(archive)
+    with open(archive_file, 'w') as f:
+        json.dump(existing, f, indent=2)
+        f.write('\n')
+
+    # Update queue
+    data['items'] = keep
+    with open('$QUEUE_FILE', 'w') as f:
+        json.dump(data, f, indent=2)
+        f.write('\n')
+
+    print(f'[cleanup] Archived {len(archive)} completed item(s) to {archive_file}')
+    print(f'[cleanup] Queue now has {len(keep)} items')
+"
+}
 
 function check_and_activate() {
     # Check auto_activate setting
@@ -123,14 +181,25 @@ for item in state['ready']:
     done
 }
 
+if [[ "$CLEANUP" == "true" ]]; then
+    cleanup_completed
+    [[ "$ONCE" == "true" ]] && exit 0
+fi
+
 if [[ "$ONCE" == "true" ]]; then
     check_and_activate
 else
     echo "[scheduler] Starting continuous scheduler (Ctrl+C to stop)"
     echo "[scheduler] Poll interval: 120s | Max active: $MAX_ACTIVE | Auto-activate: $AUTO_ACTIVATE"
     echo ""
+    CYCLE=0
     while true; do
         check_and_activate
+        # Run cleanup every 10 cycles (every ~20 minutes)
+        CYCLE=$((CYCLE + 1))
+        if [[ $((CYCLE % 10)) -eq 0 ]]; then
+            cleanup_completed
+        fi
         echo "[scheduler] Next check in 120s..."
         sleep 120
     done

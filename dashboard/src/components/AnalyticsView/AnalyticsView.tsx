@@ -49,6 +49,36 @@ export function AnalyticsView({ items, sessions }: Props) {
   const recentItems = items.filter(i => new Date(i.created_at).getTime() > oneWeekAgo)
   const avgPerDay = (recentItems.length / 7).toFixed(1)
 
+  // Completion time metrics
+  const completedItems = items.filter(i => i.completed_at && i.activated_at)
+  const completionTimesHours = completedItems.map(i => {
+    const activated = new Date(i.activated_at!).getTime()
+    const completed = new Date(i.completed_at!).getTime()
+    return (completed - activated) / (1000 * 60 * 60)
+  }).filter(h => h > 0 && h < 720) // Filter out unreasonable values (>30 days)
+  const avgCompletionHours = completionTimesHours.length > 0
+    ? completionTimesHours.reduce((a, b) => a + b, 0) / completionTimesHours.length
+    : 0
+  const formatDuration = (hours: number) => {
+    if (hours < 1) return `${Math.round(hours * 60)}m`
+    if (hours < 24) return `${hours.toFixed(1)}h`
+    return `${(hours / 24).toFixed(1)}d`
+  }
+
+  // Source distribution
+  const sourceCounts = new Map<string, number>()
+  for (const item of items) {
+    const source = item.source || 'manual'
+    sourceCounts.set(source, (sourceCounts.get(source) || 0) + 1)
+  }
+  const sourceBars = Array.from(sourceCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, value], i) => ({
+      label,
+      value,
+      color: ['var(--color-primary)', 'var(--color-success)', 'var(--color-warning)', 'var(--color-error)'][i % 4],
+    }))
+
   return (
     <div className={styles.Root}>
       <div className={styles.Grid}>
@@ -120,6 +150,39 @@ export function AnalyticsView({ items, sessions }: Props) {
             <span className={styles.VelocityLabel}>total items</span>
           </div>
         </div>
+
+        <div className={styles.Card}>
+          <h3 className={styles.CardTitle}>Completion Time</h3>
+          {completedItems.length > 0 ? (
+            <>
+              <div className={styles.VelocityStat}>
+                <span className={styles.VelocityValue}>{formatDuration(avgCompletionHours)}</span>
+                <span className={styles.VelocityLabel}>avg time to complete</span>
+              </div>
+              <div className={styles.VelocityStat}>
+                <span className={styles.VelocityValue}>{completedItems.length}</span>
+                <span className={styles.VelocityLabel}>items completed</span>
+              </div>
+              {completionTimesHours.length > 1 && (
+                <div className={styles.VelocityStat}>
+                  <span className={styles.VelocityValue}>{formatDuration(Math.min(...completionTimesHours))} — {formatDuration(Math.max(...completionTimesHours))}</span>
+                  <span className={styles.VelocityLabel}>fastest — slowest</span>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className={styles.VelocityStat}>
+              <span className={styles.VelocityLabel}>No completed items with timing data</span>
+            </div>
+          )}
+        </div>
+
+        {sourceBars.length > 1 && (
+          <div className={styles.Card}>
+            <h3 className={styles.CardTitle}>Sources</h3>
+            <BarChart bars={sourceBars} height={80} />
+          </div>
+        )}
       </div>
     </div>
   )

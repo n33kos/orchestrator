@@ -44,13 +44,15 @@ function formatItemSummary(item: WorkItem): string {
   return lines.filter(Boolean).join('\n')
 }
 
-export function DetailPanel({ item, sessions, onClose, onStatusChange, onDelete, onDuplicate, onNotesChange, onActivateStream, onTeardownStream }: DetailPanelProps) {
+export function DetailPanel({ item, sessions, onClose, onStatusChange, onDelete, onDuplicate, onNotesChange, onActivateStream, onTeardownStream, onSendMessage }: DetailPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const [copied, setCopied] = useState(false)
   const [editingNotes, setEditingNotes] = useState(false)
   const [notesText, setNotesText] = useState((item.metadata?.notes as string) || '')
   const [prStatus, setPrStatus] = useState<{ state?: string; reviewDecision?: string; checks?: string; url?: string } | null>(null)
+  const [messageText, setMessageText] = useState('')
   const notesRef = useRef<HTMLTextAreaElement>(null)
+  const messageRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -214,6 +216,37 @@ export function DetailPanel({ item, sessions, onClose, onStatusChange, onDelete,
                 </div>
                 <code className={styles.SessionCwd}>{linkedSession.cwd.split('/').pop()}</code>
               </div>
+              {onSendMessage && linkedSession.state !== 'zombie' && (
+                <form
+                  className={styles.SessionMessageForm}
+                  onSubmit={e => {
+                    e.preventDefault()
+                    if (messageText.trim()) {
+                      onSendMessage(linkedSession.id, messageText.trim())
+                      setMessageText('')
+                    }
+                  }}
+                >
+                  <input
+                    ref={messageRef}
+                    className={styles.SessionMessageInput}
+                    type="text"
+                    value={messageText}
+                    onChange={e => setMessageText(e.target.value)}
+                    placeholder="Send message to worker..."
+                  />
+                  <button
+                    type="submit"
+                    className={styles.SessionMessageSend}
+                    disabled={!messageText.trim()}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="22" y1="2" x2="11" y2="13" />
+                      <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                    </svg>
+                  </button>
+                </form>
+              )}
             </div>
           )}
 

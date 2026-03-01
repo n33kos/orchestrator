@@ -1037,6 +1037,7 @@ export function App() {
         pollIntervalMs={settings.pollIntervalMs}
         lastUpdated={queue.lastUpdated}
         viewMode={viewMode}
+        latencyMs={queue.latencyMs}
       />
       {selectionMode && selectedIds.size > 0 && (
         <BatchActionBar
@@ -1151,6 +1152,7 @@ export function App() {
             }}
             onActivateStream={handleActivateStream}
             onTeardownStream={handleTeardownStream}
+            onSendMessage={handleSendMessage}
           />
         )
       })()}

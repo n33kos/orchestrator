@@ -13,18 +13,22 @@ export function useQueue(pollIntervalMs = 5000) {
   const [items, setItems] = useState<WorkItem[]>([])
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [latencyMs, setLatencyMs] = useState<number | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchQueue = useCallback(async () => {
+    const start = performance.now()
     try {
       const res = await fetch('/api/queue')
       if (res.ok) {
         const data: QueueData = await res.json()
         setItems(data.items.map(i => normalizeItem(i as unknown as Record<string, unknown>)))
         setLastUpdated(new Date())
+        setLatencyMs(Math.round(performance.now() - start))
       }
     } catch {
       // API not available — use empty state
+      setLatencyMs(null)
     } finally {
       setLoading(false)
     }
@@ -146,6 +150,7 @@ export function useQueue(pollIntervalMs = 5000) {
     blockedItems,
     loading,
     lastUpdated,
+    latencyMs,
     refresh: fetchQueue,
     updateItem,
     reorderItems,

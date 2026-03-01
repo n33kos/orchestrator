@@ -22,7 +22,17 @@
 }
 
 .Stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-weight: 500;
+}
+
+.LatencyDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .Divider {

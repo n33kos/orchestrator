@@ -561,6 +561,26 @@ function queueApiPlugin(): Plugin {
         }
       })
 
+      // POST /api/scheduler/cleanup — archive old completed items
+      server.middlewares.use('/api/scheduler/cleanup', async (req, res) => {
+        if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
+        try {
+          const scriptPath = join(__dirname, '..', 'scripts', 'scheduler.sh')
+          execFile('bash', [scriptPath, '--cleanup', '--once'], { timeout: 15000, env: { ...process.env, HOME: homedir() } }, (err, stdout, stderr) => {
+            res.setHeader('Content-Type', 'application/json')
+            if (err) {
+              res.statusCode = 500
+              res.end(JSON.stringify({ error: stderr || String(err), output: stdout }))
+              return
+            }
+            res.end(JSON.stringify({ ok: true, output: stdout }))
+          })
+        } catch (err) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: String(err) }))
+        }
+      })
+
       // POST /api/scheduler/run — run the scheduler once
       server.middlewares.use('/api/scheduler/run', async (req, res) => {
         if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
