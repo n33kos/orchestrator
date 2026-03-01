@@ -26,7 +26,7 @@ def load_yaml_simple(path: Path) -> dict:
     with open(path) as f:
         for line in f:
             stripped = line.rstrip()
-            if not stripped or stripped.startswith("#"):
+            if not stripped or stripped.lstrip().startswith("#"):
                 continue
 
             indent = len(line) - len(line.lstrip())
