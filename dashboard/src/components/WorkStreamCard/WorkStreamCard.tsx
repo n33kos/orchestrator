@@ -5,12 +5,15 @@ import { StatusBadge } from '../StatusBadge/StatusBadge.tsx'
 import { BlockerManager } from '../BlockerManager/BlockerManager.tsx'
 import { InlineEdit } from '../InlineEdit/InlineEdit.tsx'
 import { ActivityLog } from '../ActivityLog/ActivityLog.tsx'
-import type { WorkItem, WorkItemStatus } from '../../types.ts'
+import { MessageComposer } from '../MessageComposer/MessageComposer.tsx'
+import type { WorkItem, WorkItemStatus, SessionInfo, MessageEntry } from '../../types.ts'
 
 interface WorkStreamCardProps {
   item: WorkItem
   isDragging?: boolean
   isDragOver?: boolean
+  sessionInfo?: SessionInfo
+  messages?: MessageEntry[]
   onStatusChange: (id: string, status: WorkItemStatus) => void
   onPriorityChange: (id: string, priority: number) => void
   onDelegatorToggle: (id: string, enabled: boolean) => void
@@ -19,6 +22,7 @@ interface WorkStreamCardProps {
   onResolveBlocker: (id: string, blockerId: string) => void
   onUnresolveBlocker: (id: string, blockerId: string) => void
   onDelete: (id: string) => void
+  onSendMessage?: (sessionId: string, text: string) => void
   onDragStart?: (id: string) => void
   onDragOver?: (id: string) => void
   onDrop?: (id: string) => void
@@ -31,8 +35,9 @@ function formatDate(iso: string | null): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-export function WorkStreamCard({ item, isDragging, isDragOver, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
+export function WorkStreamCard({ item, isDragging, isDragOver, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
   const [expanded, setExpanded] = useState(false)
+  const hasLiveSession = !!sessionInfo
   const hasSession = !!item.session_id
   const hasDelegator = !!item.delegator_id
   const unresolvedBlockers = item.blockers.filter(b => !b.resolved)
@@ -163,12 +168,20 @@ export function WorkStreamCard({ item, isDragging, isDragOver, onStatusChange, o
                 PR
               </a>
             )}
-            <span className={classnames(styles.Indicator, hasSession && styles.IndicatorActive)} title="Worker session">
+            <span
+              className={classnames(
+                styles.SessionIndicator,
+                hasLiveSession && styles[`session_${sessionInfo!.state}`],
+                !hasLiveSession && hasSession && styles.session_offline,
+              )}
+              title={hasLiveSession ? `Session: ${sessionInfo!.state}` : hasSession ? 'Session offline' : 'No session'}
+            >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="2" y="3" width="20" height="14" rx="2" />
                 <line x1="8" y1="21" x2="16" y2="21" />
                 <line x1="12" y1="17" x2="12" y2="21" />
               </svg>
+              {hasLiveSession && <span className={classnames(styles.SessionDot, styles[sessionInfo!.state])} />}
             </span>
             <span className={classnames(styles.Indicator, hasDelegator && styles.IndicatorActive)} title="Delegator">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -301,13 +314,14 @@ export function WorkStreamCard({ item, isDragging, isDragOver, onStatusChange, o
 
           {/* Session/Delegator Status */}
           <div className={styles.StatusRow}>
-            <span className={classnames(styles.StatusItem, hasSession && styles.StatusActive)}>
+            <span className={classnames(styles.StatusItem, hasLiveSession && styles.StatusActive)}>
+              <span className={classnames(styles.LiveDot, hasLiveSession && styles[sessionInfo!.state])} />
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="2" y="3" width="20" height="14" rx="2" />
                 <line x1="8" y1="21" x2="16" y2="21" />
                 <line x1="12" y1="17" x2="12" y2="21" />
               </svg>
-              Worker: {hasSession ? item.session_id : 'Not running'}
+              Worker: {hasLiveSession ? `${sessionInfo!.state} (${sessionInfo!.id.slice(0, 8)})` : hasSession ? item.session_id : 'Not running'}
             </span>
             <label
               className={classnames(styles.StatusItem, styles.DelegatorToggle)}
@@ -330,6 +344,24 @@ export function WorkStreamCard({ item, isDragging, isDragOver, onStatusChange, o
               </span>
             </label>
           </div>
+
+          {/* Session Messaging */}
+          {hasLiveSession && onSendMessage && (
+            <div className={styles.Section}>
+              <h4 className={styles.SectionTitle}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+                </svg>
+                Session Messaging
+              </h4>
+              <MessageComposer
+                sessionId={sessionInfo!.id}
+                sessionState={sessionInfo!.state}
+                messages={messages}
+                onSend={text => onSendMessage(sessionInfo!.id, text)}
+              />
+            </div>
+          )}
 
           {/* Actions */}
           <div className={styles.ActionBar} onClick={e => e.stopPropagation()}>

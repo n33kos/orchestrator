@@ -7,12 +7,19 @@ interface Command {
   id: string
   label: string
   description?: string
-  icon: 'search' | 'add' | 'settings' | 'refresh' | 'status' | 'theme'
+  icon: 'search' | 'add' | 'settings' | 'refresh' | 'status' | 'theme' | 'message'
   action: () => void
+}
+
+export interface SessionRef {
+  itemId: string
+  itemTitle: string
+  sessionId: string
 }
 
 interface CommandPaletteProps {
   items: WorkItem[]
+  sessionsWithItems: SessionRef[]
   onClose: () => void
   onNavigateToItem: (id: string) => void
   onStatusChange: (id: string, status: WorkItemStatus) => void
@@ -20,9 +27,10 @@ interface CommandPaletteProps {
   onOpenSettings: () => void
   onRefresh: () => void
   onToggleTheme: () => void
+  onMessageSession: (sessionId: string) => void
 }
 
-const ICONS: Record<string, JSX.Element> = {
+const ICONS: Record<string, React.JSX.Element> = {
   search: (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -54,9 +62,14 @@ const ICONS: Record<string, JSX.Element> = {
       <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
     </svg>
   ),
+  message: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+    </svg>
+  ),
 }
 
-export function CommandPalette({ items, onClose, onNavigateToItem, onStatusChange, onAddItem, onOpenSettings, onRefresh, onToggleTheme }: CommandPaletteProps) {
+export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateToItem, onStatusChange, onAddItem, onOpenSettings, onRefresh, onToggleTheme, onMessageSession }: CommandPaletteProps) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -100,7 +113,17 @@ export function CommandPalette({ items, onClose, onNavigateToItem, onStatusChang
     return cmds
   }, [items, onClose, onStatusChange])
 
-  const allCommands = useMemo(() => [...globalCommands, ...itemCommands, ...statusCommands], [globalCommands, itemCommands, statusCommands])
+  const messageCommands: Command[] = useMemo(() => {
+    return sessionsWithItems.map(ref => ({
+      id: `msg-${ref.sessionId}`,
+      label: `Message: ${ref.itemTitle}`,
+      description: `Send message to session ${ref.sessionId.slice(0, 8)}`,
+      icon: 'message' as const,
+      action: () => { onClose(); onMessageSession(ref.sessionId) },
+    }))
+  }, [sessionsWithItems, onClose, onMessageSession])
+
+  const allCommands = useMemo(() => [...globalCommands, ...messageCommands, ...itemCommands, ...statusCommands], [globalCommands, messageCommands, itemCommands, statusCommands])
 
   const filtered = useMemo(() => {
     if (!query.trim()) return globalCommands

@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { readFileSync, writeFileSync } from 'fs'
+import { execFile } from 'child_process'
 import { join } from 'path'
 import { homedir } from 'os'
 import type { Plugin } from 'vite'
@@ -170,6 +171,61 @@ function queueApiPlugin(): Plugin {
           writeQueue(data)
           res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify({ ok: true }))
+        } catch (err) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: String(err) }))
+        }
+      })
+
+      // GET /api/sessions — list vmux sessions
+      server.middlewares.use('/api/sessions', (_req, res) => {
+        const vmuxPath = join(homedir(), '.local/bin/vmux')
+        execFile(vmuxPath, ['sessions'], { timeout: 5000 }, (err, stdout) => {
+          res.setHeader('Content-Type', 'application/json')
+          if (err) {
+            res.end(JSON.stringify({ sessions: [] }))
+            return
+          }
+          const sessions: { id: string; state: string; cwd: string; tmux: string }[] = []
+          const lines = stdout.split('\n')
+          let i = 0
+          while (i < lines.length) {
+            const stateMatch = lines[i].match(/^\s+\[(\w+)\]\s+(\w+)/)
+            if (stateMatch) {
+              const state = stateMatch[1]
+              const id = stateMatch[2]
+              let cwd = ''
+              let tmux = ''
+              while (++i < lines.length && !lines[i].match(/^\s+\[/)) {
+                const cwdMatch = lines[i].match(/cwd:\s+(.+)/)
+                if (cwdMatch) cwd = cwdMatch[1].trim()
+                const tmuxMatch = lines[i].match(/tmux:\s+(.+)/)
+                if (tmuxMatch) tmux = tmuxMatch[1].trim()
+              }
+              sessions.push({ id, state, cwd, tmux })
+            } else {
+              i++
+            }
+          }
+          res.end(JSON.stringify({ sessions }))
+        })
+      })
+
+      // POST /api/sessions/send — send a message to a vmux session
+      server.middlewares.use('/api/sessions/send', async (req, res) => {
+        if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
+        try {
+          const body = JSON.parse(await readBody(req))
+          const vmuxPath = join(homedir(), '.local/bin/vmux')
+          execFile(vmuxPath, ['send', body.sessionId, body.text], { timeout: 10000 }, (err, stdout, stderr) => {
+            res.setHeader('Content-Type', 'application/json')
+            if (err) {
+              res.statusCode = 500
+              res.end(JSON.stringify({ error: stderr || String(err) }))
+              return
+            }
+            res.end(JSON.stringify({ ok: true, output: stdout.trim() }))
+          })
         } catch (err) {
           res.statusCode = 500
           res.end(JSON.stringify({ error: String(err) }))

@@ -34,3 +34,19 @@ export interface QueueData {
   version: number
   items: WorkItem[]
 }
+
+export type SessionState = 'standby' | 'thinking' | 'responding' | 'zombie' | 'unknown'
+
+export interface SessionInfo {
+  id: string
+  state: SessionState
+  cwd: string
+  tmux: string
+}
+
+export interface MessageEntry {
+  id: string
+  text: string
+  timestamp: string
+  direction: 'sent' | 'received'
+}

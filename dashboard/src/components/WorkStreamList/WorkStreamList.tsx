@@ -1,7 +1,7 @@
 import styles from './WorkStreamList.module.scss'
 import { WorkStreamCard } from '../WorkStreamCard/WorkStreamCard.tsx'
 import { useDragReorder } from '../../hooks/useDragReorder.ts'
-import type { WorkItem, WorkItemStatus } from '../../types.ts'
+import type { WorkItem, WorkItemStatus, SessionInfo, MessageEntry } from '../../types.ts'
 import type { SortField, SortDirection } from '../SortControls/SortControls.tsx'
 
 interface WorkStreamListProps {
@@ -11,6 +11,8 @@ interface WorkStreamListProps {
   emptyLabel?: string
   sortField: SortField
   sortDirection: SortDirection
+  sessions: SessionInfo[]
+  messagesBySession: Record<string, MessageEntry[]>
   onStatusChange: (id: string, status: WorkItemStatus) => void
   onPriorityChange: (id: string, priority: number) => void
   onDelegatorToggle: (id: string, enabled: boolean) => void
@@ -20,9 +22,21 @@ interface WorkStreamListProps {
   onUnresolveBlocker: (id: string, blockerId: string) => void
   onDelete: (id: string) => void
   onReorder: (dragId: string, dropId: string) => void
+  onSendMessage: (sessionId: string, text: string) => void
 }
 
-export function WorkStreamList({ items, loading, hasSearch, emptyLabel, sortField, sortDirection, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onReorder }: WorkStreamListProps) {
+function findSession(sessions: SessionInfo[], item: WorkItem): SessionInfo | undefined {
+  if (item.session_id) {
+    const byId = sessions.find(s => s.id === item.session_id)
+    if (byId) return byId
+  }
+  if (item.worktree_path) {
+    return sessions.find(s => s.cwd === item.worktree_path || item.worktree_path!.startsWith(s.cwd))
+  }
+  return undefined
+}
+
+export function WorkStreamList({ items, loading, hasSearch, emptyLabel, sortField, sortDirection, sessions, messagesBySession, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onReorder, onSendMessage }: WorkStreamListProps) {
   const { dragId, overId, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(onReorder)
   if (loading) {
     return (
@@ -101,26 +115,32 @@ export function WorkStreamList({ items, loading, hasSearch, emptyLabel, sortFiel
 
   return (
     <div className={styles.Root}>
-      {sorted.map(item => (
-        <WorkStreamCard
-          key={item.id}
-          item={item}
-          isDragging={dragId === item.id}
-          isDragOver={overId === item.id}
-          onStatusChange={onStatusChange}
-          onPriorityChange={onPriorityChange}
-          onDelegatorToggle={onDelegatorToggle}
-          onEdit={onEdit}
-          onAddBlocker={onAddBlocker}
-          onResolveBlocker={onResolveBlocker}
-          onUnresolveBlocker={onUnresolveBlocker}
-          onDelete={onDelete}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-          onDragEnd={handleDragEnd}
-        />
-      ))}
+      {sorted.map(item => {
+        const session = findSession(sessions, item)
+        return (
+          <WorkStreamCard
+            key={item.id}
+            item={item}
+            isDragging={dragId === item.id}
+            isDragOver={overId === item.id}
+            sessionInfo={session}
+            messages={session ? messagesBySession[session.id] ?? [] : []}
+            onStatusChange={onStatusChange}
+            onPriorityChange={onPriorityChange}
+            onDelegatorToggle={onDelegatorToggle}
+            onEdit={onEdit}
+            onAddBlocker={onAddBlocker}
+            onResolveBlocker={onResolveBlocker}
+            onUnresolveBlocker={onUnresolveBlocker}
+            onDelete={onDelete}
+            onSendMessage={onSendMessage}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            onDragEnd={handleDragEnd}
+          />
+        )
+      })}
     </div>
   )
 }

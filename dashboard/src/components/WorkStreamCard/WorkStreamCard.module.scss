@@ -223,6 +223,101 @@
   }
 }
 
+/* ── Session Indicator ── */
+.SessionIndicator {
+  display: flex;
+  align-items: center;
+  position: relative;
+  color: var(--color-text-muted);
+  opacity: 0.3;
+
+  &.session_standby {
+    opacity: 1;
+    color: var(--color-success);
+  }
+
+  &.session_thinking {
+    opacity: 1;
+    color: var(--color-warning);
+  }
+
+  &.session_responding {
+    opacity: 1;
+    color: var(--color-primary);
+  }
+
+  &.session_zombie {
+    opacity: 1;
+    color: var(--color-error);
+  }
+
+  &.session_offline {
+    opacity: 0.5;
+    color: var(--color-text-muted);
+  }
+}
+
+.SessionDot {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1px solid var(--color-surface);
+  background: var(--color-text-muted);
+
+  &.standby {
+    background: var(--color-success);
+  }
+
+  &.thinking {
+    background: var(--color-warning);
+    animation: dotPulse 1.5s ease infinite;
+  }
+
+  &.responding {
+    background: var(--color-primary);
+    animation: dotPulse 1s ease infinite;
+  }
+
+  &.zombie {
+    background: var(--color-error);
+  }
+}
+
+@keyframes dotPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.LiveDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--color-text-muted);
+
+  &.standby {
+    background: var(--color-success);
+    box-shadow: 0 0 4px var(--color-success);
+  }
+
+  &.thinking {
+    background: var(--color-warning);
+    animation: dotPulse 1.5s ease infinite;
+  }
+
+  &.responding {
+    background: var(--color-primary);
+    animation: dotPulse 1s ease infinite;
+  }
+
+  &.zombie {
+    background: var(--color-error);
+  }
+}
+
 .PrLink {
   display: flex;
   align-items: center;

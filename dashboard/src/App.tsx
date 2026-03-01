@@ -20,7 +20,8 @@ import { useToast } from './hooks/useToast.ts'
 import { useKeyboard } from './hooks/useKeyboard.ts'
 import { useSettings } from './hooks/useSettings.ts'
 import { useNotifications } from './hooks/useNotifications.ts'
-import type { WorkItemStatus } from './types.ts'
+import { useSessions } from './hooks/useSessions.ts'
+import type { WorkItemStatus, MessageEntry } from './types.ts'
 
 export function App() {
   const { settings, update: updateSetting, reset: resetSettings, open: settingsOpen, setOpen: setSettingsOpen } = useSettings()
@@ -28,6 +29,8 @@ export function App() {
   const { theme, toggle: toggleTheme } = useTheme()
   const { toasts, addToast, dismissToast } = useToast()
   useNotifications(queue.items, settings.notificationsEnabled)
+  const { sessions, sendMessage } = useSessions()
+  const [messagesBySession, setMessagesBySession] = useState<Record<string, MessageEntry[]>>({})
   const [activeTab, setActiveTab] = useState('projects')
   const [showAddForm, setShowAddForm] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -163,6 +166,40 @@ export function App() {
     addToast(`Reordered "${dragItem.title}"`, 'info')
   }
 
+  const sessionsWithItems = useMemo(() => {
+    const refs: { itemId: string; itemTitle: string; sessionId: string }[] = []
+    for (const item of queue.items) {
+      const session = item.session_id
+        ? sessions.find(s => s.id === item.session_id)
+        : item.worktree_path
+          ? sessions.find(s => s.cwd === item.worktree_path || item.worktree_path!.startsWith(s.cwd))
+          : undefined
+      if (session) {
+        refs.push({ itemId: item.id, itemTitle: item.title, sessionId: session.id })
+      }
+    }
+    return refs
+  }, [queue.items, sessions])
+
+  async function handleSendMessage(sessionId: string, text: string) {
+    const entry: MessageEntry = {
+      id: `msg-${Date.now()}`,
+      text,
+      timestamp: new Date().toISOString(),
+      direction: 'sent',
+    }
+    setMessagesBySession(prev => ({
+      ...prev,
+      [sessionId]: [...(prev[sessionId] ?? []), entry],
+    }))
+    const ok = await sendMessage(sessionId, text)
+    if (ok) {
+      addToast('Message sent', 'success')
+    } else {
+      addToast('Failed to send message', 'error')
+    }
+  }
+
   function handleDelete(id: string) {
     const item = queue.items.find(i => i.id === id)
     setConfirmAction({
@@ -223,6 +260,8 @@ export function App() {
           hasSearch={searchQuery.trim().length > 0}
           sortField={sortField}
           sortDirection={sortDirection}
+          sessions={sessions}
+          messagesBySession={messagesBySession}
           emptyLabel={
             activeTab === 'quick_fixes' ? 'No quick fixes' :
             activeTab === 'projects' ? 'No projects' : undefined
@@ -236,6 +275,7 @@ export function App() {
           onUnresolveBlocker={handleUnresolveBlocker}
           onDelete={handleDelete}
           onReorder={handleReorder}
+          onSendMessage={handleSendMessage}
         />
       </main>
       <KeyboardHints />
@@ -261,6 +301,7 @@ export function App() {
       {showCommandPalette && (
         <CommandPalette
           items={queue.items}
+          sessionsWithItems={sessionsWithItems}
           onClose={() => setShowCommandPalette(false)}
           onNavigateToItem={() => {}}
           onStatusChange={handleStatusChange}
@@ -268,6 +309,11 @@ export function App() {
           onOpenSettings={() => setSettingsOpen(true)}
           onRefresh={() => { queue.refresh(); addToast('Queue refreshed', 'info') }}
           onToggleTheme={toggleTheme}
+          onMessageSession={(sessionId) => {
+            setShowCommandPalette(false)
+            const text = prompt(`Message to session ${sessionId.slice(0, 8)}:`)
+            if (text) handleSendMessage(sessionId, text)
+          }}
         />
       )}
     </div>
