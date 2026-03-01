@@ -97,8 +97,11 @@ PLAN_EOF
 # Generate the plan using Claude CLI in non-interactive mode
 echo "Calling Claude to generate plan..."
 CLAUDE_BIN="${HOME}/.local/bin/claude"
-PLAN_OUTPUT="$("$CLAUDE_BIN" --print --model haiku "$PLAN_PROMPT" 2>/dev/null)" || {
+# Unset CLAUDECODE to allow invocation from within a Claude Code session
+unset CLAUDECODE 2>/dev/null || true
+PLAN_OUTPUT="$("$CLAUDE_BIN" --print --model haiku "$PLAN_PROMPT" 2>/tmp/claude-plan-stderr.log)" || {
     echo "ERROR: Claude CLI invocation failed" >&2
+    cat /tmp/claude-plan-stderr.log >&2 2>/dev/null
     exit 1
 }
 
