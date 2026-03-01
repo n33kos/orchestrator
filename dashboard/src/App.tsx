@@ -774,14 +774,25 @@ export function App() {
     const zombies = sessions.filter(s => s.state === 'zombie')
     if (zombies.length === 0) return
     addToast(`Recovering ${zombies.length} zombie session${zombies.length !== 1 ? 's' : ''}...`, 'info')
-    for (const z of zombies) {
-      try {
-        await fetch('/api/sessions/reconnect', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cwd: z.cwd }),
-        })
-      } catch { /* continue */ }
+    try {
+      const res = await fetch('/api/health/recover', { method: 'POST' })
+      const data = await res.json()
+      if (data.ok) {
+        addToast('Recovery complete', 'success')
+      } else {
+        addToast(`Recovery issue: ${data.error || 'unknown'}`, 'error')
+      }
+    } catch {
+      // Fallback to per-session reconnect
+      for (const z of zombies) {
+        try {
+          await fetch('/api/sessions/reconnect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cwd: z.cwd }),
+          })
+        } catch { /* continue */ }
+      }
     }
     setTimeout(() => { refreshSessions(); queue.refresh() }, 3000)
   }
@@ -1149,6 +1160,7 @@ export function App() {
           <DetailPanel
             item={detailItem}
             sessions={sessions}
+            delegator={delegatorData.delegators.find(d => d.item_id === detailItemId)}
             onClose={() => setDetailItemId(null)}
             onStatusChange={(id, status) => { handleStatusChange(id, status); setDetailItemId(null) }}
             onDelete={(id) => { handleDelete(id); setDetailItemId(null) }}

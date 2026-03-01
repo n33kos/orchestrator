@@ -6,10 +6,12 @@ import { ItemNotes } from '../ItemNotes/ItemNotes.tsx'
 import { timeAgo, formatDate } from '../../utils/time.ts'
 import { useFocusTrap } from '../../hooks/useFocusTrap.ts'
 import type { WorkItem, WorkItemStatus, SessionInfo } from '../../types.ts'
+import type { DelegatorStatus } from '../../hooks/useDelegators.ts'
 
 interface DetailPanelProps {
   item: WorkItem
   sessions?: SessionInfo[]
+  delegator?: DelegatorStatus
   onClose: () => void
   onStatusChange: (id: string, status: WorkItemStatus) => void
   onUpdate?: (id: string, fields: Partial<Pick<WorkItem, 'title' | 'description'>>) => void
@@ -46,7 +48,7 @@ function formatItemSummary(item: WorkItem): string {
   return lines.filter(Boolean).join('\n')
 }
 
-export function DetailPanel({ item, sessions, onClose, onStatusChange, onUpdate, onDelete, onDuplicate, onNotesChange, onActivateStream, onTeardownStream, onSendMessage }: DetailPanelProps) {
+export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange, onUpdate, onDelete, onDuplicate, onNotesChange, onActivateStream, onTeardownStream, onSendMessage }: DetailPanelProps) {
   const panelRef = useFocusTrap<HTMLDivElement>()
   const [copied, setCopied] = useState(false)
   const [editingNotes, setEditingNotes] = useState(false)
@@ -213,7 +215,11 @@ export function DetailPanel({ item, sessions, onClose, onStatusChange, onUpdate,
             )}
             <div className={styles.MetaItem}>
               <span className={styles.MetaLabel}>Delegator</span>
-              <span className={styles.MetaValue}>{item.delegator_enabled ? 'Enabled' : 'Disabled'}</span>
+              <span className={styles.MetaValue}>
+                {delegator
+                  ? `${delegator.status} (${delegator.commits_reviewed} commits, ${delegator.issues_found.length} issues)`
+                  : item.delegator_enabled ? 'Enabled' : 'Disabled'}
+              </span>
             </div>
           </div>
 
