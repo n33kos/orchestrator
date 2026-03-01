@@ -12,6 +12,8 @@ interface HeaderProps {
   pausedCount: number
   blockedCount: number
   sessionCount: number
+  workersActiveCount: number
+  zombieCount: number
   activityCount: number
   activitySparkline: number[]
   healthIssues: number
@@ -29,7 +31,7 @@ interface HeaderProps {
   onDiscoverClick: () => void
 }
 
-export function Header({ activeCount, queuedCount, pausedCount, blockedCount, sessionCount, activityCount, activitySparkline, healthIssues, lastUpdated, notificationHistory, onClearNotifications, onAddClick, showingAddForm, theme, onThemeToggle, onSettingsClick, onSessionsClick, onActivityFeedClick, onHealthClick, onDiscoverClick }: HeaderProps) {
+export function Header({ activeCount, queuedCount, pausedCount, blockedCount, sessionCount, workersActiveCount, zombieCount, activityCount, activitySparkline, healthIssues, lastUpdated, notificationHistory, onClearNotifications, onAddClick, showingAddForm, theme, onThemeToggle, onSettingsClick, onSessionsClick, onActivityFeedClick, onHealthClick, onDiscoverClick }: HeaderProps) {
   return (
     <header className={styles.Root}>
       <div className={styles.Left}>
@@ -104,15 +106,16 @@ export function Header({ activeCount, queuedCount, pausedCount, blockedCount, se
         </button>
         <NotificationCenter history={notificationHistory} onClear={onClearNotifications} />
         <button
-          className={styles.SessionsButton}
+          className={classnames(styles.SessionsButton, zombieCount > 0 && styles.SessionsButtonZombie)}
           onClick={onSessionsClick}
-          title="Sessions"
+          title={workersActiveCount > 0 ? `${workersActiveCount} worker${workersActiveCount > 1 ? 's' : ''} active` : `${sessionCount} session${sessionCount !== 1 ? 's' : ''}`}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="2" y="3" width="20" height="14" rx="2" />
             <line x1="8" y1="21" x2="16" y2="21" />
             <line x1="12" y1="17" x2="12" y2="21" />
           </svg>
+          {workersActiveCount > 0 && <span className={styles.WorkerPulse} />}
           {sessionCount > 0 && <span className={styles.SessionsBadge}>{sessionCount}</span>}
         </button>
         <button

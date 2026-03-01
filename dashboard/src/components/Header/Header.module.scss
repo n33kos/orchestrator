@@ -213,6 +213,11 @@
   }
 }
 
+.SessionsButtonZombie {
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
+
 .SessionsBadge {
   position: absolute;
   top: -4px;
@@ -228,6 +233,27 @@
   align-items: center;
   justify-content: center;
   padding: 0 4px;
+
+  .SessionsButtonZombie & {
+    background: var(--color-error);
+  }
+}
+
+.WorkerPulse {
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  animation: workerPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes workerPulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--color-primary); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 4px transparent; }
 }
 
 .SettingsButton {
