@@ -39,7 +39,7 @@ delegator:
   enabled_by_default: true
   training_mode: true
   communication: text
-  cycle_interval: 300  # seconds between monitoring cycle triggers (default: 5 min)
+  cycle_interval: 600  # seconds between monitoring cycle triggers (default: 5 min)
 
 # Branch Naming
 branches:
