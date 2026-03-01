@@ -203,7 +203,17 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
         isDragOver && styles.dragOver,
       )}
       style={{ '--index': index } as React.CSSProperties}
+      role="button"
+      tabIndex={0}
+      aria-expanded={expanded}
+      aria-label={`${item.title} — ${item.status}, priority ${item.priority}`}
       onClick={() => setExpanded(!expanded)}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          setExpanded(!expanded)
+        }
+      }}
       onContextMenu={e => {
         e.preventDefault()
         e.stopPropagation()
@@ -269,7 +279,8 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
             <button
               className={classnames(styles.PinButton, pinned && styles.PinButtonActive)}
               onClick={e => { e.stopPropagation(); onTogglePin(item.id) }}
-              title={pinned ? 'Unpin' : 'Pin to top'}
+              aria-label={pinned ? 'Unpin' : 'Pin to top'}
+              aria-pressed={pinned}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill={pinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
                 <path d="M12 2l2.09 6.26L21 9.27l-5 3.9L17.18 22 12 18.27 6.82 22 8 13.17l-5-3.9 6.91-1.01z" />
@@ -635,7 +646,7 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
               <button
                 className={styles.ActionButton}
                 onClick={() => onPriorityChange(item.id, Math.max(1, item.priority - 1))}
-                title="Increase priority"
+                aria-label="Increase priority"
                 disabled={item.priority <= 1}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -646,7 +657,7 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
               <button
                 className={styles.ActionButton}
                 onClick={() => onPriorityChange(item.id, item.priority + 1)}
-                title="Decrease priority"
+                aria-label="Decrease priority"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <polyline points="6 9 12 15 18 9" />

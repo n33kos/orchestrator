@@ -40,7 +40,7 @@ export function Popover({ trigger, children, align = 'left', width }: Props) {
         className={styles.Trigger}
         onClick={() => setOpen(!open)}
         type="button"
-        aria-haspopup="true"
+        aria-haspopup="dialog"
         aria-expanded={open}
       >
         {trigger}

@@ -233,9 +233,9 @@ export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateTo
 
   return (
     <div className={styles.Overlay} onClick={onClose}>
-      <div className={styles.Palette} ref={trapRef} onClick={e => e.stopPropagation()}>
+      <div className={styles.Palette} ref={trapRef} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Command palette">
         <div className={styles.InputRow}>
-          <svg className={styles.SearchIcon} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg className={styles.SearchIcon} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
           <input
@@ -245,21 +245,29 @@ export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateTo
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search commands and work items..."
+            aria-label="Search commands"
+            role="combobox"
+            aria-expanded="true"
+            aria-controls="command-palette-list"
+            aria-activedescendant={filtered[selectedIndex] ? `cmd-${filtered[selectedIndex].id}` : undefined}
           />
           <kbd className={styles.Kbd}>Esc</kbd>
         </div>
-        <div className={styles.List} ref={listRef}>
+        <div className={styles.List} ref={listRef} id="command-palette-list" role="listbox">
           {filtered.length === 0 && (
             <div className={styles.Empty}>No matching commands</div>
           )}
           {filtered.map((cmd, i) => (
             <button
               key={cmd.id}
+              id={`cmd-${cmd.id}`}
               className={classnames(styles.Item, i === selectedIndex && styles.ItemSelected)}
               onClick={cmd.action}
               onMouseEnter={() => setSelectedIndex(i)}
+              role="option"
+              aria-selected={i === selectedIndex}
             >
-              <span className={styles.ItemIcon}>{ICONS[cmd.icon]}</span>
+              <span className={styles.ItemIcon} aria-hidden="true">{ICONS[cmd.icon]}</span>
               <span className={styles.ItemInfo}>
                 <span className={styles.ItemLabel}>{cmd.label}</span>
                 {cmd.description && <span className={styles.ItemDescription}>{cmd.description}</span>}

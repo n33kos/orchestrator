@@ -19,7 +19,7 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(
 
     return (
       <div className={styles.Root}>
-        <span className={styles.Icon}>
+        <span className={styles.Icon} aria-hidden="true">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="11" cy="11" r="8" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -34,20 +34,21 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(
           onFocus={() => setFocused(true)}
           onBlur={() => setTimeout(() => setFocused(false), 150)}
           placeholder={placeholder}
+          aria-label="Filter work items"
         />
         {value && resultCount != null && (
-          <span className={styles.ResultCount}>{resultCount} result{resultCount !== 1 ? 's' : ''}</span>
+          <span className={styles.ResultCount} aria-live="polite">{resultCount} result{resultCount !== 1 ? 's' : ''}</span>
         )}
         {value && (
-          <button className={styles.Clear} onClick={() => onChange('')} title="Clear filter">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <button className={styles.Clear} onClick={() => onChange('')} aria-label="Clear filter">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         )}
         {showHistory && (
-          <div className={styles.Dropdown}>
+          <div className={styles.Dropdown} role="listbox" aria-label="Recent searches">
             <div className={styles.DropdownHeader}>
               <span className={styles.DropdownTitle}>Recent searches</span>
               {onClearHistory && (
@@ -58,12 +59,13 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(
               <div key={query} className={styles.DropdownItem}>
                 <button
                   className={styles.DropdownItemButton}
+                  role="option"
                   onMouseDown={e => {
                     e.preventDefault()
                     onSearchSelect?.(query)
                   }}
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                     <polyline points="1 4 1 10 7 10" />
                     <path d="M3.51 15a9 9 0 102.13-9.36L1 10" />
                   </svg>
@@ -76,9 +78,9 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(
                       e.preventDefault()
                       onRemoveHistoryItem(query)
                     }}
-                    title="Remove"
+                    aria-label={`Remove "${query}" from search history`}
                   >
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                       <line x1="18" y1="6" x2="6" y2="18" />
                       <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>

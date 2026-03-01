@@ -20,7 +20,7 @@ const FILTERS: { id: StatusFilter; label: string; color?: string }[] = [
 
 export function FilterChips({ active, counts, onChange }: FilterChipsProps) {
   return (
-    <div className={styles.Root}>
+    <div className={styles.Root} role="group" aria-label="Filter by status">
       {FILTERS.map(f => {
         const count = f.id === 'all'
           ? Object.values(counts).reduce((s, c) => s + c, 0)
@@ -34,6 +34,7 @@ export function FilterChips({ active, counts, onChange }: FilterChipsProps) {
             className={classnames(styles.Chip, active === f.id && styles.ChipActive)}
             data-color={f.color}
             onClick={() => onChange(f.id)}
+            aria-pressed={active === f.id}
           >
             {f.label}
             <span className={styles.ChipCount}>{count}</span>

@@ -44,13 +44,13 @@ function Dropdown({ label, children, open, onToggle }: { label: string; children
 
   return (
     <div className={styles.Dropdown} ref={ref}>
-      <button className={classnames(styles.DropdownTrigger, open && styles.DropdownOpen)} onClick={onToggle}>
+      <button className={classnames(styles.DropdownTrigger, open && styles.DropdownOpen)} onClick={onToggle} aria-haspopup="listbox" aria-expanded={open}>
         {label}
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </button>
-      {open && <div className={styles.DropdownMenu}>{children}</div>}
+      {open && <div className={styles.DropdownMenu} role="listbox">{children}</div>}
     </div>
   )
 }
@@ -73,6 +73,8 @@ export function SortControls({ sortField, sortDirection, statusFilter, onSortCha
           <button
             key={opt.field}
             className={classnames(styles.MenuItem, opt.field === sortField && styles.MenuItemActive)}
+            role="option"
+            aria-selected={opt.field === sortField}
             onClick={() => {
               if (opt.field === sortField) {
                 onSortChange(opt.field, sortDirection === 'asc' ? 'desc' : 'asc')
@@ -84,7 +86,7 @@ export function SortControls({ sortField, sortDirection, statusFilter, onSortCha
           >
             {opt.label}
             {opt.field === sortField && (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 {sortDirection === 'asc' ? (
                   <polyline points="18 15 12 9 6 15" />
                 ) : (
@@ -105,6 +107,8 @@ export function SortControls({ sortField, sortDirection, statusFilter, onSortCha
           <button
             key={opt.value}
             className={classnames(styles.MenuItem, opt.value === statusFilter && styles.MenuItemActive)}
+            role="option"
+            aria-selected={opt.value === statusFilter}
             onClick={() => { onStatusFilterChange(opt.value); setFilterOpen(false) }}
           >
             {opt.label}

@@ -26,8 +26,8 @@ export function ConfirmDialog({ title, message, confirmLabel = 'Confirm', danger
 
   return (
     <div className={styles.Overlay} onClick={onCancel}>
-      <div className={styles.Dialog} ref={trapRef} onClick={e => e.stopPropagation()}>
-        <h3 className={styles.Title}>{title}</h3>
+      <div className={styles.Dialog} ref={trapRef} onClick={e => e.stopPropagation()} role="alertdialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
+        <h3 id="confirm-dialog-title" className={styles.Title}>{title}</h3>
         <p className={styles.Message}>{message}</p>
         <div className={styles.Actions}>
           <button className={styles.Button} onClick={onCancel}>Cancel</button>

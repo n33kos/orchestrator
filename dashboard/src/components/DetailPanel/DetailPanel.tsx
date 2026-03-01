@@ -4,6 +4,7 @@ import { StatusBadge } from '../StatusBadge/StatusBadge.tsx'
 import { PriorityBadge } from '../PriorityBadge/PriorityBadge.tsx'
 import { ItemNotes } from '../ItemNotes/ItemNotes.tsx'
 import { timeAgo, formatDate } from '../../utils/time.ts'
+import { useFocusTrap } from '../../hooks/useFocusTrap.ts'
 import type { WorkItem, WorkItemStatus, SessionInfo } from '../../types.ts'
 
 interface DetailPanelProps {
@@ -45,14 +46,13 @@ function formatItemSummary(item: WorkItem): string {
 }
 
 export function DetailPanel({ item, sessions, onClose, onStatusChange, onDelete, onDuplicate, onNotesChange, onActivateStream, onTeardownStream, onSendMessage }: DetailPanelProps) {
-  const panelRef = useRef<HTMLDivElement>(null)
+  const panelRef = useFocusTrap<HTMLDivElement>()
   const [copied, setCopied] = useState(false)
   const [editingNotes, setEditingNotes] = useState(false)
   const [notesText, setNotesText] = useState((item.metadata?.notes as string) || '')
   const [prStatus, setPrStatus] = useState<{ state?: string; reviewDecision?: string; checks?: string; url?: string } | null>(null)
   const [messageText, setMessageText] = useState('')
   const notesRef = useRef<HTMLTextAreaElement>(null)
-  const messageRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -119,13 +119,13 @@ export function DetailPanel({ item, sessions, onClose, onStatusChange, onDelete,
   return (
     <>
       <div className={styles.Overlay} onClick={onClose} />
-      <div className={styles.Panel} ref={panelRef}>
+      <div className={styles.Panel} ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="detail-panel-title">
         <div className={styles.Header}>
           <div className={styles.HeaderLeft}>
-            <h2 className={styles.Title}>{item.title}</h2>
+            <h2 id="detail-panel-title" className={styles.Title}>{item.title}</h2>
             <span className={styles.Id}>{item.id}</span>
           </div>
-          <button className={styles.CloseButton} onClick={onClose}>
+          <button className={styles.CloseButton} onClick={onClose} aria-label="Close detail panel">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
@@ -186,6 +186,7 @@ export function DetailPanel({ item, sessions, onClose, onStatusChange, onDelete,
                 <button
                   className={styles.CopyButton}
                   onClick={() => navigator.clipboard.writeText(item.branch)}
+                  aria-label="Copy branch name"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="9" y="9" width="13" height="13" rx="2" />
@@ -228,17 +229,18 @@ export function DetailPanel({ item, sessions, onClose, onStatusChange, onDelete,
                   }}
                 >
                   <input
-                    ref={messageRef}
                     className={styles.SessionMessageInput}
                     type="text"
                     value={messageText}
                     onChange={e => setMessageText(e.target.value)}
                     placeholder="Send message to worker..."
+                    aria-label="Message to worker session"
                   />
                   <button
                     type="submit"
                     className={styles.SessionMessageSend}
                     disabled={!messageText.trim()}
+                    aria-label="Send message"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <line x1="22" y1="2" x2="11" y2="13" />
