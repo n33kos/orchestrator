@@ -1,6 +1,14 @@
 export type WorkItemStatus = 'queued' | 'planning' | 'active' | 'review' | 'completed' | 'paused'
 export type WorkItemType = 'project' | 'quick_fix'
 
+export interface Blocker {
+  id: string
+  description: string
+  resolved: boolean
+  created_at: string
+  resolved_at: string | null
+}
+
 export interface WorkItem {
   id: string
   source: string
@@ -14,6 +22,7 @@ export interface WorkItem {
   session_id: string | null
   delegator_id: string | null
   delegator_enabled: boolean
+  blockers: Blocker[]
   created_at: string
   activated_at: string | null
   completed_at: string | null

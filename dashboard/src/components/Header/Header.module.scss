@@ -45,4 +45,9 @@
   &[data-status="paused"] {
     background: var(--color-error);
   }
+
+  &[data-status="blocked"] {
+    background: var(--color-error);
+    box-shadow: 0 0 0 2px var(--color-error-muted);
+  }
 }

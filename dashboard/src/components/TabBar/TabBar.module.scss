@@ -1,0 +1,57 @@
+.Root {
+  display: flex;
+  gap: 2px;
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  margin-bottom: 12px;
+}
+
+.Tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover:not(.active) {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+  }
+
+  &.active {
+    background: var(--color-surface);
+    color: var(--color-text-strong);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  }
+}
+
+.TabLabel {
+  white-space: nowrap;
+}
+
+.TabCount {
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--color-primary-muted);
+  color: var(--color-primary);
+  padding: 1px 6px;
+  border-radius: 10px;
+  min-width: 20px;
+  text-align: center;
+
+  .active & {
+    background: var(--color-primary);
+    color: white;
+  }
+}

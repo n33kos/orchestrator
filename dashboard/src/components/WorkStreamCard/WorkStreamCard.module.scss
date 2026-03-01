@@ -4,8 +4,14 @@
   border-radius: var(--radius-lg);
   padding: 14px 16px;
   transition: border-color 0.15s ease;
+  cursor: pointer;
+  user-select: none;
 
   &:hover {
+    border-color: var(--color-border);
+  }
+
+  &.expanded {
     border-color: var(--color-border);
   }
 
@@ -16,6 +22,10 @@
   &.paused {
     border-left: 3px solid var(--color-error);
     opacity: 0.7;
+
+    &.expanded {
+      opacity: 1;
+    }
   }
 
   &.queued {
@@ -28,15 +38,38 @@
 
   &.completed {
     opacity: 0.5;
+
+    &.expanded {
+      opacity: 0.8;
+    }
   }
 }
 
+/* ── Header ── */
 .Header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 6px;
+}
+
+.HeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.Chevron {
+  color: var(--color-text-muted);
+  transition: transform 0.2s ease;
+  display: flex;
+  align-items: center;
+
+  &.ChevronOpen {
+    transform: rotate(180deg);
+  }
 }
 
 .TitleRow {
@@ -62,6 +95,20 @@
   text-overflow: ellipsis;
 }
 
+.BlockerBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-error);
+  background: var(--color-error-muted);
+  padding: 1px 6px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+/* ── Description ── */
 .Description {
   font-size: 13px;
   color: var(--color-text-secondary);
@@ -71,8 +118,15 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+
+  &.DescriptionExpanded {
+    display: block;
+    -webkit-line-clamp: unset;
+    overflow: visible;
+  }
 }
 
+/* ── Collapsed Meta ── */
 .Meta {
   display: flex;
   align-items: center;
@@ -135,4 +189,162 @@
   background: var(--color-surface-secondary);
   padding: 2px 6px;
   border-radius: var(--radius-sm);
+}
+
+/* ── Expanded Details ── */
+.Details {
+  border-top: 1px solid var(--color-border-subtle);
+  margin-top: 10px;
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.Section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.SectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+/* ── Blockers ── */
+.Blocker {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--color-error-muted);
+  border-radius: var(--radius-sm);
+
+  &.BlockerResolved {
+    background: var(--color-surface-secondary);
+    opacity: 0.6;
+  }
+}
+
+.BlockerIcon {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+
+  &[data-resolved="false"] {
+    background: var(--color-error);
+  }
+
+  &[data-resolved="true"] {
+    background: var(--color-success);
+  }
+}
+
+.BlockerText {
+  font-size: 13px;
+  color: var(--color-text);
+  line-height: 1.4;
+}
+
+/* ── Implementation Notes ── */
+.NotesList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.Note {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+  padding: 4px 8px;
+  padding-left: 20px;
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-sm);
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 11px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--color-text-muted);
+  }
+}
+
+.NotesText {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+  padding: 6px 8px;
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-sm);
+}
+
+/* ── Metadata Grid ── */
+.MetaGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.MetaGridItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  &.MetaGridWide {
+    grid-column: 1 / -1;
+  }
+}
+
+.MetaGridLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.MetaGridValue {
+  font-size: 13px;
+  font-family: var(--font-mono);
+  color: var(--color-text);
+  word-break: break-all;
+}
+
+/* ── Status Row ── */
+.StatusRow {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.StatusItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+
+  &.StatusActive {
+    color: var(--color-success);
+  }
 }

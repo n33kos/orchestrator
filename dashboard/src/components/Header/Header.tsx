@@ -4,9 +4,10 @@ interface HeaderProps {
   activeCount: number
   queuedCount: number
   pausedCount: number
+  blockedCount: number
 }
 
-export function Header({ activeCount, queuedCount, pausedCount }: HeaderProps) {
+export function Header({ activeCount, queuedCount, pausedCount, blockedCount }: HeaderProps) {
   return (
     <header className={styles.Root}>
       <div className={styles.Title}>Orchestrator</div>
@@ -25,6 +26,12 @@ export function Header({ activeCount, queuedCount, pausedCount }: HeaderProps) {
           <span className={styles.Stat}>
             <span className={styles.StatDot} data-status="paused" />
             {pausedCount} paused
+          </span>
+        )}
+        {blockedCount > 0 && (
+          <span className={styles.Stat}>
+            <span className={styles.StatDot} data-status="blocked" />
+            {blockedCount} blocked
           </span>
         )}
       </div>
