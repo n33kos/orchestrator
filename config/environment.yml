@@ -30,7 +30,7 @@ concurrency:
 
 # Autonomy
 autonomy:
-  auto_activate: false
+  auto_activate: true
   auto_approve_plans: false
   ask_before_teardown: true
 
@@ -39,7 +39,7 @@ delegator:
   enabled_by_default: true
   training_mode: true
   communication: text
-  cycle_interval: 600  # seconds between monitoring cycle triggers
+  cycle_interval: 900  # seconds between monitoring cycle triggers
 
 # Branch Naming
 branches:
