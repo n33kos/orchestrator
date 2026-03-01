@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
+import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync } from 'fs'
 import { execFile } from 'child_process'
 import { join } from 'path'
 import { homedir } from 'os'
@@ -972,6 +972,59 @@ function queueApiPlugin(): Plugin {
           if (!err) { try { health = JSON.parse(stdout) } catch { /* empty */ } }
           tryFinish()
         })
+      })
+
+      // POST /api/worker/complete — workers report task completion
+      server.middlewares.use('/api/worker/complete', async (req, res) => {
+        if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
+        try {
+          const body = JSON.parse(await readBody(req))
+          if (!body.itemId) { res.statusCode = 400; res.end(JSON.stringify({ error: 'itemId is required' })); return }
+          const data = readQueue()
+          const item = data.items.find((i: { id: string }) => i.id === body.itemId)
+          if (!item) { res.statusCode = 404; res.end(JSON.stringify({ error: `Item ${body.itemId} not found` })); return }
+
+          const prevStatus = item.status
+          const targetStatus = body.status || 'completed'
+          if (!['completed', 'review'].includes(targetStatus)) {
+            res.statusCode = 400; res.end(JSON.stringify({ error: 'status must be "completed" or "review"' })); return
+          }
+
+          item.status = targetStatus
+          if (targetStatus === 'completed') {
+            item.completed_at = new Date().toISOString()
+          }
+          if (body.prUrl) item.pr_url = body.prUrl
+          if (body.message) {
+            if (!item.metadata) item.metadata = {}
+            item.metadata.completion_message = body.message
+          }
+
+          writeQueue(data)
+
+          // Emit event
+          const eventsFile = join(homedir(), '.claude/orchestrator/events.jsonl')
+          const event = JSON.stringify({
+            timestamp: new Date().toISOString(),
+            type: targetStatus === 'completed' ? 'worker.completed' : 'worker.review',
+            message: body.message || `Worker reported ${targetStatus} for ${body.itemId}`,
+            severity: 'info',
+            item_id: body.itemId,
+          })
+          try { appendFileSync(eventsFile, event + '\n') } catch { /* best effort */ }
+
+          // If completed and teardown requested, kick off teardown in background
+          if (targetStatus === 'completed' && body.teardown) {
+            const scriptPath = join(__dirname, '..', 'scripts', 'teardown-stream.sh')
+            execFile('bash', [scriptPath, body.itemId], { timeout: 60000, env: { ...process.env, HOME: homedir() } }, () => { /* fire and forget */ })
+          }
+
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ ok: true, itemId: body.itemId, prevStatus, newStatus: targetStatus }))
+        } catch (err) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: String(err) }))
+        }
       })
 
       // GET /api/queue — read the queue

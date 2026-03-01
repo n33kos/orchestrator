@@ -266,6 +266,49 @@ if [[ "$CLEANUP" == "true" ]]; then
     [[ "$ONCE" == "true" ]] && exit 0
 fi
 
+function process_worker_completions() {
+    # Find items marked completed by workers that still have active sessions/worktrees
+    python3 -c "
+import json, sys
+
+with open('$QUEUE_FILE') as f:
+    data = json.load(f)
+
+for item in data['items']:
+    if item['status'] == 'completed' and (item.get('session_id') or item.get('worktree_path')):
+        print(f'TEARDOWN:{item[\"id\"]}:{item[\"title\"]}')
+    elif item['status'] == 'review' and item.get('metadata', {}).get('completion_message'):
+        # Worker moved to review — log it for visibility
+        msg = item['metadata']['completion_message']
+        print(f'REVIEW:{item[\"id\"]}:{item[\"title\"]}:{msg}')
+" | while IFS= read -r line; do
+        if [[ "$line" == TEARDOWN:* ]]; then
+            local item_id item_title
+            item_id="$(echo "$line" | cut -d: -f2)"
+            item_title="$(echo "$line" | cut -d: -f3-)"
+
+            if [[ "$DRY_RUN" == "true" ]]; then
+                echo "[scheduler] Would teardown (worker-completed): $item_id — $item_title"
+            else
+                echo "[scheduler] Worker reported done — tearing down: $item_id — $item_title"
+                emit_event "scheduler.worker_teardown" "Auto-teardown after worker completion: $item_title" --item-id "$item_id"
+                "$SCRIPT_DIR/teardown-stream.sh" "$item_id" 2>&1 | sed 's/^/  /' || {
+                    echo "[scheduler] ERROR: Failed to teardown $item_id" >&2
+                    emit_event "scheduler.error" "Failed to teardown $item_id after worker completion" --item-id "$item_id" --severity error
+                }
+            fi
+        elif [[ "$line" == REVIEW:* ]]; then
+            local item_id item_title msg
+            item_id="$(echo "$line" | cut -d: -f2)"
+            item_title="$(echo "$line" | cut -d: -f3)"
+            msg="$(echo "$line" | cut -d: -f4-)"
+            echo "[scheduler] Worker moved to review: $item_id — $item_title ($msg)"
+        else
+            echo "$line"
+        fi
+    done
+}
+
 function recover_sessions() {
     echo "[health] Checking for zombie sessions..."
     "$SCRIPT_DIR/health-check.sh" --auto-recover 2>&1 | sed 's/^/  /'
@@ -273,6 +316,7 @@ function recover_sessions() {
 
 if [[ "$ONCE" == "true" ]]; then
     recover_sessions
+    process_worker_completions
     teardown_merged
     check_and_activate
 else
@@ -282,6 +326,7 @@ else
     CYCLE=0
     while true; do
         recover_sessions
+        process_worker_completions
         teardown_merged
         check_and_activate
         # Run cleanup every N cycles
