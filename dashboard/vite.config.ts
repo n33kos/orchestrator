@@ -915,6 +915,10 @@ function queueApiPlugin(): Plugin {
                 pattern: /^(\s*max_active_projects:\s*).+$/m,
                 format: (v) => `$1${v}`,
               },
+              maxConcurrentQuickFixes: {
+                pattern: /^(\s*quick_fix_limit:\s*).+$/m,
+                format: (v) => `$1${v}`,
+              },
               autoActivate: {
                 pattern: /^(\s*auto_activate:\s*).+$/m,
                 format: (v) => `$1${v}`,
@@ -967,6 +971,7 @@ function queueApiPlugin(): Plugin {
           res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify({
             maxConcurrentProjects: parseInt(getVal('max_active_projects') || '2', 10),
+            maxConcurrentQuickFixes: parseInt(getVal('quick_fix_limit') || '4', 10),
             autoActivate: getVal('auto_activate') === 'true',
             defaultDelegatorEnabled: getVal('enabled_by_default') === 'true',
             stallThresholdMinutes: parseInt(getVal('threshold_minutes') || '30', 10),

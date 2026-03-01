@@ -18,6 +18,7 @@ const STORAGE_KEY = 'orchestrator-settings-config'
 // Keys that are synced to environment.yml via the config API
 const CONFIG_SYNCED_KEYS = new Set<keyof OrchestratorSettings>([
   'maxConcurrentProjects',
+  'maxConcurrentQuickFixes',
   'autoActivate',
   'defaultDelegatorEnabled',
   'stallThresholdMinutes',

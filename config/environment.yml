@@ -25,7 +25,7 @@ state:
 # Concurrency
 concurrency:
   max_active_projects: 2
-  quick_fix_limit: unlimited
+  quick_fix_limit: 4
   queue_strategy: priority
 
 # Autonomy

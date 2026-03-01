@@ -23,6 +23,7 @@ eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
 
 QUEUE_FILE="$CONFIG_QUEUE_FILE"
 MAX_ACTIVE="$CONFIG_MAX_ACTIVE_PROJECTS"
+MAX_QUICK_FIXES="${CONFIG_QUICK_FIX_LIMIT:-4}"
 AUTO_ACTIVATE="$CONFIG_AUTO_ACTIVATE"
 AUTO_APPROVE_PLANS="$CONFIG_AUTO_APPROVE_PLANS"
 POLL_INTERVAL="${CONFIG_POLL_INTERVAL:-120}"
@@ -278,7 +279,9 @@ result = {
     'active_projects': len(active_projects),
     'active_qf': len(active_qf),
     'max_active': $MAX_ACTIVE,
+    'max_qf': $MAX_QUICK_FIXES,
     'slots_available': max(0, $MAX_ACTIVE - len(active_projects)),
+    'qf_slots_available': max(0, $MAX_QUICK_FIXES - len(active_qf)),
     'ready': [{'id': i['id'], 'title': i['title'], 'type': i['type'], 'priority': i['priority']} for i in ready],
 }
 print(json.dumps(result))
@@ -302,13 +305,18 @@ import json, sys
 state = json.load(sys.stdin)
 slots = state['slots_available']
 
+qf_slots = state.get('qf_slots_available', 999)
 for item in state['ready']:
     if item['type'] == 'project':
         if slots <= 0:
             print(f'[scheduler] Skipping {item[\"id\"]}: {item[\"title\"]} (no project slots)')
             continue
         slots -= 1
-    # Quick fixes always get activated
+    elif item['type'] == 'quick_fix':
+        if qf_slots <= 0:
+            print(f'[scheduler] Skipping {item[\"id\"]}: {item[\"title\"]} (no quick fix slots)')
+            continue
+        qf_slots -= 1
     print(f'ACTIVATE:{item[\"id\"]}:{item[\"type\"]}:{item[\"title\"]}')
 " | while IFS= read -r line; do
         if [[ "$line" == ACTIVATE:* ]]; then
@@ -673,6 +681,7 @@ else
         eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
         QUEUE_FILE="$CONFIG_QUEUE_FILE"
         MAX_ACTIVE="$CONFIG_MAX_ACTIVE_PROJECTS"
+        MAX_QUICK_FIXES="${CONFIG_QUICK_FIX_LIMIT:-4}"
         AUTO_ACTIVATE="$CONFIG_AUTO_ACTIVATE"
         AUTO_APPROVE_PLANS="$CONFIG_AUTO_APPROVE_PLANS"
         POLL_INTERVAL="${CONFIG_POLL_INTERVAL:-120}"
