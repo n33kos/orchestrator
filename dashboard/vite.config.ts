@@ -1079,5 +1079,8 @@ export default defineConfig({
   plugins: [react(), queueApiPlugin()],
   server: {
     port: 3201,
+    hmr: {
+      overlay: false,
+    },
   },
 })
