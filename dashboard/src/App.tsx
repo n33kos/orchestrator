@@ -447,7 +447,7 @@ export function App() {
           />
         ) : (
           <>
-            <SearchBar ref={searchRef} value={searchQuery} onChange={setSearchQuery} />
+            <SearchBar ref={searchRef} value={searchQuery} onChange={setSearchQuery} resultCount={searchQuery.trim() ? filteredItems.length : undefined} />
             <StatsBar
               totalItems={queue.items.length}
               activeCount={queue.activeItems.length}

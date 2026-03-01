@@ -5,10 +5,11 @@ interface SearchBarProps {
   value: string
   onChange: (value: string) => void
   placeholder?: string
+  resultCount?: number
 }
 
 export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(
-  function SearchBar({ value, onChange, placeholder = 'Filter work items...' }, ref) {
+  function SearchBar({ value, onChange, placeholder = 'Filter work items...', resultCount }, ref) {
     return (
       <div className={styles.Root}>
         <span className={styles.Icon}>
@@ -25,6 +26,9 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(
           onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
         />
+        {value && resultCount != null && (
+          <span className={styles.ResultCount}>{resultCount} result{resultCount !== 1 ? 's' : ''}</span>
+        )}
         {value && (
           <button className={styles.Clear} onClick={() => onChange('')} title="Clear filter">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
