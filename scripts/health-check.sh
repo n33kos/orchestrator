@@ -64,12 +64,14 @@ with open('$QUEUE_FILE') as f:
 active = [i for i in data['items'] if i['status'] == 'active']
 stalled = []
 for item in active:
-    if item.get('activated_at'):
-        activated = datetime.fromisoformat(item['activated_at'].replace('Z', '+00:00'))
-        if activated.tzinfo is None:
-            activated = activated.replace(tzinfo=timezone.utc)
+    # Use last_activity (set by delegator/worker) or activated_at as fallback
+    last_ts = item.get('metadata', {}).get('last_activity') or item.get('activated_at')
+    if last_ts:
+        ts = datetime.fromisoformat(last_ts.replace('Z', '+00:00'))
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
         now = datetime.now(timezone.utc)
-        hours = (now - activated).total_seconds() / 3600
+        hours = (now - ts).total_seconds() / 3600
         if hours > $STALL_THRESHOLD_HOURS:
             stalled.append({'id': item['id'], 'title': item['title'], 'hours': round(hours, 1)})
 

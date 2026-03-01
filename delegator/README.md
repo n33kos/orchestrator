@@ -91,7 +91,8 @@ Runtime:
         │   ├── Worker
         │   └── Delegator
         └── Quick Fix Stream
-            └── Worker (no delegator)
+            ├── Worker
+            └── Delegator
 ```
 
 ### Lifecycle
@@ -128,4 +129,4 @@ The delegator does **not**:
 
 ## Status
 
-**Phase**: Concept — architecture defined, training system designed, implementation pending.
+**Phase**: Production — fully implemented and operational. Delegator sessions spawn for all work streams, run scheduler-driven monitoring cycles, review commits, communicate with workers via vmux, and report assessments to the dashboard.
