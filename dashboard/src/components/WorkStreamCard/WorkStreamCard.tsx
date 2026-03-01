@@ -30,6 +30,7 @@ interface WorkStreamCardProps {
   onResolveBlocker: (id: string, blockerId: string) => void
   onUnresolveBlocker: (id: string, blockerId: string) => void
   onDelete: (id: string) => void
+  onDuplicate?: (id: string) => void
   onSendMessage?: (sessionId: string, text: string) => void
   onDragStart?: (id: string) => void
   onDragOver?: (id: string) => void
@@ -37,7 +38,7 @@ interface WorkStreamCardProps {
   onDragEnd?: () => void
 }
 
-export function WorkStreamCard({ item, position, totalCount, isDragging, isDragOver, selectable, selected, onSelect, focused, onClearFocus, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
+export function WorkStreamCard({ item, position, totalCount, isDragging, isDragOver, selectable, selected, onSelect, focused, onClearFocus, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
   const [expanded, setExpanded] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
 
@@ -456,6 +457,14 @@ export function WorkStreamCard({ item, position, totalCount, isDragging, isDragO
               {item.status === 'paused' && (
                 <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'active')}>
                   Resume
+                </button>
+              )}
+              {onDuplicate && (
+                <button
+                  className={styles.ActionButtonText}
+                  onClick={() => onDuplicate(item.id)}
+                >
+                  Duplicate
                 </button>
               )}
               <button

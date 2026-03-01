@@ -28,6 +28,7 @@ interface WorkStreamListProps {
   onResolveBlocker: (id: string, blockerId: string) => void
   onUnresolveBlocker: (id: string, blockerId: string) => void
   onDelete: (id: string) => void
+  onDuplicate?: (id: string) => void
   onReorder: (dragId: string, dropId: string) => void
   onSendMessage: (sessionId: string, text: string) => void
 }
@@ -43,7 +44,7 @@ function findSession(sessions: SessionInfo[], item: WorkItem): SessionInfo | und
   return undefined
 }
 
-export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab, sortField, sortDirection, sessions, messagesBySession, selectable, selectedIds, onSelect, focusedItemId, onClearFocus, onAddClick, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onReorder, onSendMessage }: WorkStreamListProps) {
+export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab, sortField, sortDirection, sessions, messagesBySession, selectable, selectedIds, onSelect, focusedItemId, onClearFocus, onAddClick, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onReorder, onSendMessage }: WorkStreamListProps) {
   const { dragId, overId, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(onReorder)
   if (loading) {
     return (
@@ -212,6 +213,7 @@ export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab
             onResolveBlocker={onResolveBlocker}
             onUnresolveBlocker={onUnresolveBlocker}
             onDelete={onDelete}
+            onDuplicate={onDuplicate}
             onSendMessage={onSendMessage}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}

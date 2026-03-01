@@ -151,6 +151,28 @@ export function App() {
     }, [setViewMode]),
   })
 
+  async function handleDuplicate(id: string) {
+    const item = queue.items.find(i => i.id === id)
+    if (!item) return
+    try {
+      await fetch('/api/queue/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `${item.title} (copy)`,
+          description: item.description,
+          type: item.type,
+          priority: item.priority + 1,
+          branch: '',
+        }),
+      })
+      queue.refresh()
+      addToast('Work item duplicated', 'success')
+    } catch {
+      addToast('Failed to duplicate work item', 'error')
+    }
+  }
+
   async function handleAddItem(item: NewWorkItem) {
     try {
       await fetch('/api/queue/add', {
@@ -554,6 +576,7 @@ export function App() {
               onResolveBlocker={handleResolveBlocker}
               onUnresolveBlocker={handleUnresolveBlocker}
               onDelete={handleDelete}
+              onDuplicate={handleDuplicate}
               onReorder={handleReorder}
               onSendMessage={handleSendMessage}
             />
