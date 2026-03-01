@@ -1,0 +1,15 @@
+.Root {
+  position: fixed;
+  bottom: 4px;
+  left: 4px;
+  z-index: 99999;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  background: rgba(0, 0, 0, 0.7);
+  color: #22c55e;
+  border-radius: 4px;
+  pointer-events: none;
+  opacity: 0.7;
+}

@@ -34,6 +34,8 @@ import { OfflineIndicator } from './components/OfflineIndicator/OfflineIndicator
 import { FloatingActionButton } from './components/FloatingActionButton/FloatingActionButton.tsx'
 import { GlobalSearch } from './components/GlobalSearch/GlobalSearch.tsx'
 import { AnalyticsView } from './components/AnalyticsView/AnalyticsView.tsx'
+import { BreakpointIndicator } from './components/BreakpointIndicator/BreakpointIndicator.tsx'
+import { PinnedSection } from './components/PinnedSection/PinnedSection.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import { useQueue } from './hooks/useQueue.ts'
 import { useTheme } from './hooks/useTheme.ts'
@@ -949,6 +951,12 @@ export function App() {
                 onOpenSettings={() => { setWelcomeDismissed(true); setSettingsOpen(true) }}
               />
             )}
+            <PinnedSection
+              items={filteredItems}
+              pinnedIds={pinned}
+              onTogglePin={togglePin}
+              onNavigate={id => setDetailItemId(id)}
+            />
             <div key={viewMode} className={styles.ViewTransition}>
             {viewMode === 'compact' ? (
               <CompactList
@@ -1201,6 +1209,7 @@ export function App() {
           </div>
         </div>
       )}
+      <BreakpointIndicator />
     </div>
   )
 }
