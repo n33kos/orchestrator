@@ -30,6 +30,7 @@ import { ShortcutSheet } from './components/ShortcutSheet/ShortcutSheet.tsx'
 import { StatusFooter } from './components/StatusFooter/StatusFooter.tsx'
 import { WelcomeGuide } from './components/WelcomeGuide/WelcomeGuide.tsx'
 import { KanbanBoard } from './components/KanbanBoard/KanbanBoard.tsx'
+import { OfflineIndicator } from './components/OfflineIndicator/OfflineIndicator.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import { useQueue } from './hooks/useQueue.ts'
 import { useTheme } from './hooks/useTheme.ts'
@@ -48,6 +49,7 @@ import { useHashParam } from './hooks/useHashRoute.ts'
 import { useFileDrop } from './hooks/useFileDrop.ts'
 import { usePinnedItems } from './hooks/usePinnedItems.ts'
 import { useSearchHistory } from './hooks/useSearchHistory.ts'
+import { useZoom } from './hooks/useZoom.ts'
 import { playNotificationSound } from './utils/sound.ts'
 import { exportWorkItemsCsv, downloadCsv } from './utils/csv.ts'
 import type { Plan } from './components/PlanEditor/PlanEditor.tsx'
@@ -57,6 +59,7 @@ export function App() {
   const { settings, update: updateSetting, reset: resetSettings, open: settingsOpen, setOpen: setSettingsOpen } = useSettings()
   const queue = useQueue(settings.pollIntervalMs)
   const { theme, toggle: toggleTheme } = useTheme()
+  const { zoomIn, zoomOut, resetZoom } = useZoom()
   const { toasts, history, addToast: rawAddToast, dismissToast, clearHistory } = useToast()
   const addToast = useCallback((...args: Parameters<typeof rawAddToast>) => {
     rawAddToast(...args)
@@ -251,6 +254,9 @@ export function App() {
       if (focusedItemId) setDetailItemId(focusedItemId)
     }, [focusedItemId]),
     onShowShortcuts: useCallback(() => setShowShortcuts(prev => !prev), []),
+    onZoomIn: zoomIn,
+    onZoomOut: zoomOut,
+    onZoomReset: resetZoom,
   })
 
   async function handleDuplicate(id: string) {
@@ -673,6 +679,7 @@ export function App() {
   return (
     <div className={styles.Root}>
       <a className="skip-to-content" href="#main-content">Skip to content</a>
+      <OfflineIndicator />
       <LoadingBar active={queue.loading} />
       <Header
         activeCount={queue.activeItems.length}
@@ -834,6 +841,7 @@ export function App() {
                 onOpenSettings={() => { setWelcomeDismissed(true); setSettingsOpen(true) }}
               />
             )}
+            <div key={viewMode} className={styles.ViewTransition}>
             {viewMode === 'compact' ? (
               <CompactList
                 items={filteredItems}
@@ -901,6 +909,7 @@ export function App() {
               onSendMessage={handleSendMessage}
             />
             )}
+            </div>
           </>
         )}
         </ErrorBoundary>

@@ -13,9 +13,12 @@ interface KeyboardActions {
   onNavigateUp?: () => void
   onOpenFocused?: () => void
   onShowShortcuts?: () => void
+  onZoomIn?: () => void
+  onZoomOut?: () => void
+  onZoomReset?: () => void
 }
 
-export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode, onNavigateDown, onNavigateUp, onOpenFocused, onShowShortcuts }: KeyboardActions) {
+export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode, onNavigateDown, onNavigateUp, onOpenFocused, onShowShortcuts, onZoomIn, onZoomOut, onZoomReset }: KeyboardActions) {
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement
@@ -25,6 +28,23 @@ export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onC
       if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
         onCommandPalette?.()
+        return
+      }
+
+      // Zoom controls (work in inputs too)
+      if ((e.key === '=' || e.key === '+') && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        onZoomIn?.()
+        return
+      }
+      if (e.key === '-' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        onZoomOut?.()
+        return
+      }
+      if (e.key === '0' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        onZoomReset?.()
         return
       }
 
@@ -95,5 +115,5 @@ export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onC
 
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode, onNavigateDown, onNavigateUp, onOpenFocused, onShowShortcuts])
+  }, [onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode, onNavigateDown, onNavigateUp, onOpenFocused, onShowShortcuts, onZoomIn, onZoomOut, onZoomReset])
 }
