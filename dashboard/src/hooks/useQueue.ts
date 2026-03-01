@@ -39,12 +39,29 @@ export function useQueue(pollIntervalMs = 5000) {
   }, [fetchQueue, pollIntervalMs])
 
   const updateItem = useCallback(async (id: string, updates: { status?: WorkItemStatus; priority?: number; delegator_enabled?: boolean; title?: string; description?: string }) => {
-    await fetch('/api/queue/update', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...updates }),
-    })
-    await fetchQueue()
+    // Optimistic update: apply changes locally before API responds
+    setItems(prev => prev.map(item => {
+      if (item.id !== id) return item
+      const updated = { ...item, ...updates }
+      if (updates.status === 'active' && !item.activated_at) {
+        updated.activated_at = new Date().toISOString()
+      }
+      if (updates.status === 'completed' && !item.completed_at) {
+        updated.completed_at = new Date().toISOString()
+      }
+      return updated
+    }))
+    try {
+      await fetch('/api/queue/update', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...updates }),
+      })
+      await fetchQueue()
+    } catch {
+      // Revert on failure by re-fetching
+      await fetchQueue()
+    }
   }, [fetchQueue])
 
   const reorderItems = useCallback(async (dragId: string, dropId: string) => {
@@ -75,12 +92,18 @@ export function useQueue(pollIntervalMs = 5000) {
   }, [fetchQueue])
 
   const deleteItem = useCallback(async (id: string) => {
-    await fetch('/api/queue/delete', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    })
-    await fetchQueue()
+    // Optimistic removal
+    setItems(prev => prev.filter(item => item.id !== id))
+    try {
+      await fetch('/api/queue/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      await fetchQueue()
+    } catch {
+      await fetchQueue()
+    }
   }, [fetchQueue])
 
   const projects = items.filter(i => i.type === 'project')
