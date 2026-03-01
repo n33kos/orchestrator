@@ -23,12 +23,23 @@
   margin-bottom: 6px;
 }
 
-.ProgressActive {
+.SegActive {
   background: var(--color-success);
   transition: width 0.3s ease;
 }
 
-.ProgressCompleted {
+.SegQueued {
+  background: var(--color-warning);
+  transition: width 0.3s ease;
+}
+
+.SegPaused {
+  background: var(--color-error);
+  opacity: 0.6;
+  transition: width 0.3s ease;
+}
+
+.SegCompleted {
   background: var(--color-text-muted);
   transition: width 0.3s ease;
 }
@@ -36,17 +47,52 @@
 .ProgressLabels {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .ProgressLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: 11px;
   color: var(--color-text-muted);
 }
 
 .ProgressLabelDanger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: 11px;
   color: var(--color-error);
   font-weight: 600;
+}
+
+.LabelDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  &[data-status="active"] {
+    background: var(--color-success);
+  }
+
+  &[data-status="queued"] {
+    background: var(--color-warning);
+  }
+
+  &[data-status="paused"] {
+    background: var(--color-error);
+    opacity: 0.6;
+  }
+
+  &[data-status="blocked"] {
+    background: var(--color-error);
+  }
+
+  &[data-status="completed"] {
+    background: var(--color-text-muted);
+  }
 }
 
 .CompletedToggle {

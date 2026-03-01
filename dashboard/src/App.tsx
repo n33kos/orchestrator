@@ -360,6 +360,7 @@ export function App() {
               totalItems={queue.items.length}
               activeCount={queue.activeItems.length}
               queuedCount={queue.queuedItems.length}
+              pausedCount={queue.pausedItems.length}
               completedCount={queue.completedItems.length}
               blockedCount={queue.blockedItems.length}
               showCompleted={showCompleted}
