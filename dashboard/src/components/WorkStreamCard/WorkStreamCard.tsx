@@ -35,6 +35,10 @@ interface WorkStreamCardProps {
   onUnresolveBlocker: (id: string, blockerId: string) => void
   onDelete: (id: string) => void
   onDuplicate?: (id: string) => void
+  onActivateStream?: (id: string) => void
+  onTeardownStream?: (id: string) => void
+  activating?: boolean
+  tearingDown?: boolean
   pinned?: boolean
   onTogglePin?: (id: string) => void
   onSendMessage?: (sessionId: string, text: string) => void
@@ -44,7 +48,7 @@ interface WorkStreamCardProps {
   onDragEnd?: () => void
 }
 
-export function WorkStreamCard({ item, position, totalCount, isDragging, isDragOver, selectable, selected, onSelect, focused, onClearFocus, pinned, onTogglePin, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
+export function WorkStreamCard({ item, position, totalCount, isDragging, isDragOver, selectable, selected, onSelect, focused, onClearFocus, pinned, onTogglePin, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onActivateStream, onTeardownStream, activating, tearingDown, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -81,24 +85,46 @@ export function WorkStreamCard({ item, position, totalCount, isDragging, isDragO
     return entries
   }, [item])
 
-  function getQuickAction(): { label: string; status: WorkItemStatus } | null {
-    if (item.status === 'queued' || item.status === 'planning') return { label: 'Activate', status: 'active' }
+  const isBusy = activating || tearingDown
+
+  function getQuickAction(): { label: string; status: WorkItemStatus; useStream?: boolean } | null {
+    if (activating) return { label: 'Activating...', status: 'active' }
+    if (tearingDown) return { label: 'Tearing down...', status: 'completed' }
+    if (item.status === 'queued' || item.status === 'planning') return { label: 'Activate', status: 'active', useStream: !!onActivateStream }
     if (item.status === 'active') return { label: 'Review', status: 'review' }
     if (item.status === 'review') return { label: 'Complete', status: 'completed' }
-    if (item.status === 'paused') return { label: 'Resume', status: 'active' }
+    if (item.status === 'paused') return { label: 'Resume', status: 'active', useStream: !!onActivateStream }
     return null
   }
 
   const quickAction = getQuickAction()
 
+  function handleQuickAction() {
+    if (isBusy || !quickAction) return
+    if (quickAction.useStream && onActivateStream) {
+      onActivateStream(item.id)
+    } else {
+      onStatusChange(item.id, quickAction.status)
+    }
+  }
+
   function buildContextMenuItems(): ContextMenuItem[] {
     const items: ContextMenuItem[] = []
-    if (quickAction) {
+    if (quickAction && !isBusy) {
       items.push({
         id: 'quick-action',
         label: quickAction.label,
         icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3" /></svg>,
-        action: () => onStatusChange(item.id, quickAction.status),
+        action: handleQuickAction,
+      })
+    }
+    if (onTeardownStream && (item.status === 'active' || item.status === 'review') && (item.worktree_path || item.session_id) && !isBusy) {
+      items.push({
+        id: 'teardown',
+        label: 'Tear Down',
+        icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="9" y1="9" x2="15" y2="15" /><line x1="15" y1="9" x2="9" y2="15" /></svg>,
+        danger: true,
+        action: () => onTeardownStream(item.id),
       })
     }
     items.push({
@@ -313,9 +339,10 @@ export function WorkStreamCard({ item, position, totalCount, isDragging, isDragO
             <span className={styles.TypeBadge}>{item.type === 'project' ? 'Project' : 'Quick Fix'}</span>
             {quickAction && (
               <button
-                className={styles.QuickAction}
-                onClick={e => { e.stopPropagation(); onStatusChange(item.id, quickAction.status) }}
+                className={classnames(styles.QuickAction, isBusy && styles.QuickActionBusy)}
+                onClick={e => { e.stopPropagation(); handleQuickAction() }}
                 title={quickAction.label}
+                disabled={isBusy}
               >
                 {quickAction.label}
               </button>

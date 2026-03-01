@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from 'react'
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import styles from './App.module.scss'
 import { Header } from './components/Header/Header.tsx'
 import { TabBar } from './components/TabBar/TabBar.tsx'
@@ -36,6 +36,7 @@ import { usePersistedState } from './hooks/usePersistedState.ts'
 import { useDebounce } from './hooks/useDebounce.ts'
 import { useActivitySparkline } from './hooks/useActivitySparkline.ts'
 import { usePinnedItems } from './hooks/usePinnedItems.ts'
+import { useSearchHistory } from './hooks/useSearchHistory.ts'
 import type { WorkItemStatus, MessageEntry } from './types.ts'
 
 export function App() {
@@ -45,6 +46,7 @@ export function App() {
   const { toasts, history, addToast, dismissToast, clearHistory } = useToast()
   const activitySparkline = useActivitySparkline(history)
   const { pinned, togglePin } = usePinnedItems()
+  const { history: searchHistory, addSearch, clearHistory: clearSearchHistory, removeItem: removeSearchItem } = useSearchHistory()
   useNotifications(queue.items, settings.notificationsEnabled)
   const { sessions, sendMessage, refresh: refreshSessions } = useSessions()
   const zombieCount = sessions.filter(s => s.state === 'zombie').length
@@ -59,6 +61,14 @@ export function App() {
   const [showAddForm, setShowAddForm] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearch = useDebounce(searchQuery, 200)
+  // Record searches to history when user clears after searching
+  const prevDebouncedRef = useRef(debouncedSearch)
+  useEffect(() => {
+    if (prevDebouncedRef.current && !debouncedSearch) {
+      addSearch(prevDebouncedRef.current)
+    }
+    prevDebouncedRef.current = debouncedSearch
+  }, [debouncedSearch, addSearch])
   const [showCompleted, setShowCompleted] = useState(false)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [showSessions, setShowSessions] = useState(false)
@@ -488,7 +498,16 @@ export function App() {
           />
         ) : (
           <>
-            <SearchBar ref={searchRef} value={searchQuery} onChange={setSearchQuery} resultCount={debouncedSearch.trim() ? filteredItems.length : undefined} />
+            <SearchBar
+              ref={searchRef}
+              value={searchQuery}
+              onChange={setSearchQuery}
+              resultCount={debouncedSearch.trim() ? filteredItems.length : undefined}
+              searchHistory={searchHistory}
+              onSearchSelect={q => { setSearchQuery(q) }}
+              onClearHistory={clearSearchHistory}
+              onRemoveHistoryItem={removeSearchItem}
+            />
             <StatsBar
               totalItems={queue.items.length}
               activeCount={queue.activeItems.length}
