@@ -38,7 +38,7 @@ export function useQueue(pollIntervalMs = 5000) {
     }
   }, [fetchQueue, pollIntervalMs])
 
-  const updateItem = useCallback(async (id: string, updates: { status?: WorkItemStatus; priority?: number; delegator_enabled?: boolean; title?: string; description?: string }) => {
+  const updateItem = useCallback(async (id: string, updates: { status?: WorkItemStatus; priority?: number; delegator_enabled?: boolean; title?: string; description?: string; pr_url?: string | null; branch?: string }) => {
     // Optimistic update: apply changes locally before API responds
     setItems(prev => prev.map(item => {
       if (item.id !== id) return item

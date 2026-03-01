@@ -82,6 +82,8 @@ function queueApiPlugin(): Plugin {
           if (body.title !== undefined) item.title = body.title
           if (body.description !== undefined) item.description = body.description
           if (body.delegator_enabled !== undefined) item.delegator_enabled = body.delegator_enabled
+          if (body.pr_url !== undefined) item.pr_url = body.pr_url
+          if (body.branch !== undefined) item.branch = body.branch
 
           writeQueue(data)
           res.setHeader('Content-Type', 'application/json')
@@ -408,6 +410,65 @@ function queueApiPlugin(): Plugin {
           res.statusCode = 500
           res.end(JSON.stringify({ error: String(err) }))
         }
+      })
+
+      // GET /api/pr-status — fetch PR status from GitHub
+      server.middlewares.use('/api/pr-status', (req, res) => {
+        const url = new URL(req.url || '', 'http://localhost')
+        const prUrl = url.searchParams.get('url')
+        if (!prUrl) { res.statusCode = 400; res.end(JSON.stringify({ error: 'Missing url param' })); return }
+
+        // Extract owner/repo/number from GitHub PR URL
+        const match = prUrl.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/)
+        if (!match) {
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ state: 'unknown', url: prUrl }))
+          return
+        }
+
+        const [, owner, repo, number] = match
+        execFile('gh', ['pr', 'view', number, '--repo', `${owner}/${repo}`, '--json', 'state,reviewDecision,statusCheckRollup,mergeable,title,additions,deletions,changedFiles,reviews,createdAt,updatedAt'], { timeout: 15000 }, (err, stdout) => {
+          res.setHeader('Content-Type', 'application/json')
+          if (err) {
+            res.end(JSON.stringify({ state: 'unknown', url: prUrl, error: 'Failed to fetch PR status' }))
+            return
+          }
+          try {
+            const pr = JSON.parse(stdout)
+            const reviews = (pr.reviews || []).map((r: { state: string; author: { login: string } }) => ({
+              state: r.state,
+              author: r.author?.login,
+            }))
+            const checks = (pr.statusCheckRollup || []).map((c: { name: string; status: string; conclusion: string }) => ({
+              name: c.name,
+              status: c.status,
+              conclusion: c.conclusion,
+            }))
+            const checksPass = checks.length > 0 && checks.every((c: { conclusion: string }) => c.conclusion === 'SUCCESS' || c.conclusion === 'NEUTRAL' || c.conclusion === 'SKIPPED')
+            const checksFail = checks.some((c: { conclusion: string }) => c.conclusion === 'FAILURE')
+            const checksPending = checks.some((c: { status: string }) => c.status === 'IN_PROGRESS' || c.status === 'QUEUED')
+
+            res.end(JSON.stringify({
+              state: pr.state,
+              reviewDecision: pr.reviewDecision || null,
+              mergeable: pr.mergeable,
+              title: pr.title,
+              additions: pr.additions,
+              deletions: pr.deletions,
+              changedFiles: pr.changedFiles,
+              reviews,
+              checksPass,
+              checksFail,
+              checksPending,
+              checksTotal: checks.length,
+              createdAt: pr.createdAt,
+              updatedAt: pr.updatedAt,
+              url: prUrl,
+            }))
+          } catch {
+            res.end(JSON.stringify({ state: 'unknown', url: prUrl }))
+          }
+        })
       })
 
       // GET /api/queue — read the queue

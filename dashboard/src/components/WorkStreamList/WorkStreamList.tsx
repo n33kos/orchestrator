@@ -36,6 +36,7 @@ interface WorkStreamListProps {
   onTeardownStream?: (id: string) => void
   activatingIds?: Set<string>
   tearingDownIds?: Set<string>
+  onPrUrlChange?: (id: string, prUrl: string) => void
   onReorder: (dragId: string, dropId: string) => void
   onSendMessage: (sessionId: string, text: string) => void
 }
@@ -51,7 +52,7 @@ function findSession(sessions: SessionInfo[], item: WorkItem): SessionInfo | und
   return undefined
 }
 
-export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab, sortField, sortDirection, sessions, messagesBySession, selectable, selectedIds, onSelect, focusedItemId, onClearFocus, pinnedIds, onTogglePin, onAddClick, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onActivateStream, onTeardownStream, activatingIds, tearingDownIds, onReorder, onSendMessage }: WorkStreamListProps) {
+export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab, sortField, sortDirection, sessions, messagesBySession, selectable, selectedIds, onSelect, focusedItemId, onClearFocus, pinnedIds, onTogglePin, onAddClick, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onActivateStream, onTeardownStream, activatingIds, tearingDownIds, onPrUrlChange, onReorder, onSendMessage }: WorkStreamListProps) {
   const { dragId, overId, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(onReorder)
   if (loading) {
     return <SkeletonList count={4} />
@@ -226,6 +227,7 @@ export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab
             onTeardownStream={onTeardownStream}
             activating={activatingIds?.has(item.id)}
             tearingDown={tearingDownIds?.has(item.id)}
+            onPrUrlChange={onPrUrlChange}
             onSendMessage={onSendMessage}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}

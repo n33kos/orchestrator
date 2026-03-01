@@ -40,6 +40,8 @@ import { usePersistedState } from './hooks/usePersistedState.ts'
 import { useDebounce } from './hooks/useDebounce.ts'
 import { useActivitySparkline } from './hooks/useActivitySparkline.ts'
 import { useChangeDetection } from './hooks/useChangeDetection.ts'
+import { useHashParam } from './hooks/useHashRoute.ts'
+import { useFileDrop } from './hooks/useFileDrop.ts'
 import { usePinnedItems } from './hooks/usePinnedItems.ts'
 import { useSearchHistory } from './hooks/useSearchHistory.ts'
 import { playNotificationSound } from './utils/sound.ts'
@@ -73,6 +75,7 @@ export function App() {
       }
     }
   }, [changes, queue.items, rawAddToast])
+  const { isDraggingOver } = useFileDrop({ accept: ['.json'], onDrop: handleImportQueue })
   const { history: searchHistory, addSearch, clearHistory: clearSearchHistory, removeItem: removeSearchItem } = useSearchHistory()
   useNotifications(queue.items, settings.notificationsEnabled)
   const { sessions, sendMessage, refresh: refreshSessions } = useSessions()
@@ -84,7 +87,7 @@ export function App() {
   })
   useFaviconBadge(queue.blockedItems.length > 0 || zombieCount > 0)
   const [messagesBySession, setMessagesBySession] = useState<Record<string, MessageEntry[]>>({})
-  const [activeTab, setActiveTab] = usePersistedState('activeTab', 'projects')
+  const [activeTab, setActiveTab] = useHashParam('tab', 'projects')
   const [showAddForm, setShowAddForm] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearch = useDebounce(searchQuery, 200)
@@ -512,6 +515,11 @@ export function App() {
     })
   }
 
+  function handlePrUrlChange(id: string, prUrl: string) {
+    queue.updateItem(id, { pr_url: prUrl || null })
+    addToast('PR URL updated', 'success')
+  }
+
   async function handleActivateStream(id: string) {
     const item = queue.items.find(i => i.id === id)
     if (!item) return
@@ -819,6 +827,7 @@ export function App() {
               onTeardownStream={handleTeardownStream}
               activatingIds={activatingIds}
               tearingDownIds={tearingDownIds}
+              onPrUrlChange={handlePrUrlChange}
               onReorder={handleReorder}
               onSendMessage={handleSendMessage}
             />

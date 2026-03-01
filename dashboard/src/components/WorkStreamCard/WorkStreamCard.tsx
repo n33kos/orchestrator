@@ -423,6 +423,97 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
             <ActivityLog entries={activityEntries} />
           </div>
 
+          {/* Pull Request Section */}
+          <div className={styles.Section}>
+            <h4 className={styles.SectionTitle}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="18" cy="18" r="3" />
+                <circle cx="6" cy="6" r="3" />
+                <path d="M6 21V9a9 9 0 009 9" />
+              </svg>
+              Pull Request
+            </h4>
+            {item.pr_url ? (
+              <div className={styles.PrSection} onClick={e => e.stopPropagation()}>
+                <div className={styles.PrHeader}>
+                  <a
+                    className={styles.PrLink}
+                    href={item.pr_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {item.pr_url.replace(/^https?:\/\/github\.com\//, '')}
+                  </a>
+                  {prLoading && <span className={styles.PrLoading}>Loading...</span>}
+                </div>
+                {prStatus && prStatus.state !== 'unknown' && (
+                  <div className={styles.PrStatusGrid}>
+                    <span className={classnames(styles.PrBadge, styles[`pr_${prStatus.state.toLowerCase()}`])}>
+                      {prStatus.state}
+                    </span>
+                    {prStatus.reviewDecision && (
+                      <span className={classnames(styles.PrBadge, styles[`pr_review_${prStatus.reviewDecision.toLowerCase()}`])}>
+                        {prStatus.reviewDecision === 'APPROVED' ? 'Approved' :
+                         prStatus.reviewDecision === 'CHANGES_REQUESTED' ? 'Changes Requested' :
+                         'Review Required'}
+                      </span>
+                    )}
+                    {prStatus.checksTotal > 0 && (
+                      <span className={classnames(
+                        styles.PrBadge,
+                        prStatus.checksPass && styles.pr_checks_pass,
+                        prStatus.checksFail && styles.pr_checks_fail,
+                        prStatus.checksPending && styles.pr_checks_pending,
+                      )}>
+                        Checks: {prStatus.checksPass ? 'Pass' : prStatus.checksFail ? 'Fail' : 'Pending'}
+                      </span>
+                    )}
+                    <span className={styles.PrStats}>
+                      <span className={styles.PrAdditions}>+{prStatus.additions}</span>
+                      <span className={styles.PrDeletions}>-{prStatus.deletions}</span>
+                      <span className={styles.PrFiles}>{prStatus.changedFiles} file{prStatus.changedFiles !== 1 ? 's' : ''}</span>
+                    </span>
+                  </div>
+                )}
+                {prStatus?.reviews && prStatus.reviews.length > 0 && (
+                  <div className={styles.PrReviewers}>
+                    {prStatus.reviews.map((r, i) => (
+                      <span key={i} className={classnames(styles.PrReviewer, styles[`pr_reviewer_${r.state.toLowerCase()}`])}>
+                        {r.author}
+                        {r.state === 'APPROVED' && ' ✓'}
+                        {r.state === 'CHANGES_REQUESTED' && ' ✗'}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : onPrUrlChange ? (
+              <div className={styles.PrEmpty} onClick={e => e.stopPropagation()}>
+                <InlineEdit
+                  value=""
+                  onSave={url => onPrUrlChange(item.id, url)}
+                  className={styles.PrUrlInput}
+                  placeholder="Paste PR URL..."
+                />
+              </div>
+            ) : (
+              <span className={styles.PrNone}>No PR linked</span>
+            )}
+          </div>
+
+          {/* Delegator Assessment */}
+          {delegatorAssessment && (
+            <div className={styles.Section}>
+              <h4 className={styles.SectionTitle}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+                Delegator Assessment
+              </h4>
+              <p className={styles.AssessmentText}>{delegatorAssessment}</p>
+            </div>
+          )}
+
           {/* Metadata Grid */}
           <div className={styles.MetaGrid}>
             <div className={styles.MetaGridItem}>
@@ -449,20 +540,6 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
               <span className={styles.MetaGridLabel}>Completed</span>
               <span className={styles.MetaGridValue}>{formatDate(item.completed_at)}</span>
             </div>
-            {item.pr_url && (
-              <div className={classnames(styles.MetaGridItem, styles.MetaGridWide)}>
-                <span className={styles.MetaGridLabel}>Pull Request</span>
-                <a
-                  className={styles.MetaGridLink}
-                  href={item.pr_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={e => e.stopPropagation()}
-                >
-                  {item.pr_url}
-                </a>
-              </div>
-            )}
             {item.worktree_path && (
               <div className={classnames(styles.MetaGridItem, styles.MetaGridWide)}>
                 <span className={styles.MetaGridLabel}>Worktree</span>
