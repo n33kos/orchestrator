@@ -20,6 +20,7 @@ CONFIG="$PROJECT_ROOT/config/environment.yml"
 QUEUE_FILE="$(grep 'queue_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
 MAX_ACTIVE="$(grep 'max_active_projects:' "$CONFIG" | sed 's/.*: *//')"
 AUTO_ACTIVATE="$(grep 'auto_activate:' "$CONFIG" | sed 's/.*: *//')"
+AUTO_APPROVE_PLANS="$(grep 'auto_approve_plans:' "$CONFIG" | sed 's/.*: *//')"
 POLL_INTERVAL="$(grep 'poll_interval:' "$CONFIG" | sed 's/.*: *//')"
 POLL_INTERVAL="${POLL_INTERVAL:-120}"
 CLEANUP_EVERY="$(grep 'cleanup_every:' "$CONFIG" | sed 's/[^0-9]//g')"
@@ -266,6 +267,46 @@ if [[ "$CLEANUP" == "true" ]]; then
     [[ "$ONCE" == "true" ]] && exit 0
 fi
 
+function generate_plans() {
+    # Auto-generate plans for queued projects that don't have one
+    if [[ "$AUTO_ACTIVATE" != "true" ]]; then
+        return 0
+    fi
+
+    python3 -c "
+import json, sys
+
+with open('$QUEUE_FILE') as f:
+    data = json.load(f)
+
+for item in data['items']:
+    if item['status'] == 'queued' and item['type'] == 'project':
+        plan = item.get('metadata', {}).get('plan')
+        if not plan:
+            print(f'PLAN:{item[\"id\"]}:{item[\"title\"]}')
+" | while IFS= read -r line; do
+        if [[ "$line" == PLAN:* ]]; then
+            local item_id item_title
+            item_id="$(echo "$line" | cut -d: -f2)"
+            item_title="$(echo "$line" | cut -d: -f3-)"
+
+            if [[ "$DRY_RUN" == "true" ]]; then
+                echo "[scheduler] Would generate plan for: $item_id — $item_title"
+            else
+                echo "[scheduler] Generating plan for: $item_id — $item_title"
+                local plan_args=("$item_id")
+                [[ "$AUTO_APPROVE_PLANS" == "true" ]] && plan_args+=("--auto-approve")
+                "$SCRIPT_DIR/generate-plan.sh" "${plan_args[@]}" 2>&1 | sed 's/^/  /' || {
+                    echo "[scheduler] ERROR: Failed to generate plan for $item_id" >&2
+                    emit_event "scheduler.error" "Failed to generate plan for $item_id" --item-id "$item_id" --severity error
+                }
+            fi
+        else
+            echo "$line"
+        fi
+    done
+}
+
 function process_worker_completions() {
     # Find items marked completed by workers that still have active sessions/worktrees
     python3 -c "
@@ -318,6 +359,7 @@ if [[ "$ONCE" == "true" ]]; then
     recover_sessions
     process_worker_completions
     teardown_merged
+    generate_plans
     check_and_activate
 else
     echo "[scheduler] Starting continuous scheduler (Ctrl+C to stop)"
@@ -328,6 +370,7 @@ else
         recover_sessions
         process_worker_completions
         teardown_merged
+        generate_plans
         check_and_activate
         # Run cleanup every N cycles
         CYCLE=$((CYCLE + 1))
