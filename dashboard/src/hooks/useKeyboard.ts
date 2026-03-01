@@ -8,9 +8,10 @@ interface KeyboardActions {
   onCommandPalette?: () => void
   onTabSwitch?: (index: number) => void
   onSelectAll?: () => void
+  onToggleViewMode?: () => void
 }
 
-export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll }: KeyboardActions) {
+export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode }: KeyboardActions) {
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement
@@ -57,9 +58,15 @@ export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onC
         e.preventDefault()
         onSelectAll?.()
       }
+
+      // V to toggle view mode
+      if (e.key === 'v' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        onToggleViewMode?.()
+      }
     }
 
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll])
+  }, [onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode])
 }

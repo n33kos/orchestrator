@@ -144,6 +144,9 @@ export function App() {
         return new Set(filteredItems.map(i => i.id))
       })
     }, [selectionMode, filteredItems]),
+    onToggleViewMode: useCallback(() => {
+      setViewMode(prev => prev === 'cards' ? 'compact' : 'cards')
+    }, [setViewMode]),
   })
 
   async function handleAddItem(item: NewWorkItem) {
