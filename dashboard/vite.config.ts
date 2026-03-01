@@ -84,6 +84,10 @@ function queueApiPlugin(): Plugin {
           if (body.delegator_enabled !== undefined) item.delegator_enabled = body.delegator_enabled
           if (body.pr_url !== undefined) item.pr_url = body.pr_url
           if (body.branch !== undefined) item.branch = body.branch
+          if (body.metadata !== undefined) {
+            if (!item.metadata) item.metadata = {}
+            Object.assign(item.metadata, body.metadata)
+          }
 
           writeQueue(data)
           res.setHeader('Content-Type', 'application/json')

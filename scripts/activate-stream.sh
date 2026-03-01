@@ -139,10 +139,9 @@ echo "  Session ID: $SESSION_ID"
 if [[ "$ITEM_TYPE" == "project" && "$NO_DELEGATOR" == "false" && "$DELEGATOR_ENABLED" == "True" ]]; then
     echo ""
     echo "Step 4: Spawning delegator..."
-    # Delegator is a separate Claude session that monitors this worker
-    # For now, log that it should be spawned (implementation in delegator module)
-    echo "  Delegator spawning not yet implemented — will be added in delegator module"
-    echo "  Worker session $SESSION_ID will run without delegator oversight"
+    "$SCRIPT_DIR/spawn-delegator.sh" "$ITEM_ID" || {
+        echo "  WARNING: Failed to spawn delegator — worker will run without oversight" >&2
+    }
 else
     echo ""
     echo "Step 4: Delegator skipped (type=$ITEM_TYPE, no_delegator=$NO_DELEGATOR, enabled=$DELEGATOR_ENABLED)"
