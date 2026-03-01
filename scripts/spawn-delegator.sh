@@ -158,7 +158,7 @@ $VMUX send $WORKER_SESSION_ID "CI checks are failing on this PR. Run /fix-ci-tes
 2. Read the user profile at $PROFILE_FILE (if it exists)
 3. Update status.json to "monitoring"
 4. Read the worker's transcript to understand current state
-5. Send a brief introduction to the worker via vmux send
+5. Send a status check to the worker via vmux send — the worker already has its task assignment from the activation step. Just check: "What's your current status on the task?"
 6. Begin the monitoring loop (wait for scheduler triggers via relay_standby)
 PROMPT
 
