@@ -45,7 +45,16 @@ delegator:
 branches:
   pattern: "{initials}/{domain}/{project}/{position}/{description}"
 
-# Dashboard
+# Dashboard (API runs inline via Vite dev server middleware)
 dashboard:
   port: 3201
-  api_port: 3200
+
+# Scheduler
+scheduler:
+  poll_interval: 120
+  cleanup_every: 10  # cycles between cleanup runs
+  archive_after_days: 7
+
+# Stall Detection
+stall_detection:
+  threshold_minutes: 30
