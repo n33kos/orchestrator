@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import styles from './DetailPanel.module.scss'
 import { StatusBadge } from '../StatusBadge/StatusBadge.tsx'
 import { PriorityBadge } from '../PriorityBadge/PriorityBadge.tsx'
+import { ItemNotes } from '../ItemNotes/ItemNotes.tsx'
 import { timeAgo, formatDate } from '../../utils/time.ts'
 import type { WorkItem, WorkItemStatus, SessionInfo } from '../../types.ts'
 
@@ -325,6 +326,10 @@ export function DetailPanel({ item, sessions, onClose, onStatusChange, onDelete,
               <p className={styles.Description}>{implNotes}</p>
             </div>
           )}
+
+          <div className={styles.Section}>
+            <ItemNotes itemId={item.id} />
+          </div>
 
           <div className={styles.Section}>
             <span className={styles.SectionLabel}>

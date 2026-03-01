@@ -33,6 +33,7 @@ import { KanbanBoard } from './components/KanbanBoard/KanbanBoard.tsx'
 import { OfflineIndicator } from './components/OfflineIndicator/OfflineIndicator.tsx'
 import { FloatingActionButton } from './components/FloatingActionButton/FloatingActionButton.tsx'
 import { GlobalSearch } from './components/GlobalSearch/GlobalSearch.tsx'
+import { AnalyticsView } from './components/AnalyticsView/AnalyticsView.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import { useQueue } from './hooks/useQueue.ts'
 import { useTheme } from './hooks/useTheme.ts'
@@ -215,6 +216,7 @@ export function App() {
     { id: 'quick_fixes', label: 'Quick Fixes', count: queue.quickFixes.length, alertCount: qfBlockers },
     { id: 'all', label: 'All', count: queue.items.length, alertCount: queue.blockedItems.length },
     { id: 'sessions', label: 'Sessions', count: sessions.length, alertCount: zombieCount },
+    { id: 'analytics', label: 'Analytics' },
   ]
 
   const filteredItems = useMemo(() => {
@@ -253,6 +255,7 @@ export function App() {
     onNewItem: useCallback(() => setShowAddForm(true), []),
     onFocusSearch: useCallback(() => searchRef.current?.focus(), []),
     onEscape: useCallback(() => {
+      if (showGlobalSearch) { setShowGlobalSearch(false); return }
       if (showShortcuts) { setShowShortcuts(false); return }
       if (showCommandPalette) { setShowCommandPalette(false); return }
       if (showHealthPanel) { setShowHealthPanel(false); return }
@@ -264,14 +267,14 @@ export function App() {
       if (selectionMode) { setSelectedIds(new Set()); setSelectionMode(false); return }
       if (showAddForm) { setShowAddForm(false); return }
       if (searchQuery) { setSearchQuery(''); return }
-    }, [showShortcuts, showCommandPalette, showHealthPanel, detailItemId, showActivityFeed, showSessions, settingsOpen, confirmAction, selectionMode, showAddForm, searchQuery, setSettingsOpen]),
+    }, [showGlobalSearch, showShortcuts, showCommandPalette, showHealthPanel, detailItemId, showActivityFeed, showSessions, settingsOpen, confirmAction, selectionMode, showAddForm, searchQuery, setSettingsOpen]),
     onRefresh: useCallback(() => {
       queue.refresh()
       addToast('Queue refreshed', 'info')
     }, [queue, addToast]),
     onCommandPalette: useCallback(() => setShowCommandPalette(prev => !prev), []),
     onTabSwitch: useCallback((index: number) => {
-      const tabIds = ['projects', 'quick_fixes', 'all', 'sessions']
+      const tabIds = ['projects', 'quick_fixes', 'all', 'sessions', 'analytics']
       if (index >= 0 && index < tabIds.length) {
         setActiveTab(tabIds[index])
       }
@@ -313,6 +316,7 @@ export function App() {
     onZoomIn: zoomIn,
     onZoomOut: zoomOut,
     onZoomReset: resetZoom,
+    onGlobalSearch: useCallback(() => setShowGlobalSearch(prev => !prev), []),
   })
 
   async function handleDuplicate(id: string) {
@@ -806,7 +810,9 @@ export function App() {
       <main ref={mainRef} id="main-content" className={styles.Main}>
         <ErrorBoundary fallbackLabel="The main content area crashed. Try refreshing the page.">
         <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
-        {activeTab === 'sessions' ? (
+        {activeTab === 'analytics' ? (
+          <AnalyticsView items={queue.items} sessions={sessions} />
+        ) : activeTab === 'sessions' ? (
           <SessionsView
             sessions={sessions}
             items={queue.items}
@@ -1173,6 +1179,15 @@ export function App() {
       )}
       {showShortcuts && (
         <ShortcutSheet onClose={() => setShowShortcuts(false)} />
+      )}
+      {showGlobalSearch && (
+        <GlobalSearch
+          items={queue.items}
+          sessions={sessions}
+          onClose={() => setShowGlobalSearch(false)}
+          onNavigateToItem={(id) => { handleNavigateToItem(id); setDetailItemId(id) }}
+          onNavigateToSession={() => setActiveTab('sessions')}
+        />
       )}
       {isDraggingOver && (
         <div className={styles.DropOverlay}>

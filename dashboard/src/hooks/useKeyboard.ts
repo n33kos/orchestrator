@@ -16,9 +16,10 @@ interface KeyboardActions {
   onZoomIn?: () => void
   onZoomOut?: () => void
   onZoomReset?: () => void
+  onGlobalSearch?: () => void
 }
 
-export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode, onNavigateDown, onNavigateUp, onOpenFocused, onShowShortcuts, onZoomIn, onZoomOut, onZoomReset }: KeyboardActions) {
+export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode, onNavigateDown, onNavigateUp, onOpenFocused, onShowShortcuts, onZoomIn, onZoomOut, onZoomReset, onGlobalSearch }: KeyboardActions) {
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement
@@ -28,6 +29,13 @@ export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onC
       if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
         onCommandPalette?.()
+        return
+      }
+
+      // Cmd+Shift+F / Ctrl+Shift+F for global search
+      if (e.key === 'f' && (e.metaKey || e.ctrlKey) && e.shiftKey) {
+        e.preventDefault()
+        onGlobalSearch?.()
         return
       }
 
@@ -72,7 +80,7 @@ export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onC
       }
 
       // Number keys 1-4 switch tabs
-      if (['1', '2', '3', '4'].includes(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (['1', '2', '3', '4', '5'].includes(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault()
         onTabSwitch?.(parseInt(e.key, 10) - 1)
       }
@@ -115,5 +123,5 @@ export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onC
 
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode, onNavigateDown, onNavigateUp, onOpenFocused, onShowShortcuts, onZoomIn, onZoomOut, onZoomReset])
+  }, [onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode, onNavigateDown, onNavigateUp, onOpenFocused, onShowShortcuts, onZoomIn, onZoomOut, onZoomReset, onGlobalSearch])
 }

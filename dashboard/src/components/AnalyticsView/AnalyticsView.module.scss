@@ -1,0 +1,125 @@
+.Root {
+  padding: 16px 0;
+}
+
+.Grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.Card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.CardTitle {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+.ChartCenter {
+  display: flex;
+  justify-content: center;
+}
+
+.Legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.LegendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.LegendLabel {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-transform: capitalize;
+}
+
+.LegendValue {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.TypeRow {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+}
+
+.TypeItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.TypeValue {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1;
+}
+
+.TypeLabel {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.BlockerStats {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+}
+
+.BlockerItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.BlockerValue {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1;
+}
+
+.BlockerLabel {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.VelocityStat {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.VelocityValue {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-primary);
+  line-height: 1;
+}
+
+.VelocityLabel {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
