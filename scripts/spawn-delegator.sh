@@ -61,8 +61,16 @@ ITEM_TITLE="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(s
 ITEM_BRANCH="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['branch'])")"
 ITEM_DESC="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('description', ''))")"
 
+# Find the worker's tmux session name (needed for tmux send-keys communication)
+WORKER_TMUX_SESSION="$($VMUX sessions 2>/dev/null | grep -A3 "$WORKER_SESSION_ID" | grep 'tmux:' | sed 's/.*tmux: *//' | head -1)"
+if [[ -z "$WORKER_TMUX_SESSION" ]]; then
+    echo "WARNING: Could not find worker's tmux session name" >&2
+    WORKER_TMUX_SESSION="unknown"
+fi
+
 echo "Spawning delegator for: $ITEM_TITLE ($ITEM_ID)"
 echo "  Worker session: $WORKER_SESSION_ID"
+echo "  Worker tmux: $WORKER_TMUX_SESSION"
 echo "  Worktree: $WORKTREE_PATH"
 
 # Create the delegator session directory
@@ -85,15 +93,26 @@ cat > "$DELEGATOR_DIR/initial-prompt.md" << PROMPT
 - **Title**: $ITEM_TITLE
 - **Description**: $ITEM_DESC
 - **Branch**: $ITEM_BRANCH
-- **Worker Session**: $WORKER_SESSION_ID
+- **Worker Session ID**: $WORKER_SESSION_ID
+- **Worker tmux Session**: $WORKER_TMUX_SESSION
 - **Delegator Session (you)**: $DELEGATOR_SESSION_ID
 - **Worktree**: $WORKTREE_PATH
 
 ## Commands
 
-Send message to worker:
+Send message to worker (use tmux for reliability):
 \`\`\`bash
-$VMUX send $WORKER_SESSION_ID "your message"
+tmux send-keys -t $WORKER_TMUX_SESSION "your message" Enter
+\`\`\`
+
+Read worker's full session transcript:
+\`\`\`bash
+python3 $PROJECT_ROOT/scripts/read-worker-transcript.py $WORKTREE_PATH --lines 500
+\`\`\`
+
+Quick idle check:
+\`\`\`bash
+python3 $PROJECT_ROOT/scripts/read-worker-transcript.py $WORKTREE_PATH --format idle-check
 \`\`\`
 
 Check worker session status:
@@ -125,23 +144,18 @@ curl -s -X PATCH http://localhost:${DASHBOARD_PORT}/api/queue/update \\
 
 ## CI Test Failures
 
-When a PR has failing CI checks, instruct the worker to use the \`/fix-ci-tests\` skill:
-\`\`\`
-vmux send $WORKER_SESSION_ID "CI checks are failing on this PR. Run /fix-ci-tests to identify and fix the failing tests."
+When a PR has failing CI checks, instruct the worker via tmux:
+\`\`\`bash
+tmux send-keys -t $WORKER_TMUX_SESSION "CI checks are failing on this PR. Run /fix-ci-tests to identify and fix the failing tests." Enter
 \`\`\`
 
 ## Startup Sequence
 1. Read the delegator instructions at $PROJECT_ROOT/delegator/CLAUDE.md
 2. Read the user profile at $PROFILE_FILE (if it exists)
 3. Update status.json to "monitoring"
-4. Send a brief introduction to the worker, including your session ID so they can message you back
-5. Enter voice relay standby and begin the monitoring loop
-
-**Your session ID is $DELEGATOR_SESSION_ID. Tell the worker they can message you with:**
-\`\`\`
-vmux send $DELEGATOR_SESSION_ID "message"
-\`\`\`
-so they can report status, ask questions, or signal completion.
+4. Read the worker's transcript to understand current state
+5. Send a brief introduction to the worker via tmux
+6. Begin the monitoring loop using relay_standby(timeout=60)
 PROMPT
 
 # Write the delegator CLAUDE.md for the session

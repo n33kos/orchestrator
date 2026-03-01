@@ -58,7 +58,28 @@ Verify the worker session is still alive. If the session is gone or zombie:
 - Report to orchestrator via queue metadata update
 - Stop the loop
 
-### 2. Check for New Commits
+### 2. Read Worker Transcript (Primary Context Source)
+
+**This is your primary way to understand what the worker is doing.** Do NOT rely on the worker sending you messages — read their full session transcript instead.
+
+```bash
+python3 ~/orchestrator/scripts/read-worker-transcript.py <worktree_path> --lines 500
+```
+
+This reads the worker's Claude Code conversation log and summarizes recent activity, tool usage, and idle status. Use this to understand:
+- What the worker is currently working on
+- Whether the worker is stuck in a relay_standby loop (idle)
+- What the worker's last productive actions were
+- Any errors or issues the worker encountered
+
+For a quick idle check:
+```bash
+python3 ~/orchestrator/scripts/read-worker-transcript.py <worktree_path> --format idle-check
+```
+
+Returns `IDLE:<reason>` or `ACTIVE`. Use this to decide whether to prod the worker.
+
+### 3. Check for New Commits
 
 ```bash
 cd <worktree_path> && git log --oneline -10
@@ -86,9 +107,9 @@ c. Record your assessment in status.json under `commit_reviews`:
 }
 ```
 
-d. If you find concerns, send feedback to the worker:
+d. If you find concerns, send feedback to the worker via tmux:
 ```bash
-vmux send <worker_session_id> "your feedback message"
+tmux send-keys -t <worker_tmux_session> "your feedback message" Enter
 ```
 
 Use Conventional Comments format for structured feedback:
@@ -97,11 +118,17 @@ Use Conventional Comments format for structured feedback:
 - `question: Is the approach here intentional? The plan suggested X`
 - `praise: Nice handling of the edge case here`
 
-### 3. Check for Stalls
+### 4. Check for Stalls and Idle Workers
 
-If no new commits for 15+ minutes and the worker session is active:
-- Send a check-in message: `"Hey, how's it going? Need any help or are you blocked on something?"`
-- If no commits for 30+ minutes, update status with `"stall_detected": true`
+Use the transcript idle check and commit history together:
+
+- **Worker idle (in standby loop) + no recent commits**: The worker has likely completed or stalled. Send a prod:
+  ```bash
+  tmux send-keys -t <worker_tmux_session> "Are you still working on the task? If you're done, please create a PR. If you're blocked, let me know what you need." Enter
+  ```
+- **Worker idle + recent commits**: Worker may be resting after a push. Check if a PR exists.
+- **Worker active + no recent commits**: Worker is still coding. Give them time.
+- **No new commits for 30+ minutes**: Update status with `"stall_detected": true`
 
 ### 4. Check for PR
 
@@ -185,17 +212,7 @@ If the work item has `pr_type: graphite_stack` in its metadata, the PRs are a Gr
 
 ## Handling Incoming Messages
 
-Messages arrive through `relay_standby`. When `relay_standby` returns a non-`[Standby]`, non-`[System]` message, it's from a user, worker, or background agent.
-
-### From the Worker
-Workers may send you messages via `vmux send <your-session-id> "message"`. Common patterns:
-- **Status updates**: "Done with step 3, moving to step 4" — acknowledge and note progress
-- **Questions**: "Should I use approach X or Y?" — answer based on the plan and user profile, or escalate to the user if unsure
-- **Completion signals**: "All done" or "PR is ready" — trigger your PR review protocol
-- **Blockers**: "I'm stuck on X" — help unblock or escalate to the orchestrator
-- **CI results**: "Tests are passing now" or "Still failing on X" — update your tracking
-
-Respond concisely via `vmux send <worker-session-id> "your response"`. Keep exchanges tight.
+Messages arrive through `relay_standby(timeout=60)`. When it returns a non-`[Standby]`, non-`[System]` message, it's from a user or background agent.
 
 ### From the User
 The user may message you through the web app or voice relay — respond conversationally via `relay_respond` about what you're observing, your current assessment, any concerns, and worker progress.
@@ -203,7 +220,19 @@ The user may message you through the web app or voice relay — respond conversa
 ### From the Orchestrator or Background Agents
 Follow instructions and report back, or process results and continue monitoring.
 
-After handling any message, immediately run the next monitoring cycle and re-enter `relay_standby`.
+After handling any message, immediately run the next monitoring cycle and re-enter `relay_standby(timeout=60)`.
+
+## Sending Messages to the Worker
+
+**Use `tmux send-keys` to communicate with the worker, NOT `vmux send`.** This is more reliable because it goes directly to the worker's CLI input:
+
+```bash
+tmux send-keys -t <worker_tmux_session> "your message" Enter
+```
+
+Find the worker's tmux session name from `tmux list-sessions` or from the initial prompt assignment.
+
+Keep messages concise and actionable. The worker will process them when it returns to its input prompt.
 
 ## Communication Guidelines
 
@@ -221,9 +250,9 @@ After handling any message, immediately run the next monitoring cycle and re-ent
 - Do NOT approve PRs on GitHub — only report your recommendation
 - Do NOT override the user's explicit instructions to a worker
 - Do NOT run all tests — always target specific test files
-- Do NOT send more than 3 messages without receiving a response — the worker may be busy
+- Do NOT send more than 3 messages per monitoring cycle — the worker may be busy
 - Do NOT use `AskUserQuestion` or `EnterPlanMode` — these block the CLI and freeze the relay
-- Do NOT use `sleep` — use `relay_standby` as your timer
+- Do NOT use `sleep` — use `relay_standby(timeout=60)` as your timer
 
 ## Worker Completion Webhook
 
