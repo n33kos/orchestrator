@@ -44,6 +44,7 @@ interface WorkStreamCardProps {
   onTeardownStream?: (id: string) => void
   onPrUrlChange?: (id: string, prUrl: string) => void
   onPlanChange?: (id: string, plan: Plan) => void
+  onGeneratePlan?: (id: string) => void
   activating?: boolean
   tearingDown?: boolean
   pinned?: boolean
@@ -55,7 +56,7 @@ interface WorkStreamCardProps {
   onDragEnd?: () => void
 }
 
-export function WorkStreamCard({ item, index = 0, position, totalCount, isDragging, isDragOver, selectable, selected, onSelect, focused, onClearFocus, pinned, onTogglePin, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onActivateStream, onTeardownStream, onPrUrlChange, onPlanChange, activating, tearingDown, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
+export function WorkStreamCard({ item, index = 0, position, totalCount, isDragging, isDragOver, selectable, selected, onSelect, focused, onClearFocus, pinned, onTogglePin, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onActivateStream, onTeardownStream, onPrUrlChange, onPlanChange, onGeneratePlan, activating, tearingDown, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -442,6 +443,19 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
                   <line x1="9" y1="16" x2="15" y2="16" />
                 </svg>
                 Implementation Plan
+                {onGeneratePlan && !itemPlan && item.status === 'planning' && (
+                  <button
+                    className={styles.GeneratePlanButton}
+                    onClick={() => onGeneratePlan(item.id)}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                      <path d="M2 17l10 5 10-5" />
+                      <path d="M2 12l10 5 10-5" />
+                    </svg>
+                    Auto-Generate
+                  </button>
+                )}
               </h4>
               <PlanEditor
                 plan={itemPlan ?? null}

@@ -703,6 +703,26 @@ export function App() {
     }
   }
 
+  async function handleGeneratePlan(id: string) {
+    addToast('Generating plan...', 'info')
+    try {
+      const res = await fetch('/api/plan/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId: id }),
+      })
+      if (res.ok) {
+        queue.refresh()
+        addToast('Plan generated — review and approve to activate', 'success')
+      } else {
+        const data = await res.json()
+        addToast(`Plan generation failed: ${data.error || 'Unknown error'}`, 'error')
+      }
+    } catch {
+      addToast('Failed to generate plan', 'error')
+    }
+  }
+
   async function handleActivateStream(id: string) {
     const item = queue.items.find(i => i.id === id)
     if (!item) return
@@ -1087,6 +1107,7 @@ export function App() {
               tearingDownIds={tearingDownIds}
               onPrUrlChange={handlePrUrlChange}
               onPlanChange={handlePlanChange}
+              onGeneratePlan={handleGeneratePlan}
               onReorder={handleReorder}
               onSendMessage={handleSendMessage}
             />

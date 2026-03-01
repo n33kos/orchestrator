@@ -707,6 +707,30 @@ function queueApiPlugin(): Plugin {
         })
       })
 
+      // POST /api/plan/generate — generate an implementation plan for a work item
+      server.middlewares.use('/api/plan/generate', async (req, res) => {
+        if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
+        try {
+          const body = JSON.parse(await readBody(req))
+          if (!body.itemId) { res.statusCode = 400; res.end(JSON.stringify({ error: 'itemId is required' })); return }
+          const scriptPath = join(__dirname, '..', 'scripts', 'generate-plan.sh')
+          const args = [body.itemId]
+          if (body.autoApprove) args.push('--auto-approve')
+          execFile('bash', [scriptPath, ...args], { timeout: 60000, env: { ...process.env, HOME: homedir() } }, (err, stdout, stderr) => {
+            res.setHeader('Content-Type', 'application/json')
+            if (err) {
+              res.statusCode = 500
+              res.end(JSON.stringify({ error: stderr || String(err), output: stdout }))
+              return
+            }
+            res.end(JSON.stringify({ ok: true, output: stdout }))
+          })
+        } catch (err) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: String(err) }))
+        }
+      })
+
       // POST /api/training/run — run profile training on a session transcript
       server.middlewares.use('/api/training/run', async (req, res) => {
         if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
