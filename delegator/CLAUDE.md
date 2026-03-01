@@ -50,12 +50,12 @@ while true:
 
 **Every monitoring cycle MUST include sending at least one message to the worker.** You are an active overseer, not a silent observer. The user needs to see visible communication between you and the worker in the vmux transcript.
 
-**Keep messages short and actionable. Do NOT waste tokens on praise or filler.** Only send messages that drive the work forward:
-- **Nudge if idle**: "You've been idle for a while. Are you done? If so, create a PR."
-- **CI failure**: "PR has failing CI. Run /fix-ci-tests."
-- **Plan check**: "Step 3 is next per the plan. Are you on it?"
-- **Blocker**: "I see an error in your transcript. Are you stuck?"
-- **Stall prod**: "No commits in 30+ minutes. What's your status?"
+**Keep messages short and actionable. Do NOT waste tokens on praise or filler.** Always prefix with `[Delegator <item-id>]:`. Only send messages that drive the work forward:
+- **Nudge if idle**: "[Delegator ws-006]: You've been idle for a while. Are you done? If so, create a PR."
+- **CI failure**: "[Delegator ws-006]: PR has failing CI. Run /fix-ci-tests."
+- **Plan check**: "[Delegator ws-006]: Step 3 is next per the plan. Are you on it?"
+- **Blocker**: "[Delegator ws-006]: I see an error in your transcript. Are you stuck?"
+- **Stall prod**: "[Delegator ws-006]: No commits in 30+ minutes. What's your status?"
 
 Do NOT send praise, compliments, or "looks good" messages — these waste tokens and add no value. Save Conventional Comments format for PR reviews only.
 
@@ -123,15 +123,15 @@ c. Record your assessment in status.json under `commit_reviews`:
 }
 ```
 
-d. If you find concerns, send feedback to the worker:
+d. If you find concerns, send feedback to the worker (always include the delegator prefix):
 ```bash
-vmux send <worker_session_id> "your feedback message"
+vmux send <worker_session_id> "[Delegator <item-id>]: your feedback message"
 ```
 
 Keep feedback short and direct:
-- "This will fail when Z is null — add a guard."
-- "The plan suggests X, but you used Y. Intentional?"
-- "Consider using X instead of Y for performance."
+- "[Delegator ws-006]: This will fail when Z is null — add a guard."
+- "[Delegator ws-006]: The plan suggests X, but you used Y. Intentional?"
+- "[Delegator ws-006]: Consider using X instead of Y for performance."
 
 Save Conventional Comments format for PR reviews only (see PR Review Protocol below).
 
@@ -241,15 +241,17 @@ After handling any message, immediately run the next monitoring cycle and re-ent
 
 ## Sending Messages to the Worker
 
-Use `vmux send` as the **ONLY** way to message workers. This ensures the conversation appears in the vmux web app transcript for the user to see:
+Use `vmux send` as the **ONLY** way to message workers. This ensures the conversation appears in the vmux web app transcript for the user to see.
+
+**CRITICAL**: All messages to the worker MUST be prefixed with `[Delegator <item-id>]:` where `<item-id>` is your work stream ID from initial-prompt.md (e.g., `ws-006`, `ws-009`). This identifies the sender in the transcript.
 
 ```bash
-vmux send <worker_session_id> "your message"
+vmux send <worker_session_id> "[Delegator ws-006]: your message here"
 ```
 
 **Do NOT fall back to tmux send-keys.** If `vmux send` fails, log the error and skip the message — do not use tmux as a fallback. The user relies on the vmux web transcript for visibility, and tmux messages bypass it entirely.
 
-**CRITICAL for sub-agents**: When you spawn a background agent to run a monitoring cycle, include the exact `vmux send` command in the agent prompt. The sub-agent MUST use `vmux send`, never `tmux send-keys`.
+**CRITICAL for sub-agents**: When you spawn a background agent to run a monitoring cycle, include the exact `vmux send` command in the agent prompt with the delegator prefix. The sub-agent MUST use `vmux send`, never `tmux send-keys`.
 
 Both the worker session ID and tmux session name are in your initial-prompt.md assignment. Keep messages concise and actionable.
 

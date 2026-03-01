@@ -102,9 +102,11 @@ cat > "$DELEGATOR_DIR/initial-prompt.md" << PROMPT
 
 ## Commands
 
-Send message to worker (**ALWAYS use this** — shows in web transcript):
+Send message to worker (**ALWAYS use this** — shows in web transcript).
+**All messages MUST be prefixed with** \`[Delegator $ITEM_ID]:\`
+
 \`\`\`bash
-$VMUX send $WORKER_SESSION_ID "your message"
+$VMUX send $WORKER_SESSION_ID "[Delegator $ITEM_ID]: your message here"
 \`\`\`
 
 **Do NOT use tmux send-keys to message the worker.** Only use vmux send. If vmux send fails, log the error and skip — do not fall back to tmux.
