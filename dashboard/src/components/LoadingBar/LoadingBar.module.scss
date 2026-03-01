@@ -1,0 +1,30 @@
+.Root {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 200;
+  overflow: hidden;
+  background: transparent;
+}
+
+.Bar {
+  height: 100%;
+  width: 30%;
+  background: var(--color-primary);
+  border-radius: 1px;
+  animation: slide 1.2s ease-in-out infinite;
+}
+
+@keyframes slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(200%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}

@@ -1,0 +1,51 @@
+.Root {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.Parts {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.Part {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.Active {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.Separator {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  padding: 0 5px;
+  opacity: 0.6;
+}
+
+.Count {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+
+  @media (max-width: 360px) {
+    display: none;
+  }
+}
+
+.ViewLabel {
+  opacity: 0.6;
+}

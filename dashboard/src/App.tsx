@@ -17,9 +17,11 @@ import { BatchActionBar } from './components/BatchActionBar/BatchActionBar.tsx'
 import { SessionsView } from './components/SessionsView/SessionsView.tsx'
 import { ActivityFeed } from './components/ActivityFeed/ActivityFeed.tsx'
 import { ScrollToTop } from './components/ScrollToTop/ScrollToTop.tsx'
+import { LoadingBar } from './components/LoadingBar/LoadingBar.tsx'
 import { CompactList } from './components/CompactList/CompactList.tsx'
 import { DetailPanel } from './components/DetailPanel/DetailPanel.tsx'
 import { FilterChips } from './components/FilterChips/FilterChips.tsx'
+import { Breadcrumb } from './components/Breadcrumb/Breadcrumb.tsx'
 import { KeyboardHints } from './components/KeyboardHints/KeyboardHints.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
@@ -489,6 +491,7 @@ export function App() {
 
   return (
     <div className={styles.Root}>
+      <LoadingBar active={queue.loading} />
       <Header
         activeCount={queue.activeItems.length}
         queuedCount={queue.queuedItems.length}
@@ -552,6 +555,13 @@ export function App() {
                 completed: queue.completedItems.length,
               }}
               onChange={setStatusFilter}
+            />
+            <Breadcrumb
+              tab={activeTab}
+              searchQuery={debouncedSearch.trim() || undefined}
+              statusFilter={statusFilter}
+              viewMode={viewMode}
+              itemCount={filteredItems.length}
             />
             <div className={styles.ControlsRow}>
               <SortControls
