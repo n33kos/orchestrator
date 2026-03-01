@@ -35,6 +35,7 @@ import { FloatingActionButton } from './components/FloatingActionButton/Floating
 import { GlobalSearch } from './components/GlobalSearch/GlobalSearch.tsx'
 import { AnalyticsView } from './components/AnalyticsView/AnalyticsView.tsx'
 import { DelegatorPanel } from './components/DelegatorPanel/DelegatorPanel.tsx'
+import { DiscoverPanel } from './components/DiscoverPanel/DiscoverPanel.tsx'
 import { useDelegators } from './hooks/useDelegators.ts'
 import { useEvents } from './hooks/useEvents.ts'
 import { BreakpointIndicator } from './components/BreakpointIndicator/BreakpointIndicator.tsx'
@@ -150,6 +151,7 @@ export function App() {
   const [tearingDownIds, setTearingDownIds] = useState<Set<string>>(new Set())
   const [healthIssues, setHealthIssues] = useState(0)
   const [showHealthPanel, setShowHealthPanel] = useState(false)
+  const [showDiscoverPanel, setShowDiscoverPanel] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showGlobalSearch, setShowGlobalSearch] = useState(false)
   const [welcomeDismissed, setWelcomeDismissed] = usePersistedState('welcomeDismissed', false)
@@ -267,6 +269,7 @@ export function App() {
       if (showShortcuts) { setShowShortcuts(false); return }
       if (showCommandPalette) { setShowCommandPalette(false); return }
       if (showHealthPanel) { setShowHealthPanel(false); return }
+      if (showDiscoverPanel) { setShowDiscoverPanel(false); return }
       if (detailItemId) { setDetailItemId(null); return }
       if (showActivityFeed) { setShowActivityFeed(false); return }
       if (showSessions) { setShowSessions(false); return }
@@ -275,7 +278,7 @@ export function App() {
       if (selectionMode) { setSelectedIds(new Set()); setSelectionMode(false); return }
       if (showAddForm) { setShowAddForm(false); return }
       if (searchQuery) { setSearchQuery(''); return }
-    }, [showGlobalSearch, showShortcuts, showCommandPalette, showHealthPanel, detailItemId, showActivityFeed, showSessions, settingsOpen, confirmAction, selectionMode, showAddForm, searchQuery, setSettingsOpen]),
+    }, [showGlobalSearch, showShortcuts, showCommandPalette, showHealthPanel, showDiscoverPanel, detailItemId, showActivityFeed, showSessions, settingsOpen, confirmAction, selectionMode, showAddForm, searchQuery, setSettingsOpen]),
     onRefresh: useCallback(() => {
       queue.refresh()
       addToast('Queue refreshed', 'info')
@@ -713,24 +716,8 @@ export function App() {
     })
   }
 
-  async function handleDiscoverWork() {
-    addToast('Discovering work items...', 'info')
-    try {
-      const res = await fetch('/api/discover', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        queue.refresh()
-        addToast(data.output?.trim() ? `Discovery: ${data.output.trim().split('\n').pop()}` : 'Work discovery complete', 'success')
-      } else {
-        addToast('Work discovery failed', 'error')
-      }
-    } catch {
-      addToast('Failed to discover work', 'error')
-    }
+  function handleDiscoverWork() {
+    setShowDiscoverPanel(true)
   }
 
   async function handleRunScheduler() {
@@ -1231,6 +1218,12 @@ export function App() {
         <HealthPanel
           onClose={() => setShowHealthPanel(false)}
           onAutoRecover={handleAutoRecover}
+        />
+      )}
+      {showDiscoverPanel && (
+        <DiscoverPanel
+          onClose={() => setShowDiscoverPanel(false)}
+          onQueueRefresh={queue.refresh}
         />
       )}
       {showShortcuts && (

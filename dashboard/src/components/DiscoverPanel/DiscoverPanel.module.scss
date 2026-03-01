@@ -1,0 +1,236 @@
+.Overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.Panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 520px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.Header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.Title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.CloseButton {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  &:hover { color: var(--color-text); background: var(--color-surface-hover); }
+}
+
+.Body {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.SectionLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
+}
+
+.SourceSection {
+  display: flex;
+  flex-direction: column;
+}
+
+.SourceList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.SourceChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    border-color: var(--color-text-muted);
+    color: var(--color-text);
+  }
+}
+
+.SourceChipActive {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  color: var(--color-accent);
+}
+
+.SourceType {
+  font-size: 10px;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.Actions {
+  display: flex;
+  gap: 8px;
+}
+
+.DryRunButton,
+.RunButton {
+  flex: 1;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.DryRunButton {
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+
+  &:hover:not(:disabled) {
+    background: var(--color-surface-active);
+  }
+}
+
+.RunButton {
+  background: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  color: #fff;
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
+}
+
+.PreviewSection {
+  display: flex;
+  flex-direction: column;
+}
+
+.PreviewList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.PreviewItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.PreviewType {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: var(--color-surface-active);
+  color: var(--color-text-muted);
+
+  &[data-type="quick_fix"] {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+  }
+
+  &[data-type="project"] {
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-accent);
+  }
+}
+
+.PreviewPriority {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  min-width: 20px;
+}
+
+.PreviewTitle {
+  flex: 1;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.OutputSection {
+  display: flex;
+  flex-direction: column;
+}
+
+.Output {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.LastRun {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-align: center;
+}

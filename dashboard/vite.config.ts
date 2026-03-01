@@ -359,6 +359,43 @@ function queueApiPlugin(): Plugin {
         }
       })
 
+      // GET /api/discover/sources — list configured work discovery sources
+      server.middlewares.use('/api/discover/sources', (_req, res) => {
+        res.setHeader('Content-Type', 'application/json')
+        try {
+          const sourcesPath = join(__dirname, '..', 'config', 'sources.yml')
+          const content = readFileSync(sourcesPath, 'utf-8')
+          const sources: { name: string; type: string; detail: string }[] = []
+          let currentName = ''
+          let currentType = ''
+          let currentDetail = ''
+
+          for (const line of content.split('\n')) {
+            const nameMatch = line.match(/^  (\S[^:]+):/)
+            if (nameMatch && !line.trim().startsWith('#')) {
+              if (currentName) sources.push({ name: currentName, type: currentType, detail: currentDetail })
+              currentName = nameMatch[1]
+              currentType = ''
+              currentDetail = ''
+              continue
+            }
+            const typeMatch = line.match(/^\s+type:\s*(.+)/)
+            if (typeMatch) { currentType = typeMatch[1].trim(); continue }
+            const repoMatch = line.match(/^\s+repo:\s*(.+)/)
+            if (repoMatch) { currentDetail = repoMatch[1].trim(); continue }
+            const pathMatch = line.match(/^\s+path:\s*(.+)/)
+            if (pathMatch && !currentDetail) { currentDetail = pathMatch[1].trim(); continue }
+            const domainMatch = line.match(/^\s+domain:\s*(.+)/)
+            if (domainMatch && !currentDetail) { currentDetail = domainMatch[1].trim(); continue }
+          }
+          if (currentName) sources.push({ name: currentName, type: currentType, detail: currentDetail })
+
+          res.end(JSON.stringify({ sources }))
+        } catch {
+          res.end(JSON.stringify({ sources: [] }))
+        }
+      })
+
       // POST /api/discover — trigger work discovery
       server.middlewares.use('/api/discover', async (req, res) => {
         if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
