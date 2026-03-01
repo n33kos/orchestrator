@@ -56,10 +56,10 @@ export function DelegatorPanel({ delegators, loading, items, onRefresh, onSendMe
         <span className={styles.SummaryLabel}>delegator{delegators.length !== 1 ? 's' : ''}</span>
         <span className={styles.SummaryDivider} />
         <span className={styles.SummaryStat}>
-          {delegators.reduce((sum, d) => sum + d.commits_reviewed, 0)} commits reviewed
+          {delegators.reduce((sum, d) => sum + (d.commits_reviewed || 0), 0)} commits reviewed
         </span>
         <span className={styles.SummaryStat}>
-          {delegators.reduce((sum, d) => sum + d.issues_found.length, 0)} issues found
+          {delegators.reduce((sum, d) => sum + (d.issues_found?.length ?? 0), 0)} issues found
         </span>
         {onRefresh && (
           <button className={styles.RefreshButton} onClick={onRefresh} title="Refresh">
@@ -90,7 +90,7 @@ export function DelegatorPanel({ delegators, loading, items, onRefresh, onSendMe
                 <span className={styles.StatChip} title="Commits reviewed">
                   {d.commits_reviewed} commits
                 </span>
-                {d.issues_found.length > 0 && (
+                {(d.issues_found?.length ?? 0) > 0 && (
                   <span className={classnames(styles.StatChip, styles.StatChipIssue)} title="Issues found">
                     {d.issues_found.length} issue{d.issues_found.length !== 1 ? 's' : ''}
                   </span>
@@ -145,7 +145,7 @@ export function DelegatorPanel({ delegators, loading, items, onRefresh, onSendMe
                   </div>
                 )}
 
-                {d.commit_reviews.length > 0 && (
+                {(d.commit_reviews?.length ?? 0) > 0 && (
                   <div className={styles.Section}>
                     <h4 className={styles.SectionTitle}>Commit Reviews ({d.commit_reviews.length})</h4>
                     <div className={styles.ReviewList}>
@@ -160,7 +160,7 @@ export function DelegatorPanel({ delegators, loading, items, onRefresh, onSendMe
                   </div>
                 )}
 
-                {d.issues_found.length > 0 && (
+                {(d.issues_found?.length ?? 0) > 0 && (
                   <div className={styles.Section}>
                     <h4 className={styles.SectionTitle}>Issues Found ({d.issues_found.length})</h4>
                     <div className={styles.IssueList}>
@@ -175,7 +175,7 @@ export function DelegatorPanel({ delegators, loading, items, onRefresh, onSendMe
                   </div>
                 )}
 
-                {d.errors.length > 0 && (
+                {(d.errors?.length ?? 0) > 0 && (
                   <div className={styles.Section}>
                     <h4 className={classnames(styles.SectionTitle, styles.ErrorTitle)}>Errors ({d.errors.length})</h4>
                     <div className={styles.ErrorList}>
