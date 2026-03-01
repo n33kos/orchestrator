@@ -396,7 +396,8 @@ for item in data['items']:
 }
 
 function check_planning_timeouts() {
-    # Revert items stuck in "planning" for more than 10 minutes back to "queued"
+    # Revert items stuck in "planning" without a completed plan back to "queued"
+    # Only times out items where plan generation started but didn't produce a valid plan
     python3 -c "
 import json, sys
 from datetime import datetime, timezone, timedelta
@@ -411,16 +412,21 @@ changed = False
 for item in data['items']:
     if item['status'] != 'planning':
         continue
-    plan = item.get('metadata', {}).get('plan', {})
-    created = plan.get('created_at')
-    if not created:
+    plan = item.get('metadata', {}).get('plan') or {}
+    # Skip items with a valid completed plan (has steps = generation succeeded)
+    if plan.get('steps'):
+        continue
+    # Check how long the item has been in planning status
+    activated = item.get('activated_at') or item.get('created_at')
+    if not activated:
         continue
     try:
-        created_dt = datetime.fromisoformat(created.replace('Z', '+00:00'))
-        if now - created_dt > timeout and not plan.get('approved'):
+        activated_dt = datetime.fromisoformat(activated.replace('Z', '+00:00'))
+        if now - activated_dt > timeout:
             print(f'TIMEOUT:{item[\"id\"]}:{item[\"title\"]}')
             item['status'] = 'queued'
-            item['metadata']['plan'] = None
+            if item.get('metadata'):
+                item['metadata']['plan'] = None
             changed = True
     except (ValueError, TypeError):
         continue
