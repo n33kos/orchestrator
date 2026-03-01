@@ -65,12 +65,31 @@ export function useQueue(pollIntervalMs = 5000) {
   }, [fetchQueue])
 
   const reorderItems = useCallback(async (dragId: string, dropId: string) => {
-    await fetch('/api/queue/reorder', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dragId, dropId }),
+    // Optimistic: reorder locally using the same visual sort logic
+    const statusOrder: Record<string, number> = { active: 0, review: 1, queued: 2, planning: 3, paused: 4, completed: 5 }
+    setItems(prev => {
+      const sorted = [...prev].sort((a, b) => {
+        const sd = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99)
+        if (sd !== 0) return sd
+        return a.priority - b.priority
+      })
+      const dragIdx = sorted.findIndex(i => i.id === dragId)
+      const dropIdx = sorted.findIndex(i => i.id === dropId)
+      if (dragIdx === -1 || dropIdx === -1) return prev
+      const [dragItem] = sorted.splice(dragIdx, 1)
+      sorted.splice(dropIdx > dragIdx ? dropIdx : dropIdx, 0, dragItem)
+      return sorted.map((item, i) => ({ ...item, priority: i + 1 }))
     })
-    await fetchQueue()
+    try {
+      await fetch('/api/queue/reorder', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dragId, dropId }),
+      })
+      await fetchQueue()
+    } catch {
+      await fetchQueue()
+    }
   }, [fetchQueue])
 
   const addBlocker = useCallback(async (id: string, description: string) => {
