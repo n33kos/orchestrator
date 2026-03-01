@@ -100,11 +100,20 @@ export function SessionsView({ sessions, items, messagesBySession, onSendMessage
           <span className={styles.SummaryLabel}>standby</span>
         </div>
         {zombie.length > 0 && (
-          <div className={styles.SummaryItem}>
-            <span className={classnames(styles.SummaryDot, styles.dotZombie)} />
-            <span className={styles.SummaryCount}>{zombie.length}</span>
-            <span className={styles.SummaryLabel}>zombie</span>
-          </div>
+          <>
+            <div className={styles.SummaryItem}>
+              <span className={classnames(styles.SummaryDot, styles.dotZombie)} />
+              <span className={styles.SummaryCount}>{zombie.length}</span>
+              <span className={styles.SummaryLabel}>zombie</span>
+            </div>
+            <button
+              className={styles.ReconnectAllButton}
+              onClick={() => zombie.forEach(s => onReconnectSession(s.id))}
+              title="Reconnect all zombie sessions"
+            >
+              Reconnect all
+            </button>
+          </>
         )}
         <span className={styles.SummaryTotal}>{sessions.length} total</span>
         <button className={styles.RefreshButton} onClick={onRefreshSessions} title="Refresh sessions">
