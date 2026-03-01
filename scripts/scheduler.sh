@@ -23,6 +23,8 @@ AUTO_ACTIVATE="$(grep 'auto_activate:' "$CONFIG" | sed 's/.*: *//')"
 AUTO_APPROVE_PLANS="$(grep 'auto_approve_plans:' "$CONFIG" | sed 's/.*: *//')"
 POLL_INTERVAL="$(grep 'poll_interval:' "$CONFIG" | sed 's/.*: *//')"
 POLL_INTERVAL="${POLL_INTERVAL:-120}"
+DELEGATOR_CYCLE_INTERVAL="$(grep 'cycle_interval:' "$CONFIG" | sed 's/[^0-9]//g')"
+DELEGATOR_CYCLE_INTERVAL="${DELEGATOR_CYCLE_INTERVAL:-300}"
 CLEANUP_EVERY="$(grep 'cleanup_every:' "$CONFIG" | sed 's/[^0-9]//g')"
 CLEANUP_EVERY="${CLEANUP_EVERY:-10}"
 ARCHIVE_AFTER_DAYS="$(grep 'archive_after_days:' "$CONFIG" | sed 's/[^0-9]//g')"
@@ -617,15 +619,20 @@ if [[ "$ONCE" == "true" ]]; then
     generate_plans
     check_and_activate
 else
+    # Calculate delegator trigger frequency in terms of scheduler cycles
+    DELEGATOR_TRIGGER_EVERY=$(( (DELEGATOR_CYCLE_INTERVAL + POLL_INTERVAL - 1) / POLL_INTERVAL ))
     echo "[scheduler] Starting continuous scheduler (Ctrl+C to stop)"
-    echo "[scheduler] Poll interval: ${POLL_INTERVAL}s | Max active: $MAX_ACTIVE | Auto-activate: $AUTO_ACTIVATE"
+    echo "[scheduler] Poll interval: ${POLL_INTERVAL}s | Delegator cycle: ${DELEGATOR_CYCLE_INTERVAL}s (every ${DELEGATOR_TRIGGER_EVERY} cycles) | Max active: $MAX_ACTIVE | Auto-activate: $AUTO_ACTIVATE"
     echo ""
     CYCLE=0
     while true; do
         check_services
         recover_sessions
         recover_delegators
-        trigger_delegator_cycles
+        # Only trigger delegator cycles at the configured interval
+        if [[ $((CYCLE % DELEGATOR_TRIGGER_EVERY)) -eq 0 ]]; then
+            trigger_delegator_cycles
+        fi
         process_worker_completions
         teardown_merged
         generate_plans
