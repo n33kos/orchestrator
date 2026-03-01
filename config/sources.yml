@@ -1,5 +1,14 @@
 # Work Source Configuration
 # Define where the orchestrator discovers new work items.
+#
+# Source types:
+#   markdown  — Parse a local markdown file for task items (checkboxes, numbered lists)
+#   github    — Poll GitHub Issues using the gh CLI
+#   jira      — Poll Jira issues (requires jira CLI or API token)
+#
+# Common options:
+#   polling: manual | auto (default: auto for github/jira, manual for markdown)
+#   limit: max items to return per poll (default: 20)
 
 sources:
   react-18-plan:
@@ -15,15 +24,16 @@ sources:
     state: open
     limit: 20
 
-  # Additional GitHub repos can be added:
-  # design-system-issues:
-  #   type: github
-  #   repo: owner/design-system
-  #   assignee: "@me"
-  #   state: open
+  design-system-issues:
+    type: github
+    repo: owner/design-system
+    assignee: "@me"
+    state: open
+    limit: 10
 
   # Jira source (requires jira CLI or API token):
   # team-board:
   #   type: jira
   #   board: CONSUMER
   #   filter: "assignee = currentUser() AND status != Done"
+  #   limit: 20

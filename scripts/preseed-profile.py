@@ -522,6 +522,12 @@ def main():
     categories = categorize_messages(all_messages)
     profile = generate_profile(categories, len(session_files), len(all_messages))
 
+    # Validate profile has expected structure
+    required_sections = ["Communication Style", "Quality Priorities", "Things Always Checked"]
+    missing = [s for s in required_sections if f"## {s}" not in profile]
+    if missing:
+        print(f"Warning: Generated profile missing sections: {', '.join(missing)}", file=sys.stderr)
+
     if args.dry_run:
         print("\n--- PROFILE (dry run) ---\n")
         print(profile)
@@ -529,6 +535,8 @@ def main():
         profile_path.parent.mkdir(parents=True, exist_ok=True)
         profile_path.write_text(profile)
         print(f"\nProfile written to {profile_path}")
+        print(f"  Sections: {len([l for l in profile.split(chr(10)) if l.startswith('## ')])}")
+        print(f"  Lines: {len(profile.split(chr(10)))}")
         print("Review and edit the profile to correct any inaccuracies.")
 
 
