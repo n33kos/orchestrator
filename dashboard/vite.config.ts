@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { readFileSync, writeFileSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { execFile } from 'child_process'
 import { join } from 'path'
 import { homedir } from 'os'
@@ -310,6 +310,53 @@ function queueApiPlugin(): Plugin {
           }
           res.end(stdout)
         })
+      })
+
+      // POST /api/health/recover — auto-recover zombie sessions
+      server.middlewares.use('/api/health/recover', async (req, res) => {
+        if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
+        const scriptPath = join(__dirname, '..', 'scripts', 'health-check.sh')
+        execFile('bash', [scriptPath, '--auto-recover'], { timeout: 30000, env: { ...process.env, HOME: homedir() } }, (err, stdout, stderr) => {
+          res.setHeader('Content-Type', 'application/json')
+          if (err) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: stderr || String(err), output: stdout }))
+            return
+          }
+          res.end(JSON.stringify({ ok: true, output: stdout }))
+        })
+      })
+
+      // GET /api/events — read recent events from the event log
+      server.middlewares.use('/api/events', (req, res) => {
+        const url = new URL(req.url || '', 'http://localhost')
+        const limit = parseInt(url.searchParams.get('limit') || '50', 10)
+        const since = url.searchParams.get('since') || ''
+        const eventsFile = join(homedir(), '.claude/orchestrator/events.jsonl')
+
+        res.setHeader('Content-Type', 'application/json')
+        if (!existsSync(eventsFile)) {
+          res.end(JSON.stringify({ events: [] }))
+          return
+        }
+
+        try {
+          const lines = readFileSync(eventsFile, 'utf-8').trim().split('\n').filter(Boolean)
+          let events = lines.map(line => {
+            try { return JSON.parse(line) }
+            catch { return null }
+          }).filter(Boolean)
+
+          if (since) {
+            events = events.filter((e: { timestamp: string }) => e.timestamp > since)
+          }
+
+          // Return most recent events (tail)
+          events = events.slice(-limit)
+          res.end(JSON.stringify({ events }))
+        } catch {
+          res.end(JSON.stringify({ events: [] }))
+        }
       })
 
       // POST /api/discover — trigger work discovery

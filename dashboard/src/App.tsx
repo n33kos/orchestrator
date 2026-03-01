@@ -35,6 +35,8 @@ import { FloatingActionButton } from './components/FloatingActionButton/Floating
 import { GlobalSearch } from './components/GlobalSearch/GlobalSearch.tsx'
 import { AnalyticsView } from './components/AnalyticsView/AnalyticsView.tsx'
 import { DelegatorPanel } from './components/DelegatorPanel/DelegatorPanel.tsx'
+import { useDelegators } from './hooks/useDelegators.ts'
+import { useEvents } from './hooks/useEvents.ts'
 import { BreakpointIndicator } from './components/BreakpointIndicator/BreakpointIndicator.tsx'
 import { PinnedSection } from './components/PinnedSection/PinnedSection.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
@@ -100,6 +102,8 @@ export function App() {
   useNotifications(queue.items, settings.notificationsEnabled)
   const { sessions, sendMessage, refresh: refreshSessions } = useSessions()
   const zombieCount = sessions.filter(s => s.state === 'zombie').length
+  const delegatorData = useDelegators(pageVisible ? 10_000 : 60_000)
+  const { events: orchestratorEvents } = useEvents(pageVisible ? 15_000 : 60_000)
   useDocumentTitle({
     activeCount: queue.activeItems.length,
     blockedCount: queue.blockedItems.length,
@@ -218,7 +222,7 @@ export function App() {
     { id: 'projects', label: 'Projects', count: queue.projects.length, alertCount: projectBlockers },
     { id: 'quick_fixes', label: 'Quick Fixes', count: queue.quickFixes.length, alertCount: qfBlockers },
     { id: 'all', label: 'All', count: queue.items.length, alertCount: queue.blockedItems.length },
-    { id: 'delegators', label: 'Delegators' },
+    { id: 'delegators', label: 'Delegators', count: delegatorData.count || undefined, alertCount: delegatorData.alertCount || undefined },
     { id: 'sessions', label: 'Sessions', count: sessions.length, alertCount: zombieCount },
     { id: 'analytics', label: 'Analytics' },
   ]
@@ -817,7 +821,13 @@ export function App() {
         {activeTab === 'analytics' ? (
           <AnalyticsView items={queue.items} sessions={sessions} />
         ) : activeTab === 'delegators' ? (
-          <DelegatorPanel onSendMessage={handleSendMessage} />
+          <DelegatorPanel
+            delegators={delegatorData.delegators}
+            loading={delegatorData.loading}
+            items={queue.items}
+            onRefresh={delegatorData.refresh}
+            onSendMessage={handleSendMessage}
+          />
         ) : activeTab === 'sessions' ? (
           <SessionsView
             sessions={sessions}
@@ -1118,6 +1128,7 @@ export function App() {
       {showActivityFeed && (
         <ActivityFeed
           history={history}
+          events={orchestratorEvents}
           onClear={clearHistory}
           onClose={() => setShowActivityFeed(false)}
         />

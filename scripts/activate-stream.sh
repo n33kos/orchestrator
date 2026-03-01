@@ -11,6 +11,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
+# shellcheck source=emit-event.sh
+source "$SCRIPT_DIR/emit-event.sh"
+
 # Parse config (lightweight YAML parsing via grep/sed)
 CONFIG="$PROJECT_ROOT/config/environment.yml"
 QUEUE_FILE="$(grep 'queue_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
@@ -152,3 +155,5 @@ echo "Activation complete!"
 echo "  Worktree: $WORKTREE_PATH"
 echo "  Session: $SESSION_ID"
 echo "  Status: active"
+
+emit_event "stream.activated" "Activated: $ITEM_TITLE" --item-id "$ITEM_ID" --session-id "$SESSION_ID"

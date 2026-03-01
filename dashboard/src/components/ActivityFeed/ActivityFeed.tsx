@@ -1,9 +1,11 @@
 import classnames from 'classnames'
 import styles from './ActivityFeed.module.scss'
 import type { HistoryEntry } from '../../hooks/useToast.ts'
+import type { OrchestratorEvent } from '../../hooks/useEvents.ts'
 
 interface ActivityFeedProps {
   history: HistoryEntry[]
+  events?: OrchestratorEvent[]
   onClear: () => void
   onClose: () => void
 }
@@ -56,8 +58,37 @@ const TYPE_ICONS: Record<string, React.JSX.Element> = {
   ),
 }
 
-export function ActivityFeed({ history, onClear, onClose }: ActivityFeedProps) {
-  const groups = groupByTimeWindow(history)
+function eventToHistory(e: OrchestratorEvent): HistoryEntry {
+  const typeMap: Record<string, 'success' | 'error' | 'info'> = {
+    'stream.activated': 'success',
+    'stream.completed': 'success',
+    'pr.merged': 'success',
+    'scheduler.activating': 'info',
+    'scheduler.error': 'error',
+    'delegator.issue': 'error',
+    'health.zombie': 'error',
+    'health.recovered': 'info',
+  }
+  return {
+    id: `event-${e.timestamp}-${e.type}`,
+    type: e.severity === 'error' ? 'error' : typeMap[e.type] || 'info',
+    message: e.message,
+    timestamp: e.timestamp,
+  }
+}
+
+export function ActivityFeed({ history, events = [], onClear, onClose }: ActivityFeedProps) {
+  const eventEntries = events.map(eventToHistory)
+  const allEntries = [...history, ...eventEntries]
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+  // Deduplicate by id
+  const seen = new Set<string>()
+  const dedupedEntries = allEntries.filter(e => {
+    if (seen.has(e.id)) return false
+    seen.add(e.id)
+    return true
+  })
+  const groups = groupByTimeWindow(dedupedEntries)
 
   return (
     <div className={styles.Overlay} onClick={onClose}>
@@ -80,7 +111,7 @@ export function ActivityFeed({ history, onClear, onClose }: ActivityFeedProps) {
         </div>
 
         <div className={styles.Body}>
-          {history.length === 0 ? (
+          {dedupedEntries.length === 0 ? (
             <div className={styles.Empty}>
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <circle cx="12" cy="12" r="10" />

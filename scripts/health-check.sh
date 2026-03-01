@@ -9,6 +9,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
+# shellcheck source=emit-event.sh
+source "$SCRIPT_DIR/emit-event.sh"
+
 CONFIG="$PROJECT_ROOT/config/environment.yml"
 QUEUE_FILE="$(grep 'queue_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
 VMUX="$(grep 'vmux:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
@@ -159,7 +162,12 @@ if [[ "$AUTO_RECOVER" == "true" && ${#ZOMBIES[@]} -gt 0 ]]; then
         CWD="$(echo "$SESSIONS_RAW" | grep -A5 "$zid" | grep 'cwd:' | sed 's/.*cwd: *//' | head -1)"
         if [[ -n "$CWD" ]]; then
             echo "  Reconnecting $zid ($CWD)..."
-            $VMUX reconnect "$CWD" 2>&1 || echo "    Failed to reconnect $zid"
+            if $VMUX reconnect "$CWD" 2>&1; then
+                emit_event "health.recovered" "Recovered zombie session $zid" --session-id "$zid"
+            else
+                echo "    Failed to reconnect $zid"
+                emit_event "health.recovery_failed" "Failed to recover zombie $zid" --session-id "$zid" --severity warn
+            fi
         else
             echo "  Cannot find cwd for $zid, skipping"
         fi

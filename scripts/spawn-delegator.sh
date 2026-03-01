@@ -16,6 +16,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
+# shellcheck source=emit-event.sh
+source "$SCRIPT_DIR/emit-event.sh"
+
 CONFIG="$PROJECT_ROOT/config/environment.yml"
 QUEUE_FILE="$(grep 'queue_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
 PROFILE_FILE="$(grep 'profile_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
@@ -204,3 +207,5 @@ echo "  Delegator session: $DELEGATOR_SESSION_ID"
 echo "  Delegator dir: $DELEGATOR_DIR"
 echo "  Monitoring worker: $WORKER_SESSION_ID"
 echo "  Status file: $DELEGATOR_DIR/status.json"
+
+emit_event "delegator.spawned" "Delegator spawned for $ITEM_ID" --item-id "$ITEM_ID" --session-id "$DELEGATOR_SESSION_ID"

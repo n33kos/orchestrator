@@ -11,6 +11,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
+# shellcheck source=emit-event.sh
+source "$SCRIPT_DIR/emit-event.sh"
+
 CONFIG="$PROJECT_ROOT/config/environment.yml"
 QUEUE_FILE="$(grep 'queue_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
 REPO_PATH="$(grep 'path:' "$CONFIG" | head -1 | sed 's/.*: *//' | sed "s|~|$HOME|")"
@@ -144,3 +147,5 @@ echo ""
 echo "Teardown complete!"
 echo "  Session killed, worktree removed, queue updated."
 echo "  Branch '$ITEM_BRANCH' is preserved."
+
+emit_event "stream.completed" "Completed: $ITEM_TITLE" --item-id "$ITEM_ID"

@@ -13,6 +13,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
+# shellcheck source=emit-event.sh
+source "$SCRIPT_DIR/emit-event.sh"
+
 CONFIG="$PROJECT_ROOT/config/environment.yml"
 QUEUE_FILE="$(grep 'queue_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
 MAX_ACTIVE="$(grep 'max_active_projects:' "$CONFIG" | sed 's/.*: *//')"
@@ -139,8 +142,10 @@ function teardown_merged() {
                 echo "[scheduler] Would auto-complete (PR merged): $item_id — $item_title"
             else
                 echo "[scheduler] PR merged — auto-completing: $item_id — $item_title"
+                emit_event "pr.merged" "PR merged, auto-completing: $item_title" --item-id "$item_id"
                 "$SCRIPT_DIR/teardown-stream.sh" "$item_id" 2>&1 | sed 's/^/  /' || {
                     echo "[scheduler] ERROR: Failed to teardown $item_id" >&2
+                    emit_event "scheduler.error" "Failed to teardown $item_id after PR merge" --item-id "$item_id" --severity error
                 }
             fi
         else
@@ -232,8 +237,10 @@ for item in state['ready']:
                 echo "[scheduler] Would activate: $item_id — $item_title ($item_type)"
             else
                 echo "[scheduler] Activating: $item_id — $item_title ($item_type)"
+                emit_event "scheduler.activating" "Auto-activating: $item_title" --item-id "$item_id"
                 "$SCRIPT_DIR/activate-stream.sh" "$item_id" --quick 2>&1 | sed 's/^/  /' || {
                     echo "[scheduler] ERROR: Failed to activate $item_id" >&2
+                    emit_event "scheduler.error" "Failed to activate $item_id" --item-id "$item_id" --severity error
                 }
             fi
         else
