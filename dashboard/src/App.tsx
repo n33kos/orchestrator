@@ -823,7 +823,7 @@ export function App() {
         <ErrorBoundary fallbackLabel="The main content area crashed. Try refreshing the page.">
         <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
         {activeTab === 'analytics' ? (
-          <AnalyticsView items={queue.items} sessions={sessions} />
+          <AnalyticsView items={queue.items} sessions={sessions} delegators={delegatorData.delegators} events={orchestratorEvents} />
         ) : activeTab === 'delegators' ? (
           <DelegatorPanel
             delegators={delegatorData.delegators}

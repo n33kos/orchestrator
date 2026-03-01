@@ -2,13 +2,17 @@ import styles from './AnalyticsView.module.scss'
 import { StatusChart } from '../StatusChart/StatusChart.tsx'
 import { BarChart } from '../BarChart/BarChart.tsx'
 import type { WorkItem, SessionInfo } from '../../types.ts'
+import type { DelegatorStatus } from '../../hooks/useDelegators.ts'
+import type { OrchestratorEvent } from '../../hooks/useEvents.ts'
 
 interface Props {
   items: WorkItem[]
   sessions: SessionInfo[]
+  delegators?: DelegatorStatus[]
+  events?: OrchestratorEvent[]
 }
 
-export function AnalyticsView({ items, sessions }: Props) {
+export function AnalyticsView({ items, sessions, delegators = [], events = [] }: Props) {
   // Status counts
   const statusCounts = {
     active: items.filter(i => i.status === 'active').length,
@@ -183,6 +187,48 @@ export function AnalyticsView({ items, sessions }: Props) {
             <BarChart bars={sourceBars} height={80} />
           </div>
         )}
+
+        {delegators.length > 0 && (
+          <div className={styles.Card}>
+            <h3 className={styles.CardTitle}>Delegator Performance</h3>
+            <div className={styles.DelegatorGrid}>
+              {delegators.map(d => {
+                const unresolved = (d.issues_found || []).filter(i => !(i as unknown as Record<string, unknown>).resolved).length
+                return (
+                  <div key={d.item_id} className={styles.DelegatorRow}>
+                    <span className={styles.DelegatorId}>{d.item_id}</span>
+                    <div className={styles.DelegatorStats}>
+                      <span>{d.commits_reviewed} reviewed</span>
+                      <span className={unresolved > 0 ? styles.DelegatorAlert : ''}>{(d.issues_found || []).length} issues</span>
+                      <span data-status={d.status}>{d.status}</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {events.length > 0 && (() => {
+          const eventTypes = new Map<string, number>()
+          for (const e of events) {
+            eventTypes.set(e.type, (eventTypes.get(e.type) || 0) + 1)
+          }
+          const eventBars = Array.from(eventTypes.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 8)
+            .map(([label, value], i) => ({
+              label: label.replace(/\./g, ' '),
+              value,
+              color: ['var(--color-primary)', 'var(--color-success)', 'var(--color-warning)', 'var(--color-error)', 'var(--color-text-muted)'][i % 5],
+            }))
+          return (
+            <div className={styles.Card}>
+              <h3 className={styles.CardTitle}>Event Activity ({events.length} events)</h3>
+              <BarChart bars={eventBars} height={100} />
+            </div>
+          )
+        })()}
       </div>
     </div>
   )
