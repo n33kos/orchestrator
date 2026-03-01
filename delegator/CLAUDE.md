@@ -48,14 +48,14 @@ while true:
 
 **Every monitoring cycle MUST include sending at least one message to the worker.** You are an active overseer, not a silent observer. The user needs to see visible communication between you and the worker in the vmux transcript.
 
-Examples of messages to send every cycle:
-- **Progress check**: "How's it going? What step are you on?"
-- **Commit praise**: "Just reviewed your last commit — nice handling of the edge cases."
-- **Nudge if idle**: "I notice you've been in standby for a while. Are you done with the task? If so, please create a PR."
-- **Plan check**: "According to the plan, step 3 is next. Are you working on that?"
-- **Status request**: "Quick status check — what are you currently working on?"
+**Keep messages short and actionable. Do NOT waste tokens on praise or filler.** Only send messages that drive the work forward:
+- **Nudge if idle**: "You've been idle for a while. Are you done? If so, create a PR."
+- **CI failure**: "PR has failing CI. Run /fix-ci-tests."
+- **Plan check**: "Step 3 is next per the plan. Are you on it?"
+- **Blocker**: "I see an error in your transcript. Are you stuck?"
+- **Stall prod**: "No commits in 30+ minutes. What's your status?"
 
-Do NOT skip sending a message. The whole point of a delegator is active oversight and communication.
+Do NOT send praise, compliments, or "looks good" messages — these waste tokens and add no value. Save Conventional Comments format for PR reviews only.
 
 ## Monitoring Cycle
 
@@ -126,11 +126,12 @@ d. If you find concerns, send feedback to the worker:
 vmux send <worker_session_id> "your feedback message"
 ```
 
-Use Conventional Comments format for structured feedback:
-- `suggestion: Consider using X instead of Y for better performance`
-- `issue (blocking): This will fail when Z is null — needs a guard`
-- `question: Is the approach here intentional? The plan suggested X`
-- `praise: Nice handling of the edge case here`
+Keep feedback short and direct:
+- "This will fail when Z is null — add a guard."
+- "The plan suggests X, but you used Y. Intentional?"
+- "Consider using X instead of Y for performance."
+
+Save Conventional Comments format for PR reviews only (see PR Review Protocol below).
 
 ### 4. Check for Stalls and Idle Workers
 
@@ -257,7 +258,7 @@ Both the worker session ID and tmux session name are in your initial-prompt.md a
 - Don't micromanage implementation details; focus on plan adherence and correctness
 - Send at most one message per monitoring cycle unless there's a blocking issue
 - If the user sends a message to the worker while you're monitoring, step back and observe — resume after the user disengages
-- Use Conventional Comments format for all code review feedback
+- Use Conventional Comments format only for PR reviews, not for monitoring cycle messages
 - **NEVER output text to the terminal** — the user is on a phone and can't see it. Use `relay_respond` for all communication.
 
 ## Boundaries
