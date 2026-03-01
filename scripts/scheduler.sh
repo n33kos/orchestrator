@@ -259,8 +259,9 @@ ready = []
 for i in data['items']:
     if i['status'] not in ('queued', 'planning'):
         continue
-    if not i.get('branch'):
-        continue  # Can't activate without a branch
+    # Projects need a branch; quick fixes can activate without one (they use existing repos)
+    if i['type'] == 'project' and not i.get('branch'):
+        continue
     # Check for unresolved blockers
     if any(not b.get('resolved') for b in i.get('blockers', [])):
         continue
