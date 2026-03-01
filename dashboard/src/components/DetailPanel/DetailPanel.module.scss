@@ -56,6 +56,22 @@
   word-break: break-word;
 }
 
+.TitleInput {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text-strong);
+  background: var(--color-surface-secondary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  width: 100%;
+  outline: none;
+
+  &:focus {
+    box-shadow: 0 0 0 2px var(--color-primary-muted);
+  }
+}
+
 .Id {
   font-size: 11px;
   color: var(--color-text-muted);

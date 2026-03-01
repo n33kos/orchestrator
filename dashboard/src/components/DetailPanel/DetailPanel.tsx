@@ -12,6 +12,7 @@ interface DetailPanelProps {
   sessions?: SessionInfo[]
   onClose: () => void
   onStatusChange: (id: string, status: WorkItemStatus) => void
+  onUpdate?: (id: string, fields: Partial<Pick<WorkItem, 'title' | 'description'>>) => void
   onDelete: (id: string) => void
   onDuplicate?: (id: string) => void
   onNotesChange?: (id: string, notes: string) => void
@@ -45,14 +46,20 @@ function formatItemSummary(item: WorkItem): string {
   return lines.filter(Boolean).join('\n')
 }
 
-export function DetailPanel({ item, sessions, onClose, onStatusChange, onDelete, onDuplicate, onNotesChange, onActivateStream, onTeardownStream, onSendMessage }: DetailPanelProps) {
+export function DetailPanel({ item, sessions, onClose, onStatusChange, onUpdate, onDelete, onDuplicate, onNotesChange, onActivateStream, onTeardownStream, onSendMessage }: DetailPanelProps) {
   const panelRef = useFocusTrap<HTMLDivElement>()
   const [copied, setCopied] = useState(false)
   const [editingNotes, setEditingNotes] = useState(false)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [editingDescription, setEditingDescription] = useState(false)
+  const [titleText, setTitleText] = useState(item.title)
+  const [descriptionText, setDescriptionText] = useState(item.description)
   const [notesText, setNotesText] = useState((item.metadata?.notes as string) || '')
   const [prStatus, setPrStatus] = useState<{ state?: string; reviewDecision?: string; checks?: string; url?: string } | null>(null)
   const [messageText, setMessageText] = useState('')
   const notesRef = useRef<HTMLTextAreaElement>(null)
+  const titleRef = useRef<HTMLInputElement>(null)
+  const descRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -75,13 +82,27 @@ export function DetailPanel({ item, sessions, onClose, onStatusChange, onDelete,
       .catch(() => {})
   }, [item.pr_url])
 
-  // Focus textarea when entering edit mode
+  // Focus inputs when entering edit mode
   useEffect(() => {
     if (editingNotes && notesRef.current) {
       notesRef.current.focus()
       notesRef.current.selectionStart = notesRef.current.value.length
     }
   }, [editingNotes])
+
+  useEffect(() => {
+    if (editingTitle && titleRef.current) {
+      titleRef.current.focus()
+      titleRef.current.selectionStart = titleRef.current.value.length
+    }
+  }, [editingTitle])
+
+  useEffect(() => {
+    if (editingDescription && descRef.current) {
+      descRef.current.focus()
+      descRef.current.selectionStart = descRef.current.value.length
+    }
+  }, [editingDescription])
 
   const linkedSession = sessions?.find(s =>
     (item.session_id && s.id === item.session_id) ||
@@ -122,7 +143,34 @@ export function DetailPanel({ item, sessions, onClose, onStatusChange, onDelete,
       <div className={styles.Panel} ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="detail-panel-title">
         <div className={styles.Header}>
           <div className={styles.HeaderLeft}>
-            <h2 id="detail-panel-title" className={styles.Title}>{item.title}</h2>
+            {editingTitle ? (
+              <input
+                ref={titleRef}
+                className={styles.TitleInput}
+                value={titleText}
+                onChange={e => setTitleText(e.target.value)}
+                onBlur={() => {
+                  if (titleText.trim() && titleText !== item.title && onUpdate) {
+                    onUpdate(item.id, { title: titleText.trim() })
+                  }
+                  setEditingTitle(false)
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                  if (e.key === 'Escape') { setTitleText(item.title); setEditingTitle(false) }
+                }}
+              />
+            ) : (
+              <h2
+                id="detail-panel-title"
+                className={styles.Title}
+                onClick={() => { if (onUpdate) setEditingTitle(true) }}
+                title={onUpdate ? 'Click to edit title' : undefined}
+                style={onUpdate ? { cursor: 'text' } : undefined}
+              >
+                {item.title}
+              </h2>
+            )}
             <span className={styles.Id}>{item.id}</span>
           </div>
           <button className={styles.CloseButton} onClick={onClose} aria-label="Close detail panel">
@@ -170,11 +218,56 @@ export function DetailPanel({ item, sessions, onClose, onStatusChange, onDelete,
           </div>
 
           <div className={styles.Section}>
-            <span className={styles.SectionLabel}>Description</span>
-            {item.description ? (
-              <p className={styles.Description}>{item.description}</p>
+            <div className={styles.SectionHeader}>
+              <span className={styles.SectionLabel}>Description</span>
+              {onUpdate && !editingDescription && (
+                <button className={styles.EditNotesButton} onClick={() => setEditingDescription(true)}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                  Edit
+                </button>
+              )}
+            </div>
+            {editingDescription ? (
+              <div className={styles.NotesEdit}>
+                <textarea
+                  ref={descRef}
+                  className={styles.NotesTextarea}
+                  value={descriptionText}
+                  onChange={e => setDescriptionText(e.target.value)}
+                  placeholder="Describe this work item..."
+                  rows={6}
+                />
+                <div className={styles.NotesActions}>
+                  <button
+                    className={styles.NotesSave}
+                    onClick={() => {
+                      if (onUpdate) onUpdate(item.id, { description: descriptionText })
+                      setEditingDescription(false)
+                    }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    className={styles.NotesCancel}
+                    onClick={() => { setEditingDescription(false); setDescriptionText(item.description) }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
             ) : (
-              <span className={styles.EmptyDescription}>No description</span>
+              <>
+                {item.description ? (
+                  <p className={styles.Description}>{item.description}</p>
+                ) : (
+                  <span className={styles.EmptyDescription}>
+                    {onUpdate ? 'Click edit to add a description' : 'No description'}
+                  </span>
+                )}
+              </>
             )}
           </div>
 

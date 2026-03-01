@@ -1137,6 +1137,19 @@ export function App() {
             onStatusChange={(id, status) => { handleStatusChange(id, status); setDetailItemId(null) }}
             onDelete={(id) => { handleDelete(id); setDetailItemId(null) }}
             onDuplicate={(id) => { handleDuplicate(id); setDetailItemId(null) }}
+            onUpdate={async (id, fields) => {
+              try {
+                await fetch('/api/queue/update', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ id, ...fields }),
+                })
+                queue.refresh()
+                addToast('Updated', 'success')
+              } catch {
+                addToast('Failed to update', 'error')
+              }
+            }}
             onNotesChange={async (id, notes) => {
               try {
                 await fetch('/api/queue/update', {
