@@ -130,7 +130,7 @@ export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ itemId: item.id }),
-    }).catch(() => {})
+    }).catch(err => console.error('Failed to open plan file:', err))
   }
 
   function handleTogglePlanApproval() {

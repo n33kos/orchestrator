@@ -160,6 +160,12 @@ plan = {
 print(json.dumps(plan))
 ")"
 
+# Validate that the JSON extraction succeeded
+if [[ -z "$PLAN_JSON" ]] || ! echo "$PLAN_JSON" | python3 -c "import json, sys; json.load(sys.stdin)" 2>/dev/null; then
+    echo "  WARNING: Plan JSON extraction failed, using fallback summary"
+    PLAN_JSON='{"summary":"Plan generated — see plan file for details","steps":[],"approved":false,"created_at":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","approved_at":null}'
+fi
+
 # Auto-approve if requested
 if [[ "$AUTO_APPROVE" == "true" ]]; then
     PLAN_JSON="$(echo "$PLAN_JSON" | python3 -c "
