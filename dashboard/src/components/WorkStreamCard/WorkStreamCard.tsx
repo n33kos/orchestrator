@@ -731,7 +731,16 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
             </div>
 
             <div className={styles.StatusActions}>
-              {(item.status === 'queued' || item.status === 'planning') && (
+              {item.status === 'queued' && (
+                <button
+                  className={styles.ActionButtonText}
+                  onClick={() => onStatusChange(item.id, 'planning')}
+                  disabled={isBusy}
+                >
+                  Start Planning
+                </button>
+              )}
+              {item.status === 'planning' && itemPlan?.approved && (
                 <button
                   className={classnames(styles.ActionButtonText, onActivateStream && styles.ActionPrimary)}
                   onClick={() => onActivateStream ? onActivateStream(item.id) : onStatusChange(item.id, 'active')}
