@@ -140,6 +140,9 @@ You are a code quality delegator monitoring a worker Claude Code session.
 - Report significant findings to the orchestrator dashboard API
 DELEGATOR_CLAUDE
 
+# Initialize git repo (vmux requires a git working directory)
+(cd "$DELEGATOR_DIR" && git init -q && git add -A && git commit -q -m "Delegator session init") 2>/dev/null || true
+
 # Initialize status file
 python3 -c "
 import json
