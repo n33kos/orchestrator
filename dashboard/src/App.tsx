@@ -28,6 +28,7 @@ import { useNotifications } from './hooks/useNotifications.ts'
 import { useSessions } from './hooks/useSessions.ts'
 import { useDocumentTitle } from './hooks/useDocumentTitle.ts'
 import { useFaviconBadge } from './hooks/useFaviconBadge.ts'
+import { usePersistedState } from './hooks/usePersistedState.ts'
 import type { WorkItemStatus, MessageEntry } from './types.ts'
 
 export function App() {
@@ -45,7 +46,7 @@ export function App() {
   })
   useFaviconBadge(queue.blockedItems.length > 0 || zombieCount > 0)
   const [messagesBySession, setMessagesBySession] = useState<Record<string, MessageEntry[]>>({})
-  const [activeTab, setActiveTab] = useState('projects')
+  const [activeTab, setActiveTab] = usePersistedState('activeTab', 'projects')
   const [showAddForm, setShowAddForm] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [showCompleted, setShowCompleted] = useState(false)
@@ -55,9 +56,9 @@ export function App() {
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<'cards' | 'compact'>('cards')
-  const [sortField, setSortField] = useState<SortField>('priority')
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [viewMode, setViewMode] = usePersistedState<'cards' | 'compact'>('viewMode', 'cards')
+  const [sortField, setSortField] = usePersistedState<SortField>('sortField', 'priority')
+  const [sortDirection, setSortDirection] = usePersistedState<SortDirection>('sortDirection', 'asc')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const searchRef = useRef<HTMLInputElement>(null)
   const [confirmAction, setConfirmAction] = useState<{
