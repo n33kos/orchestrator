@@ -5,6 +5,8 @@ import type { WorkItem, WorkItemStatus } from '../../types.ts'
 interface WorkStreamListProps {
   items: WorkItem[]
   loading: boolean
+  hasSearch: boolean
+  emptyLabel?: string
   onStatusChange: (id: string, status: WorkItemStatus) => void
   onPriorityChange: (id: string, priority: number) => void
   onDelegatorToggle: (id: string, enabled: boolean) => void
@@ -15,12 +17,13 @@ interface WorkStreamListProps {
   onDelete: (id: string) => void
 }
 
-export function WorkStreamList({ items, loading, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete }: WorkStreamListProps) {
+export function WorkStreamList({ items, loading, hasSearch, emptyLabel, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete }: WorkStreamListProps) {
   if (loading) {
     return (
       <div className={styles.Root}>
         <div className={styles.Empty}>
-          <p className={styles.EmptyText}>Loading...</p>
+          <div className={styles.Spinner} />
+          <p className={styles.EmptyText}>Loading work streams...</p>
         </div>
       </div>
     )
@@ -31,14 +34,25 @@ export function WorkStreamList({ items, loading, onStatusChange, onPriorityChang
       <div className={styles.Root}>
         <div className={styles.Empty}>
           <div className={styles.EmptyIcon}>
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
-              <rect x="9" y="3" width="6" height="4" rx="1" />
-            </svg>
+            {hasSearch ? (
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            ) : (
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+                <rect x="9" y="3" width="6" height="4" rx="1" />
+              </svg>
+            )}
           </div>
-          <p className={styles.EmptyText}>No work streams</p>
+          <p className={styles.EmptyText}>
+            {hasSearch ? 'No matching work streams' : (emptyLabel || 'No work streams')}
+          </p>
           <p className={styles.EmptySubtext}>
-            Add work items manually or configure sources to discover them automatically.
+            {hasSearch
+              ? 'Try adjusting your search query or clearing the filter.'
+              : 'Add work items manually or configure sources to discover them automatically.'}
           </p>
         </div>
       </div>

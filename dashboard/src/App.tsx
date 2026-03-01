@@ -8,6 +8,7 @@ import { WorkStreamList } from './components/WorkStreamList/WorkStreamList.tsx'
 import { AddWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import { ConfirmDialog } from './components/ConfirmDialog/ConfirmDialog.tsx'
 import { ToastContainer } from './components/Toast/Toast.tsx'
+import { KeyboardHints } from './components/KeyboardHints/KeyboardHints.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import { useQueue } from './hooks/useQueue.ts'
 import { useTheme } from './hooks/useTheme.ts'
@@ -179,6 +180,11 @@ export function App() {
         <WorkStreamList
           items={filteredItems}
           loading={queue.loading}
+          hasSearch={searchQuery.trim().length > 0}
+          emptyLabel={
+            activeTab === 'quick_fixes' ? 'No quick fixes' :
+            activeTab === 'projects' ? 'No projects' : undefined
+          }
           onStatusChange={handleStatusChange}
           onPriorityChange={handlePriorityChange}
           onDelegatorToggle={handleDelegatorToggle}
@@ -189,6 +195,7 @@ export function App() {
           onDelete={handleDelete}
         />
       </main>
+      <KeyboardHints />
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
       {confirmAction && (
         <ConfirmDialog
