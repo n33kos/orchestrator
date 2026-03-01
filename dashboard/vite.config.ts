@@ -731,6 +731,63 @@ function queueApiPlugin(): Plugin {
         }
       })
 
+      // GET /api/status — combined system snapshot (queue + sessions + delegators + health)
+      server.middlewares.use('/api/status', (_req, res) => {
+        res.setHeader('Content-Type', 'application/json')
+        const vmuxPath = join(homedir(), '.local/bin/vmux')
+        const scriptDir = join(__dirname, '..', 'scripts')
+        const execEnv = { ...process.env, HOME: homedir() }
+
+        // Read queue synchronously (fast, local file)
+        let queue = { version: 1, items: [] as Record<string, unknown>[] }
+        try { queue = JSON.parse(readFileSync(queuePath, 'utf-8')) } catch { /* empty */ }
+
+        // Run sessions, delegators, and health in parallel
+        let pending = 3
+        let sessions: Record<string, string>[] = []
+        let delegators: Record<string, unknown>[] = []
+        let health: Record<string, unknown> = {}
+
+        function tryFinish() {
+          if (--pending > 0) return
+          res.end(JSON.stringify({ queue, sessions, delegators, health, timestamp: new Date().toISOString() }))
+        }
+
+        execFile(vmuxPath, ['sessions'], { timeout: 5000 }, (err, stdout) => {
+          if (!err) {
+            const parsed: { id: string; state: string; cwd: string; tmux: string }[] = []
+            const lines = stdout.split('\n')
+            let i = 0
+            while (i < lines.length) {
+              const m = lines[i].match(/^\s+\[(\w+)\]\s+(\w+)/)
+              if (m) {
+                const state = m[1], id = m[2]
+                let cwd = '', tmux = ''
+                while (++i < lines.length && !lines[i].match(/^\s+\[/)) {
+                  const cwdM = lines[i].match(/cwd:\s+(.+)/)
+                  if (cwdM) cwd = cwdM[1].trim()
+                  const tmuxM = lines[i].match(/tmux:\s+(.+)/)
+                  if (tmuxM) tmux = tmuxM[1].trim()
+                }
+                parsed.push({ id, state, cwd, tmux })
+              } else { i++ }
+            }
+            sessions = parsed
+          }
+          tryFinish()
+        })
+
+        execFile('bash', [join(scriptDir, 'delegator-status.sh'), '--json'], { timeout: 10000, env: execEnv }, (err, stdout) => {
+          if (!err) { try { delegators = JSON.parse(stdout).delegators || [] } catch { /* empty */ } }
+          tryFinish()
+        })
+
+        execFile('bash', [join(scriptDir, 'health-check.sh'), '--json'], { timeout: 15000, env: execEnv }, (err, stdout) => {
+          if (!err) { try { health = JSON.parse(stdout) } catch { /* empty */ } }
+          tryFinish()
+        })
+      })
+
       // GET /api/queue — read the queue
       server.middlewares.use('/api/queue', (_req, res) => {
         try {
