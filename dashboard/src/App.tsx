@@ -375,6 +375,8 @@ export function App() {
                 activeTab === 'quick_fixes' ? 'No quick fixes' :
                 activeTab === 'projects' ? 'No projects' : undefined
               }
+              emptyTab={activeTab}
+              onAddClick={() => setShowAddForm(true)}
               onStatusChange={handleStatusChange}
               onPriorityChange={handlePriorityChange}
               onDelegatorToggle={handleDelegatorToggle}

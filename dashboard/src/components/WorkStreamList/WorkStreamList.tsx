@@ -9,6 +9,7 @@ interface WorkStreamListProps {
   loading: boolean
   hasSearch: boolean
   emptyLabel?: string
+  emptyTab?: string
   sortField: SortField
   sortDirection: SortDirection
   sessions: SessionInfo[]
@@ -16,6 +17,7 @@ interface WorkStreamListProps {
   selectable?: boolean
   selectedIds?: Set<string>
   onSelect?: (id: string) => void
+  onAddClick?: () => void
   onStatusChange: (id: string, status: WorkItemStatus) => void
   onPriorityChange: (id: string, priority: number) => void
   onDelegatorToggle: (id: string, enabled: boolean) => void
@@ -39,7 +41,7 @@ function findSession(sessions: SessionInfo[], item: WorkItem): SessionInfo | und
   return undefined
 }
 
-export function WorkStreamList({ items, loading, hasSearch, emptyLabel, sortField, sortDirection, sessions, messagesBySession, selectable, selectedIds, onSelect, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onReorder, onSendMessage }: WorkStreamListProps) {
+export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab, sortField, sortDirection, sessions, messagesBySession, selectable, selectedIds, onSelect, onAddClick, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onReorder, onSendMessage }: WorkStreamListProps) {
   const { dragId, overId, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(onReorder)
   if (loading) {
     return (
@@ -53,30 +55,95 @@ export function WorkStreamList({ items, loading, hasSearch, emptyLabel, sortFiel
   }
 
   if (items.length === 0) {
-    return (
-      <div className={styles.Root}>
-        <div className={styles.Empty}>
-          <div className={styles.EmptyIcon}>
-            {hasSearch ? (
+    if (hasSearch) {
+      return (
+        <div className={styles.Root}>
+          <div className={styles.Empty}>
+            <div className={styles.EmptyIcon}>
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
-            ) : (
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
-                <rect x="9" y="3" width="6" height="4" rx="1" />
-              </svg>
-            )}
+            </div>
+            <p className={styles.EmptyText}>No matching work streams</p>
+            <p className={styles.EmptySubtext}>
+              Try adjusting your search query or clearing the filter.
+            </p>
           </div>
-          <p className={styles.EmptyText}>
-            {hasSearch ? 'No matching work streams' : (emptyLabel || 'No work streams')}
-          </p>
-          <p className={styles.EmptySubtext}>
-            {hasSearch
-              ? 'Try adjusting your search query or clearing the filter.'
-              : 'Add work items manually or configure sources to discover them automatically.'}
-          </p>
+        </div>
+      )
+    }
+
+    const emptyConfig = {
+      projects: {
+        icon: (
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+          </svg>
+        ),
+        title: 'No projects',
+        description: 'Projects are larger work items that get their own worktree, Claude session, and optional delegator. Add one manually or configure a source to discover them.',
+        hints: [
+          { label: 'Add a project', desc: 'Press N or click the + button to create one' },
+          { label: 'Configure sources', desc: 'Set up Jira, GitHub Issues, or Slack as work sources' },
+        ],
+      },
+      quick_fixes: {
+        icon: (
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+          </svg>
+        ),
+        title: 'No quick fixes',
+        description: 'Quick fixes are small, fast tasks that bypass concurrency limits and skip the delegator. They are ideal for one-off bug fixes or minor changes.',
+        hints: [
+          { label: 'Add a quick fix', desc: 'Press N, then select "Quick Fix" as the type' },
+        ],
+      },
+      all: {
+        icon: (
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+            <rect x="9" y="3" width="6" height="4" rx="1" />
+          </svg>
+        ),
+        title: 'No work streams yet',
+        description: 'Your queue is empty. Work items will appear here once you add them manually or configure automated discovery from sources like Jira, GitHub, or Slack.',
+        hints: [
+          { label: 'Add your first item', desc: 'Press N or click + to get started' },
+          { label: 'Open command palette', desc: 'Press Cmd+K for quick actions' },
+          { label: 'Configure settings', desc: 'Set concurrency limits, polling intervals, and automation' },
+        ],
+      },
+    }
+
+    const config = emptyConfig[emptyTab as keyof typeof emptyConfig] ?? emptyConfig.all
+
+    return (
+      <div className={styles.Root}>
+        <div className={styles.Empty}>
+          <div className={styles.EmptyIcon}>{config.icon}</div>
+          <p className={styles.EmptyText}>{emptyLabel || config.title}</p>
+          <p className={styles.EmptySubtext}>{config.description}</p>
+          {config.hints.length > 0 && (
+            <div className={styles.EmptyHints}>
+              {config.hints.map((hint, i) => (
+                <div key={i} className={styles.EmptyHint}>
+                  <span className={styles.HintLabel}>{hint.label}</span>
+                  <span className={styles.HintDesc}>{hint.desc}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {onAddClick && (
+            <button className={styles.EmptyAddButton} onClick={onAddClick}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Add Work Item
+            </button>
+          )}
         </div>
       </div>
     )
