@@ -66,6 +66,8 @@ stalled = []
 for item in active:
     if item.get('activated_at'):
         activated = datetime.fromisoformat(item['activated_at'].replace('Z', '+00:00'))
+        if activated.tzinfo is None:
+            activated = activated.replace(tzinfo=timezone.utc)
         now = datetime.now(timezone.utc)
         hours = (now - activated).total_seconds() / 3600
         if hours > $STALL_THRESHOLD_HOURS:
@@ -108,6 +110,8 @@ if delegators_dir.exists():
             last_check = status.get('last_check_at') or status.get('started_at', '')
             if last_check:
                 ts = datetime.fromisoformat(last_check.replace('Z', '+00:00'))
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=timezone.utc)
                 hours = (datetime.now(timezone.utc) - ts).total_seconds() / 3600
                 if hours > $STALL_THRESHOLD_HOURS:
                     stalled.append({
