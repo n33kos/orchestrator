@@ -66,6 +66,13 @@ echo "  Worktree: $WORKTREE_PATH"
 DELEGATOR_DIR="$HOME/.claude/orchestrator/delegators/$ITEM_ID"
 mkdir -p "$DELEGATOR_DIR"
 
+# Pre-compute the delegator session ID (deterministic from path)
+DELEGATOR_SESSION_ID="$(python3 -c "
+import hashlib
+cwd = '$DELEGATOR_DIR'
+print(hashlib.sha256(cwd.encode()).hexdigest()[:12])
+")"
+
 # Write the initial prompt with all context the delegator needs
 cat > "$DELEGATOR_DIR/initial-prompt.md" << PROMPT
 # Delegator Assignment — $ITEM_TITLE
@@ -76,6 +83,7 @@ cat > "$DELEGATOR_DIR/initial-prompt.md" << PROMPT
 - **Description**: $ITEM_DESC
 - **Branch**: $ITEM_BRANCH
 - **Worker Session**: $WORKER_SESSION_ID
+- **Delegator Session (you)**: $DELEGATOR_SESSION_ID
 - **Worktree**: $WORKTREE_PATH
 
 ## Commands
@@ -123,8 +131,14 @@ vmux send $WORKER_SESSION_ID "CI checks are failing on this PR. Run /fix-ci-test
 1. Read the delegator instructions at $PROJECT_ROOT/delegator/CLAUDE.md
 2. Read the user profile at $PROFILE_FILE (if it exists)
 3. Update status.json to "monitoring"
-4. Send a brief introduction to the worker
-5. Begin the monitoring loop
+4. Send a brief introduction to the worker, including your session ID so they can message you back
+5. Enter voice relay standby and begin the monitoring loop
+
+**Your session ID is $DELEGATOR_SESSION_ID. Tell the worker they can message you with:**
+\`\`\`
+vmux send $DELEGATOR_SESSION_ID "message"
+\`\`\`
+so they can report status, ask questions, or signal completion.
 PROMPT
 
 # Write the delegator CLAUDE.md for the session
@@ -191,13 +205,6 @@ $VMUX spawn "$DELEGATOR_DIR" 2>&1 || {
     echo "ERROR: Failed to spawn delegator session" >&2
     exit 1
 }
-
-# Get the delegator session ID (deterministic from path)
-DELEGATOR_SESSION_ID="$(python3 -c "
-import hashlib
-cwd = '$DELEGATOR_DIR'
-print(hashlib.sha256(cwd.encode()).hexdigest()[:12])
-")"
 
 # Update queue item with delegator ID
 python3 -c "
