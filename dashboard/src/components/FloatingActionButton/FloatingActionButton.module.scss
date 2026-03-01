@@ -1,0 +1,98 @@
+.Root {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+
+  /* Only show on mobile */
+  @media (min-width: 768px) {
+    display: none;
+  }
+}
+
+.Backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.Menu {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.MenuItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: fabItemSlide 0.15s ease both;
+  transition: background 0.1s ease;
+
+  &:hover {
+    background: var(--color-surface-hover);
+  }
+}
+
+@keyframes fabItemSlide {
+  from { opacity: 0; transform: translateY(8px) scale(0.9); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.MenuIcon {
+  display: flex;
+  align-items: center;
+  color: var(--color-primary);
+}
+
+.MenuLabel {
+  white-space: nowrap;
+}
+
+.Fab {
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: var(--color-primary-hover);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+
+  svg {
+    transition: transform 0.2s ease;
+  }
+
+  &.FabOpen svg {
+    transform: rotate(45deg);
+  }
+}

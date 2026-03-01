@@ -117,6 +117,18 @@ a {
   }
 }
 
+/* ── Focus mode ── */
+body.focus-mode {
+  header,
+  [class*="StatsBar"],
+  [class*="FilterChips"],
+  [class*="Breadcrumb"],
+  [class*="StatusFooter"],
+  [class*="KeyboardHints"] {
+    display: none !important;
+  }
+}
+
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
