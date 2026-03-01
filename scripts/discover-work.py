@@ -166,12 +166,24 @@ def load_queue(queue_path: Path) -> dict:
 
 
 def deduplicate(new_items: list[dict], existing_items: list[dict]) -> list[dict]:
-    """Remove items that already exist in the queue (by title similarity)."""
+    """Remove items that already exist in the queue (by source_ref or title)."""
     existing_titles = {item["title"].lower().strip() for item in existing_items}
+    existing_refs = set()
+    for item in existing_items:
+        ref = item.get("metadata", {}).get("source_ref", "") or item.get("source_ref", "")
+        if ref:
+            existing_refs.add(ref.strip())
+
     unique = []
     for item in new_items:
-        if item["title"].lower().strip() not in existing_titles:
-            unique.append(item)
+        source_ref = item.get("source_ref", "").strip()
+        # Skip if source_ref matches an existing item
+        if source_ref and source_ref in existing_refs:
+            continue
+        # Skip if exact title match
+        if item["title"].lower().strip() in existing_titles:
+            continue
+        unique.append(item)
     return unique
 
 
