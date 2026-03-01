@@ -16,6 +16,9 @@ CONFIG="$PROJECT_ROOT/config/environment.yml"
 QUEUE_FILE="$(grep 'queue_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
 VMUX="$(grep 'vmux:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
 MAX_ACTIVE="$(grep 'max_active_projects:' "$CONFIG" | sed 's/.*: *//')"
+STALL_THRESHOLD_MIN="$(grep 'threshold_minutes:' "$CONFIG" | sed 's/.*: *//')"
+STALL_THRESHOLD_MIN="${STALL_THRESHOLD_MIN:-30}"
+STALL_THRESHOLD_HOURS="$(python3 -c "print($STALL_THRESHOLD_MIN / 60)")"
 
 AUTO_RECOVER=false
 JSON_OUTPUT=false
@@ -62,7 +65,7 @@ for item in active:
         activated = datetime.fromisoformat(item['activated_at'].replace('Z', '+00:00'))
         now = datetime.now(timezone.utc)
         hours = (now - activated).total_seconds() / 3600
-        if hours > 24:
+        if hours > $STALL_THRESHOLD_HOURS:
             stalled.append({'id': item['id'], 'title': item['title'], 'hours': round(hours, 1)})
 
 blocked = [i for i in data['items'] if any(not b.get('resolved', False) for b in i.get('blockers', []))]
