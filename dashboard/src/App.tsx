@@ -24,6 +24,7 @@ import { useKeyboard } from './hooks/useKeyboard.ts'
 import { useSettings } from './hooks/useSettings.ts'
 import { useNotifications } from './hooks/useNotifications.ts'
 import { useSessions } from './hooks/useSessions.ts'
+import { useDocumentTitle } from './hooks/useDocumentTitle.ts'
 import type { WorkItemStatus, MessageEntry } from './types.ts'
 
 export function App() {
@@ -33,6 +34,12 @@ export function App() {
   const { toasts, addToast, dismissToast } = useToast()
   useNotifications(queue.items, settings.notificationsEnabled)
   const { sessions, sendMessage, refresh: refreshSessions } = useSessions()
+  const zombieCount = sessions.filter(s => s.state === 'zombie').length
+  useDocumentTitle({
+    activeCount: queue.activeItems.length,
+    blockedCount: queue.blockedItems.length,
+    zombieCount,
+  })
   const [messagesBySession, setMessagesBySession] = useState<Record<string, MessageEntry[]>>({})
   const [activeTab, setActiveTab] = useState('projects')
   const [showAddForm, setShowAddForm] = useState(false)
