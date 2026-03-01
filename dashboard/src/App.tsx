@@ -154,6 +154,15 @@ export function App() {
     addToast(`Delegator ${enabled ? 'enabled' : 'disabled'}`, 'info')
   }
 
+  function handleReorder(dragId: string, dropId: string) {
+    const dragItem = queue.items.find(i => i.id === dragId)
+    const dropItem = queue.items.find(i => i.id === dropId)
+    if (!dragItem || !dropItem) return
+    const newPriority = dropItem.priority
+    queue.updateItem(dragId, { priority: newPriority })
+    addToast(`Moved "${dragItem.title}" to priority ${newPriority}`, 'info')
+  }
+
   function handleDelete(id: string) {
     const item = queue.items.find(i => i.id === id)
     setConfirmAction({
@@ -226,6 +235,7 @@ export function App() {
           onResolveBlocker={handleResolveBlocker}
           onUnresolveBlocker={handleUnresolveBlocker}
           onDelete={handleDelete}
+          onReorder={handleReorder}
         />
       </main>
       <KeyboardHints />

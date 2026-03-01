@@ -1,5 +1,6 @@
 import styles from './WorkStreamList.module.scss'
 import { WorkStreamCard } from '../WorkStreamCard/WorkStreamCard.tsx'
+import { useDragReorder } from '../../hooks/useDragReorder.ts'
 import type { WorkItem, WorkItemStatus } from '../../types.ts'
 import type { SortField, SortDirection } from '../SortControls/SortControls.tsx'
 
@@ -18,9 +19,11 @@ interface WorkStreamListProps {
   onResolveBlocker: (id: string, blockerId: string) => void
   onUnresolveBlocker: (id: string, blockerId: string) => void
   onDelete: (id: string) => void
+  onReorder: (dragId: string, dropId: string) => void
 }
 
-export function WorkStreamList({ items, loading, hasSearch, emptyLabel, sortField, sortDirection, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete }: WorkStreamListProps) {
+export function WorkStreamList({ items, loading, hasSearch, emptyLabel, sortField, sortDirection, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onReorder }: WorkStreamListProps) {
+  const { dragId, overId, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(onReorder)
   if (loading) {
     return (
       <div className={styles.Root}>
@@ -102,6 +105,8 @@ export function WorkStreamList({ items, loading, hasSearch, emptyLabel, sortFiel
         <WorkStreamCard
           key={item.id}
           item={item}
+          isDragging={dragId === item.id}
+          isDragOver={overId === item.id}
           onStatusChange={onStatusChange}
           onPriorityChange={onPriorityChange}
           onDelegatorToggle={onDelegatorToggle}
@@ -110,6 +115,10 @@ export function WorkStreamList({ items, loading, hasSearch, emptyLabel, sortFiel
           onResolveBlocker={onResolveBlocker}
           onUnresolveBlocker={onUnresolveBlocker}
           onDelete={onDelete}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          onDragEnd={handleDragEnd}
         />
       ))}
     </div>

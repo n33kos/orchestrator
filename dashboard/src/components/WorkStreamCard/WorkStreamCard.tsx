@@ -9,6 +9,8 @@ import type { WorkItem, WorkItemStatus } from '../../types.ts'
 
 interface WorkStreamCardProps {
   item: WorkItem
+  isDragging?: boolean
+  isDragOver?: boolean
   onStatusChange: (id: string, status: WorkItemStatus) => void
   onPriorityChange: (id: string, priority: number) => void
   onDelegatorToggle: (id: string, enabled: boolean) => void
@@ -17,6 +19,10 @@ interface WorkStreamCardProps {
   onResolveBlocker: (id: string, blockerId: string) => void
   onUnresolveBlocker: (id: string, blockerId: string) => void
   onDelete: (id: string) => void
+  onDragStart?: (id: string) => void
+  onDragOver?: (id: string) => void
+  onDrop?: (id: string) => void
+  onDragEnd?: () => void
 }
 
 function formatDate(iso: string | null): string {
@@ -25,7 +31,7 @@ function formatDate(iso: string | null): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-export function WorkStreamCard({ item, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete }: WorkStreamCardProps) {
+export function WorkStreamCard({ item, isDragging, isDragOver, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
   const [expanded, setExpanded] = useState(false)
   const hasSession = !!item.session_id
   const hasDelegator = !!item.delegator_id
@@ -46,13 +52,51 @@ export function WorkStreamCard({ item, onStatusChange, onPriorityChange, onDeleg
     return entries
   }, [item])
 
+  function getQuickAction(): { label: string; status: WorkItemStatus } | null {
+    if (item.status === 'queued') return { label: 'Activate', status: 'active' }
+    if (item.status === 'active') return { label: 'Pause', status: 'paused' }
+    if (item.status === 'paused') return { label: 'Resume', status: 'active' }
+    return null
+  }
+
+  const quickAction = getQuickAction()
+
   return (
     <div
-      className={classnames(styles.Root, styles[item.status], expanded && styles.expanded)}
+      className={classnames(
+        styles.Root,
+        styles[item.status],
+        expanded && styles.expanded,
+        isDragging && styles.dragging,
+        isDragOver && styles.dragOver,
+      )}
       onClick={() => setExpanded(!expanded)}
+      draggable={!expanded}
+      onDragStart={e => {
+        e.dataTransfer.effectAllowed = 'move'
+        e.dataTransfer.setData('text/plain', item.id)
+        onDragStart?.(item.id)
+      }}
+      onDragOver={e => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        onDragOver?.(item.id)
+      }}
+      onDrop={e => {
+        e.preventDefault()
+        onDrop?.(item.id)
+      }}
+      onDragEnd={() => onDragEnd?.()}
     >
       <div className={styles.Header}>
         <div className={styles.TitleRow}>
+          <span className={styles.DragHandle} title="Drag to reorder" onClick={e => e.stopPropagation()}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="9" cy="5" r="1.5" /><circle cx="15" cy="5" r="1.5" />
+              <circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
+              <circle cx="9" cy="19" r="1.5" /><circle cx="15" cy="19" r="1.5" />
+            </svg>
+          </span>
           <span className={styles.Priority}>#{item.priority}</span>
           {expanded ? (
             <InlineEdit
@@ -132,6 +176,15 @@ export function WorkStreamCard({ item, onStatusChange, onPriorityChange, onDeleg
               </svg>
             </span>
             <span className={styles.TypeBadge}>{item.type === 'project' ? 'Project' : 'Quick Fix'}</span>
+            {quickAction && (
+              <button
+                className={styles.QuickAction}
+                onClick={e => { e.stopPropagation(); onStatusChange(item.id, quickAction.status) }}
+                title={quickAction.label}
+              >
+                {quickAction.label}
+              </button>
+            )}
           </div>
         </div>
       )}

@@ -43,6 +43,17 @@
       opacity: 0.8;
     }
   }
+
+  &.dragging {
+    opacity: 0.4;
+    transform: scale(0.98);
+    border-style: dashed;
+  }
+
+  &.dragOver {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 1px var(--color-primary), 0 2px 8px var(--color-primary-muted);
+  }
 }
 
 /* ── Header ── */
@@ -77,6 +88,32 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+
+.DragHandle {
+  display: flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  flex-shrink: 0;
+
+  .Root:hover & {
+    opacity: 0.5;
+  }
+
+  &:hover {
+    opacity: 1 !important;
+  }
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  @media (max-width: 600px) {
+    display: none;
+  }
 }
 
 .Priority {
@@ -132,6 +169,12 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+
+  @media (max-width: 480px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
 }
 
 .MetaItem {
@@ -208,6 +251,34 @@
   background: var(--color-surface-secondary);
   padding: 2px 6px;
   border-radius: var(--radius-sm);
+}
+
+.QuickAction {
+  opacity: 0;
+  padding: 3px 10px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-muted);
+  color: var(--color-primary);
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+
+  .Root:hover & {
+    opacity: 1;
+  }
+
+  &:hover {
+    background: var(--color-primary);
+    color: white;
+  }
+
+  @media (max-width: 600px) {
+    opacity: 1;
+  }
 }
 
 /* ── Expanded Details ── */
@@ -455,6 +526,12 @@
   justify-content: space-between;
   padding-top: 12px;
   border-top: 1px solid var(--color-border-subtle);
+
+  @media (max-width: 480px) {
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
 }
 
 .PriorityActions {
@@ -498,6 +575,10 @@
 .StatusActions {
   display: flex;
   gap: 6px;
+
+  @media (max-width: 480px) {
+    flex-wrap: wrap;
+  }
 }
 
 .ActionButtonText {

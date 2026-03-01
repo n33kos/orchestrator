@@ -1,6 +1,10 @@
 .Root {
   display: flex;
   gap: 8px;
+
+  @media (max-width: 480px) {
+    flex-wrap: wrap;
+  }
 }
 
 .Dropdown {
