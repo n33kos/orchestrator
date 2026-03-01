@@ -140,18 +140,32 @@ function queueApiPlugin(): Plugin {
         }
       })
 
-      // PATCH /api/queue/reorder — swap priorities of two items
+      // PATCH /api/queue/reorder — move dragged item to drop position and renumber
       server.middlewares.use('/api/queue/reorder', async (req, res) => {
         if (req.method !== 'PATCH') { res.statusCode = 405; res.end('Method not allowed'); return }
         try {
           const body = JSON.parse(await readBody(req))
           const data = readQueue()
-          const dragItem = data.items.find((i: { id: string }) => i.id === body.dragId)
-          const dropItem = data.items.find((i: { id: string }) => i.id === body.dropId)
-          if (!dragItem || !dropItem) { res.statusCode = 404; res.end('Item not found'); return }
-          const tmpPriority = dragItem.priority
-          dragItem.priority = dropItem.priority
-          dropItem.priority = tmpPriority
+          const dragIdx = data.items.findIndex((i: { id: string }) => i.id === body.dragId)
+          const dropIdx = data.items.findIndex((i: { id: string }) => i.id === body.dropId)
+          if (dragIdx === -1 || dropIdx === -1) { res.statusCode = 404; res.end('Item not found'); return }
+          // Sort items by the same display order (status group, then priority)
+          const statusOrder: Record<string, number> = { active: 0, review: 1, queued: 2, planning: 3, paused: 4, completed: 5 }
+          const sorted = data.items
+            .map((item: { id: string; status: string; priority: number }, i: number) => ({ item, origIdx: i }))
+            .sort((a: { item: { status: string; priority: number } }, b: { item: { status: string; priority: number } }) => {
+              const sd = (statusOrder[a.item.status] ?? 99) - (statusOrder[b.item.status] ?? 99)
+              if (sd !== 0) return sd
+              return a.item.priority - b.item.priority
+            })
+          // Find positions in the visual order
+          const dragVisIdx = sorted.findIndex((e: { origIdx: number }) => e.origIdx === dragIdx)
+          const dropVisIdx = sorted.findIndex((e: { origIdx: number }) => e.origIdx === dropIdx)
+          // Remove drag item and re-insert at drop position
+          const [dragEntry] = sorted.splice(dragVisIdx, 1)
+          sorted.splice(dropVisIdx > dragVisIdx ? dropVisIdx : dropVisIdx, 0, dragEntry)
+          // Renumber all priorities sequentially
+          sorted.forEach((e: { item: { priority: number } }, i: number) => { e.item.priority = i + 1 })
           writeQueue(data)
           res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify({ ok: true }))
