@@ -120,8 +120,31 @@ export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange
     (item.worktree_path && (s.cwd === item.worktree_path || item.worktree_path!.startsWith(s.cwd)))
   )
 
-  const plan = item.metadata?.plan as { title?: string; steps?: { text: string; done?: boolean }[]; approved?: boolean } | undefined
+  const plan = item.metadata?.plan as { title?: string; summary?: string; steps?: { text: string; done?: boolean }[]; approved?: boolean } | undefined
+  const planFile = item.metadata?.plan_file as string | undefined
+  const planApproved = !!(item.metadata?.plan_approved || plan?.approved)
   const implNotes = (item.metadata?.implementation_notes as string) || ''
+
+  function handleOpenPlanFile() {
+    fetch('/api/plan/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemId: item.id }),
+    }).catch(() => {})
+  }
+
+  function handleTogglePlanApproval() {
+    fetch('/api/plan/approve', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemId: item.id, approved: !planApproved }),
+    }).then(() => {
+      // Trigger a refresh by closing and reopening (the queue will re-fetch)
+      if (onPlanChange && plan) {
+        onPlanChange(item.id, { ...plan as Plan, approved: !planApproved, approved_at: !planApproved ? new Date().toISOString() : null } as Plan)
+      }
+    }).catch(() => {})
+  }
 
   const nextAction = getNextAction(item.status)
   const unresolvedBlockers = item.blockers.filter(b => !b.resolved)
@@ -435,24 +458,51 @@ export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange
           )}
 
           {/* Implementation Plan */}
-          {(plan || onPlanChange) && (item.status === 'planning' || item.status === 'queued' || plan) && (
+          {(plan || planFile || onPlanChange || item.status === 'planning' || item.status === 'queued') && (
             <div className={styles.Section}>
               <div className={styles.SectionHeader}>
                 <span className={styles.SectionLabel}>
                   Implementation Plan
-                  {plan ? (plan.approved ? ' (Approved)' : ' (Draft)') : ''}
+                  {planApproved ? ' (Approved)' : plan || planFile ? ' (Draft)' : ''}
                 </span>
-                {onGeneratePlan && !plan && (
-                  <button className={styles.EditNotesButton} onClick={() => onGeneratePlan(item.id)}>
+                <div className={styles.PlanActions}>
+                  {onGeneratePlan && !plan && !planFile && (
+                    <button className={styles.EditNotesButton} onClick={() => onGeneratePlan(item.id)}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                        <path d="M2 17l10 5 10-5" />
+                        <path d="M2 12l10 5 10-5" />
+                      </svg>
+                      Auto-Generate
+                    </button>
+                  )}
+                  <button className={styles.EditNotesButton} onClick={handleOpenPlanFile} title="Open plan file in editor">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                      <path d="M2 17l10 5 10-5" />
-                      <path d="M2 12l10 5 10-5" />
+                      <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+                      <polyline points="15 3 21 3 21 9" />
+                      <line x1="10" y1="14" x2="21" y2="3" />
                     </svg>
-                    Auto-Generate
+                    Open File
                   </button>
-                )}
+                </div>
               </div>
+              {/* Plan approval control */}
+              {(plan || planFile) && item.status !== 'completed' && (
+                <div className={styles.PlanApprovalRow}>
+                  <button
+                    className={planApproved ? styles.UnapproveButton : styles.ApproveButton}
+                    onClick={handleTogglePlanApproval}
+                  >
+                    {planApproved ? 'Revoke Approval' : 'Approve Plan'}
+                  </button>
+                  {planFile && (
+                    <span className={styles.PlanFilePath} title={planFile}>
+                      {planFile.split('/').pop()}
+                    </span>
+                  )}
+                </div>
+              )}
+              {/* Inline plan editor (for quick inline plans) */}
               {onPlanChange ? (
                 <PlanEditor
                   plan={(plan as Plan) ?? null}
@@ -461,7 +511,7 @@ export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange
                 />
               ) : plan ? (
                 <div className={styles.PlanCard}>
-                  {(plan as any).summary && <div className={styles.PlanTitle}>{(plan as any).summary}</div>}
+                  {plan.summary && <div className={styles.PlanTitle}>{plan.summary}</div>}
                   {plan.steps && plan.steps.length > 0 && (
                     <div className={styles.PlanSteps}>
                       {plan.steps.map((step, i) => (

@@ -14,7 +14,8 @@
 #   CONFIG_TOOL_ROSTRUM, CONFIG_TOOL_VMUX, CONFIG_TOOL_GRAPHITE
 #   CONFIG_QUEUE_FILE, CONFIG_PROFILE_FILE
 #   CONFIG_MAX_ACTIVE_PROJECTS, CONFIG_QUICK_FIX_LIMIT
-#   CONFIG_AUTO_ACTIVATE, CONFIG_AUTO_APPROVE_PLANS, CONFIG_ASK_BEFORE_TEARDOWN
+#   CONFIG_AUTO_ACTIVATE, CONFIG_AUTO_APPROVE_PLANS, CONFIG_REQUIRE_APPROVED_PLAN
+#   CONFIG_ASK_BEFORE_TEARDOWN, CONFIG_PLANS_DIR
 #   CONFIG_DELEGATOR_ENABLED, CONFIG_DELEGATOR_TRAINING_MODE
 #   CONFIG_DELEGATOR_COMMUNICATION, CONFIG_DELEGATOR_CYCLE_INTERVAL
 #   CONFIG_BRANCH_PATTERN
@@ -96,7 +97,11 @@ emit('CONFIG_QUICK_FIX_LIMIT', values.get('concurrency.quick_fix_limit', 'unlimi
 # Autonomy
 emit('CONFIG_AUTO_ACTIVATE', values.get('autonomy.auto_activate', 'false'))
 emit('CONFIG_AUTO_APPROVE_PLANS', values.get('autonomy.auto_approve_plans', 'false'))
+emit('CONFIG_REQUIRE_APPROVED_PLAN', values.get('autonomy.require_approved_plan', 'false'))
 emit('CONFIG_ASK_BEFORE_TEARDOWN', values.get('autonomy.ask_before_teardown', 'true'))
+
+# Plans
+emit('CONFIG_PLANS_DIR', expand(values.get('plans.directory', '~/Desktop/plans')))
 
 # Delegator
 emit('CONFIG_DELEGATOR_ENABLED', values.get('delegator.enabled_by_default', 'true'))

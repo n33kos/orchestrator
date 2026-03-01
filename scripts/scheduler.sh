@@ -26,6 +26,8 @@ MAX_ACTIVE="$CONFIG_MAX_ACTIVE_PROJECTS"
 MAX_QUICK_FIXES="${CONFIG_QUICK_FIX_LIMIT:-4}"
 AUTO_ACTIVATE="$CONFIG_AUTO_ACTIVATE"
 AUTO_APPROVE_PLANS="$CONFIG_AUTO_APPROVE_PLANS"
+REQUIRE_APPROVED_PLAN="${CONFIG_REQUIRE_APPROVED_PLAN:-false}"
+PLANS_DIR="${CONFIG_PLANS_DIR:-$HOME/Desktop/plans}"
 POLL_INTERVAL="${CONFIG_POLL_INTERVAL:-120}"
 DELEGATOR_CYCLE_INTERVAL="${CONFIG_DELEGATOR_CYCLE_INTERVAL:-300}"
 CLEANUP_EVERY="${CONFIG_CLEANUP_EVERY:-10}"
@@ -266,8 +268,15 @@ for i in data['items']:
     # Check for unresolved blockers
     if any(not b.get('resolved') for b in i.get('blockers', [])):
         continue
-    # Plans are informational — they don't gate activation
-    # Projects and quick fixes can both activate with or without approved plans
+    # Check plan approval requirement if enabled
+    require_plan = '$REQUIRE_APPROVED_PLAN' == 'true'
+    if require_plan:
+        plan = i.get('metadata', {}).get('plan', {})
+        plan_file = i.get('metadata', {}).get('plan_file', '')
+        plan_approved = plan.get('approved', False) if plan else False
+        file_approved = i.get('metadata', {}).get('plan_approved', False)
+        if not plan_approved and not file_approved:
+            continue
     ready.append(i)
 
 # Sort by priority
@@ -684,6 +693,8 @@ else
         MAX_QUICK_FIXES="${CONFIG_QUICK_FIX_LIMIT:-4}"
         AUTO_ACTIVATE="$CONFIG_AUTO_ACTIVATE"
         AUTO_APPROVE_PLANS="$CONFIG_AUTO_APPROVE_PLANS"
+        REQUIRE_APPROVED_PLAN="${CONFIG_REQUIRE_APPROVED_PLAN:-false}"
+        PLANS_DIR="${CONFIG_PLANS_DIR:-$HOME/Desktop/plans}"
         POLL_INTERVAL="${CONFIG_POLL_INTERVAL:-120}"
         DELEGATOR_CYCLE_INTERVAL="${CONFIG_DELEGATOR_CYCLE_INTERVAL:-300}"
         CLEANUP_EVERY="${CONFIG_CLEANUP_EVERY:-10}"

@@ -4,8 +4,8 @@
 # Usage:
 #   ./scripts/generate-plan.sh <item-id> [--auto-approve]
 #
-# Reads the work item from the queue, generates a plan using claude CLI,
-# and stores it in the item's metadata. Moves the item to "planning" status.
+# Generates a markdown plan file in the configured plans directory and
+# stores a reference in the queue item's metadata. Moves the item to "planning" status.
 
 set -euo pipefail
 
@@ -20,6 +20,7 @@ eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
 
 QUEUE_FILE="$CONFIG_QUEUE_FILE"
 REPO_PATH="$CONFIG_REPO_PATH"
+PLANS_DIR="${CONFIG_PLANS_DIR:-$HOME/Desktop/plans}"
 
 # shellcheck source=validate-env.sh
 source "$SCRIPT_DIR/validate-env.sh"
@@ -35,6 +36,9 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
+
+# Ensure plans directory exists
+mkdir -p "$PLANS_DIR"
 
 # Read item from queue
 ITEM_JSON="$(python3 -c "
@@ -63,41 +67,54 @@ TARGET_REPO="${CUSTOM_REPO:-$REPO_PATH}"
 echo "Generating plan for: $ITEM_TITLE ($ITEM_ID)"
 echo "  Type: $ITEM_TYPE"
 echo "  Repo: $TARGET_REPO"
+echo "  Plans dir: $PLANS_DIR"
 echo ""
 
-# Build the prompt for Claude
+# Build the prompt for Claude — request markdown plan output
 PLAN_PROMPT="$(cat <<PLAN_EOF
-You are generating an implementation plan for a work item. Output ONLY valid JSON matching this schema — no markdown, no explanation, no wrapping.
+You are generating an implementation plan for a work item. Output a well-structured markdown document.
 
 Work item:
+- ID: $ITEM_ID
 - Title: $ITEM_TITLE
 - Description: $ITEM_DESC
 - Type: $ITEM_TYPE
 - Branch: $ITEM_BRANCH
 - Repository: $TARGET_REPO
 
-Generate a plan with:
-1. A concise summary (1-2 sentences) of the implementation approach
-2. A list of concrete, actionable steps (3-8 steps for projects, 1-3 for quick fixes)
+Generate a plan document with:
+1. A title header matching the work item title
+2. A "Summary" section with 1-3 sentences describing the implementation approach
+3. A "Steps" section with concrete, actionable steps as a numbered checklist (use - [ ] format)
+   - Projects: 3-8 steps
+   - Quick fixes: 1-3 steps
+4. Each step should be completable by a single Claude Code session
+5. Reference specific file paths or patterns when possible
 
-Output format (strict JSON, no markdown fences):
-{
-  "summary": "Brief implementation approach",
-  "steps": [
-    {"id": "step-1", "text": "Step description", "done": false},
-    {"id": "step-2", "text": "Step description", "done": false}
-  ],
-  "approved": false,
-  "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "approved_at": null
-}
+Output only the markdown — no wrapping, no code fences, no preamble.
 
-Consider the repository context. Be specific and actionable — reference file paths or patterns when possible. Each step should be completable by a single Claude Code session.
+Example format:
+
+# Work Item Title
+
+## Summary
+
+Brief description of the implementation approach.
+
+## Steps
+
+- [ ] First step description
+- [ ] Second step description
+- [ ] Third step description
+
+## Notes
+
+Any additional context or considerations.
 PLAN_EOF
 )"
 
 # Generate the plan using Claude CLI in non-interactive mode
-echo "Calling Claude to generate plan..."
+echo "Calling Claude (sonnet) to generate plan..."
 CLAUDE_BIN="${HOME}/.local/bin/claude"
 # Unset CLAUDECODE to allow invocation from within a Claude Code session
 unset CLAUDECODE 2>/dev/null || true
@@ -107,52 +124,41 @@ PLAN_OUTPUT="$("$CLAUDE_BIN" --print --model sonnet "$PLAN_PROMPT" 2>/tmp/claude
     exit 1
 }
 
-# Extract JSON from the output (Claude might wrap it in markdown fences)
+echo "Plan generated successfully."
+
+# Write plan to file
+PLAN_FILE="$PLANS_DIR/${ITEM_ID}.md"
+echo "$PLAN_OUTPUT" > "$PLAN_FILE"
+echo "  Plan written to: $PLAN_FILE"
+
+# Also generate a lightweight JSON summary for the queue metadata (backward compat)
 PLAN_JSON="$(echo "$PLAN_OUTPUT" | python3 -c "
-import sys, json, re
+import sys, re, json
+from datetime import datetime, timezone
 
-raw = sys.stdin.read().strip()
+content = sys.stdin.read().strip()
 
-# Try direct parse first
-try:
-    plan = json.loads(raw)
-    print(json.dumps(plan))
-    sys.exit(0)
-except json.JSONDecodeError:
-    pass
+# Extract summary: text between ## Summary and the next ## heading
+summary_match = re.search(r'## Summary\s*\n+(.*?)(?=\n## |\Z)', content, re.DOTALL)
+summary = summary_match.group(1).strip() if summary_match else content[:200]
 
-# Try extracting from markdown code fences
-match = re.search(r'\`\`\`(?:json)?\s*\n(.*?)\n\`\`\`', raw, re.DOTALL)
-if match:
-    try:
-        plan = json.loads(match.group(1))
-        print(json.dumps(plan))
-        sys.exit(0)
-    except json.JSONDecodeError:
-        pass
+# Extract steps: lines starting with - [ ] or - [x]
+steps = []
+for i, match in enumerate(re.finditer(r'- \[([ x])\]\s*(.+)', content)):
+    done = match.group(1) == 'x'
+    text = match.group(2).strip()
+    steps.append({'id': f'step-{i+1}', 'text': text, 'done': done})
 
-# Try finding first { to last }
-first_brace = raw.find('{')
-last_brace = raw.rfind('}')
-if first_brace >= 0 and last_brace > first_brace:
-    try:
-        plan = json.loads(raw[first_brace:last_brace+1])
-        print(json.dumps(plan))
-        sys.exit(0)
-    except json.JSONDecodeError:
-        pass
-
-print('ERROR: Could not parse plan JSON from Claude output', file=sys.stderr)
-print(f'Raw output: {raw[:500]}', file=sys.stderr)
-sys.exit(1)
-")" || {
-    echo "ERROR: Failed to parse plan from Claude output" >&2
-    echo "Raw output:" >&2
-    echo "$PLAN_OUTPUT" | head -20 >&2
-    exit 1
+plan = {
+    'summary': summary,
+    'steps': steps,
+    'approved': False,
+    'created_at': datetime.now(timezone.utc).isoformat(),
+    'approved_at': None,
 }
 
-echo "Plan generated successfully."
+print(json.dumps(plan))
+")"
 
 # Auto-approve if requested
 if [[ "$AUTO_APPROVE" == "true" ]]; then
@@ -167,7 +173,7 @@ print(json.dumps(plan))
     echo "Plan auto-approved."
 fi
 
-# Update queue item with the plan
+# Update queue item with the plan reference and inline summary
 python3 -c "
 import json
 
@@ -181,6 +187,8 @@ for item in data['items']:
         if 'metadata' not in item or item['metadata'] is None:
             item['metadata'] = {}
         item['metadata']['plan'] = plan
+        item['metadata']['plan_file'] = '$PLAN_FILE'
+        item['metadata']['plan_approved'] = plan.get('approved', False)
         if item['status'] == 'queued':
             item['status'] = 'planning'
         break
@@ -191,7 +199,8 @@ with open('$QUEUE_FILE', 'w') as f:
 "
 
 echo ""
-echo "Plan saved to queue."
+echo "Plan saved."
+echo "  File: $PLAN_FILE"
 echo "  Status: planning"
 
 # Print the plan summary

@@ -235,6 +235,15 @@ export function SettingsPanel({
               />
             </SettingRow>
             <SettingRow
+              label="Require approved plan"
+              description="Only auto-activate items with an approved plan file"
+            >
+              <Toggle
+                checked={settings.requireApprovedPlan}
+                onChange={(v) => onUpdate("requireApprovedPlan", v)}
+              />
+            </SettingRow>
+            <SettingRow
               label="Delegator by default"
               description="Enable delegator for new work items"
             >

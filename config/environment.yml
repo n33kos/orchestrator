@@ -32,7 +32,12 @@ concurrency:
 autonomy:
   auto_activate: true
   auto_approve_plans: false
+  require_approved_plan: false  # if true, only activate items with approved plan files
   ask_before_teardown: true
+
+# Plans
+plans:
+  directory: ~/Desktop/plans
 
 # Delegator
 delegator:
