@@ -248,6 +248,7 @@ export function App() {
   const tabs = [
     { id: 'projects', label: 'Projects', count: queue.projects.length, alertCount: projectBlockers },
     { id: 'quick_fixes', label: 'Quick Fixes', count: queue.quickFixes.length, alertCount: qfBlockers },
+    { id: 'planning', label: 'Planning', count: queue.planningItems.length },
     { id: 'all', label: 'All', count: queue.items.length, alertCount: queue.blockedItems.length },
     { id: 'delegators', label: 'Delegators', count: delegatorData.count || undefined, alertCount: delegatorData.alertCount || undefined },
     { id: 'sessions', label: 'Sessions', count: sessions.length, alertCount: zombieCount },
@@ -259,7 +260,9 @@ export function App() {
       ? queue.projects
       : activeTab === 'quick_fixes'
         ? queue.quickFixes
-        : queue.items
+        : activeTab === 'planning'
+          ? queue.planningItems
+          : queue.items
 
     if (!showCompleted && statusFilter !== 'completed' && activeTab !== 'all') {
       pool = pool.filter(i => i.status !== 'completed')
@@ -284,7 +287,7 @@ export function App() {
     }
 
     return pool
-  }, [activeTab, queue.projects, queue.quickFixes, queue.items, debouncedSearch, showCompleted, statusFilter])
+  }, [activeTab, queue.projects, queue.quickFixes, queue.planningItems, queue.items, debouncedSearch, showCompleted, statusFilter])
 
   useKeyboard({
     onNewItem: useCallback(() => setShowAddForm(true), []),
@@ -310,7 +313,7 @@ export function App() {
     }, [queue, addToast]),
     onCommandPalette: useCallback(() => setShowCommandPalette(prev => !prev), []),
     onTabSwitch: useCallback((index: number) => {
-      const tabIds = ['projects', 'quick_fixes', 'all', 'delegators', 'sessions', 'analytics']
+      const tabIds = ['projects', 'quick_fixes', 'planning', 'all', 'delegators', 'sessions', 'analytics']
       if (index >= 0 && index < tabIds.length) {
         setActiveTab(tabIds[index])
       }
@@ -1120,7 +1123,8 @@ export function App() {
               onTogglePin={togglePin}
               emptyLabel={
                 activeTab === 'quick_fixes' ? 'No quick fixes' :
-                activeTab === 'projects' ? 'No projects' : undefined
+                activeTab === 'projects' ? 'No projects' :
+                activeTab === 'planning' ? 'No items in planning' : undefined
               }
               emptyTab={activeTab}
               onAddClick={() => setShowAddForm(true)}

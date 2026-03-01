@@ -132,7 +132,8 @@ export function useQueue(pollIntervalMs = 5000) {
   const projects = items.filter(i => i.type === 'project')
   const quickFixes = items.filter(i => i.type === 'quick_fix')
   const activeItems = items.filter(i => i.status === 'active')
-  const queuedItems = items.filter(i => i.status === 'queued' || i.status === 'planning')
+  const queuedItems = items.filter(i => i.status === 'queued')
+  const planningItems = items.filter(i => i.status === 'planning')
   const pausedItems = items.filter(i => i.status === 'paused')
   const reviewItems = items.filter(i => i.status === 'review')
   const completedItems = items.filter(i => i.status === 'completed')
@@ -144,6 +145,7 @@ export function useQueue(pollIntervalMs = 5000) {
     quickFixes,
     activeItems,
     queuedItems,
+    planningItems,
     pausedItems,
     reviewItems,
     completedItems,
