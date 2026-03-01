@@ -141,8 +141,26 @@ export function SettingsPanel({ settings, onUpdate, onReset, onClose, onExportQu
             <SettingRow label="Auto-activate" description="Automatically start queued items when a slot opens">
               <Toggle checked={settings.autoActivate} onChange={v => onUpdate('autoActivate', v)} />
             </SettingRow>
-            <SettingRow label="Delegator by default" description="Enable delegator for new project work items">
+            <SettingRow label="Delegator by default" description="Enable delegator for new work items">
               <Toggle checked={settings.defaultDelegatorEnabled} onChange={v => onUpdate('defaultDelegatorEnabled', v)} />
+            </SettingRow>
+            <SettingRow label="Delegator cycle" description="How often delegators check on workers">
+              <div className={styles.SegmentControl}>
+                {[
+                  { label: '2m', value: 120 },
+                  { label: '5m', value: 300 },
+                  { label: '10m', value: 600 },
+                  { label: '15m', value: 900 },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    className={`${styles.SegmentOption} ${settings.delegatorCycleInterval === opt.value ? styles.active : ''}`}
+                    onClick={() => onUpdate('delegatorCycleInterval', opt.value)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </SettingRow>
             <SettingRow label="Stall threshold" description="Minutes before a stream is flagged as stalled">
               <div className={styles.NumberControl}>

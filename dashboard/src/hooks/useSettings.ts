@@ -10,6 +10,7 @@ export interface OrchestratorSettings {
   soundEnabled: boolean
   archiveAfterDays: number
   stallThresholdMinutes: number
+  delegatorCycleInterval: number
 }
 
 const STORAGE_KEY = 'orchestrator-settings-config'
@@ -21,6 +22,7 @@ const CONFIG_SYNCED_KEYS = new Set<keyof OrchestratorSettings>([
   'defaultDelegatorEnabled',
   'stallThresholdMinutes',
   'archiveAfterDays',
+  'delegatorCycleInterval',
 ])
 
 const DEFAULTS: OrchestratorSettings = {
@@ -33,6 +35,7 @@ const DEFAULTS: OrchestratorSettings = {
   soundEnabled: false,
   archiveAfterDays: 7,
   stallThresholdMinutes: 30,
+  delegatorCycleInterval: 300,
 }
 
 export function useSettings() {

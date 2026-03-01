@@ -931,6 +931,10 @@ function queueApiPlugin(): Plugin {
                 pattern: /^(\s*archive_after_days:\s*).+$/m,
                 format: (v) => `$1${v}`,
               },
+              delegatorCycleInterval: {
+                pattern: /^(\s*cycle_interval:\s*)\S+(.*)$/m,
+                format: (v) => `$1${v}$2`,
+              },
             }
 
             for (const [key, value] of Object.entries(body)) {
@@ -967,6 +971,7 @@ function queueApiPlugin(): Plugin {
             defaultDelegatorEnabled: getVal('enabled_by_default') === 'true',
             stallThresholdMinutes: parseInt(getVal('threshold_minutes') || '30', 10),
             archiveAfterDays: parseInt(getVal('archive_after_days') || '7', 10),
+            delegatorCycleInterval: parseInt(getVal('cycle_interval')?.replace(/#.*/, '') || '300', 10),
           }))
         } catch (err) {
           res.statusCode = 500
