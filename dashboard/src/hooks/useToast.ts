@@ -7,12 +7,12 @@ export function useToast() {
   const [toasts, setToasts] = useState<ToastItem[]>([])
   const counterRef = useRef(0)
 
-  const addToast = useCallback((message: string, type: ToastItem['type'] = 'info') => {
+  const addToast = useCallback((message: string, type: ToastItem['type'] = 'info', action?: { label: string; onClick: () => void }) => {
     const id = `toast-${++counterRef.current}`
-    setToasts(prev => [...prev, { id, message, type }])
+    setToasts(prev => [...prev, { id, message, type, action }])
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id))
-    }, TOAST_DURATION)
+    }, action ? TOAST_DURATION * 2 : TOAST_DURATION)
   }, [])
 
   const dismissToast = useCallback((id: string) => {

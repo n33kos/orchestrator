@@ -5,6 +5,7 @@ export interface ToastItem {
   id: string
   message: string
   type: 'success' | 'error' | 'info'
+  action?: { label: string; onClick: () => void }
 }
 
 interface ToastContainerProps {
@@ -44,12 +45,21 @@ export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
         <div key={toast.id} className={classnames(styles.Toast, styles[toast.type])}>
           <span className={styles.Icon}>{icons[toast.type]}</span>
           <span className={styles.Message}>{toast.message}</span>
+          {toast.action && (
+            <button
+              className={styles.ActionButton}
+              onClick={() => { toast.action!.onClick(); onDismiss(toast.id) }}
+            >
+              {toast.action.label}
+            </button>
+          )}
           <button className={styles.Dismiss} onClick={() => onDismiss(toast.id)}>
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
+          <div className={styles.Progress} />
         </div>
       ))}
     </div>

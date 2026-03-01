@@ -23,6 +23,8 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   animation: slideIn 0.2s ease;
   pointer-events: auto;
+  position: relative;
+  overflow: hidden;
 
   &.success {
     border-color: var(--color-success);
@@ -49,6 +51,45 @@
 
 .Message {
   flex: 1;
+}
+
+.ActionButton {
+  padding: 2px 8px;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  color: inherit;
+
+  &:hover {
+    opacity: 0.8;
+  }
+}
+
+.success .ActionButton { color: var(--color-success); }
+.error .ActionButton { color: var(--color-error); }
+.info .ActionButton { color: var(--color-primary); }
+
+.Progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  animation: progressShrink 3s linear forwards;
+}
+
+.success .Progress { background: var(--color-success); }
+.error .Progress { background: var(--color-error); }
+.info .Progress { background: var(--color-primary); }
+
+@keyframes progressShrink {
+  from { width: 100%; }
+  to { width: 0%; }
 }
 
 .Dismiss {
