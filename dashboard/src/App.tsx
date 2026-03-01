@@ -32,7 +32,7 @@ export function App() {
   const { theme, toggle: toggleTheme } = useTheme()
   const { toasts, addToast, dismissToast } = useToast()
   useNotifications(queue.items, settings.notificationsEnabled)
-  const { sessions, sendMessage } = useSessions()
+  const { sessions, sendMessage, refresh: refreshSessions } = useSessions()
   const [messagesBySession, setMessagesBySession] = useState<Record<string, MessageEntry[]>>({})
   const [activeTab, setActiveTab] = useState('projects')
   const [showAddForm, setShowAddForm] = useState(false)
@@ -293,6 +293,23 @@ export function App() {
     }
   }
 
+  async function handleReconnectSession(sessionId: string) {
+    try {
+      const res = await fetch('/api/sessions/reconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      })
+      if (res.ok) {
+        addToast('Session reconnecting...', 'info')
+      } else {
+        addToast('Failed to reconnect session', 'error')
+      }
+    } catch {
+      addToast('Failed to reconnect session', 'error')
+    }
+  }
+
   function handleDelete(id: string) {
     const item = queue.items.find(i => i.id === id)
     setConfirmAction({
@@ -333,6 +350,8 @@ export function App() {
             messagesBySession={messagesBySession}
             onSendMessage={handleSendMessage}
             onKillSession={handleKillSession}
+            onReconnectSession={handleReconnectSession}
+            onRefreshSessions={() => { refreshSessions(); addToast('Sessions refreshed', 'info') }}
           />
         ) : (
           <>

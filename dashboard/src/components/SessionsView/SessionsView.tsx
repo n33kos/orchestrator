@@ -9,6 +9,8 @@ interface SessionsViewProps {
   messagesBySession: Record<string, MessageEntry[]>
   onSendMessage: (sessionId: string, text: string) => void
   onKillSession: (sessionId: string) => void
+  onReconnectSession: (sessionId: string) => void
+  onRefreshSessions: () => void
 }
 
 function getSessionName(session: SessionInfo): string {
@@ -32,7 +34,7 @@ const stateLabels: Record<string, string> = {
   unknown: 'Unknown',
 }
 
-export function SessionsView({ sessions, items, messagesBySession, onSendMessage, onKillSession }: SessionsViewProps) {
+export function SessionsView({ sessions, items, messagesBySession, onSendMessage, onKillSession, onReconnectSession, onRefreshSessions }: SessionsViewProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [messageText, setMessageText] = useState<Record<string, string>>({})
   const [confirmKill, setConfirmKill] = useState<string | null>(null)
@@ -105,6 +107,12 @@ export function SessionsView({ sessions, items, messagesBySession, onSendMessage
           </div>
         )}
         <span className={styles.SummaryTotal}>{sessions.length} total</span>
+        <button className={styles.RefreshButton} onClick={onRefreshSessions} title="Refresh sessions">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="23 4 23 10 17 10" />
+            <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+          </svg>
+        </button>
       </div>
 
       {groups.map(group => (
@@ -221,6 +229,19 @@ export function SessionsView({ sessions, items, messagesBySession, onSendMessage
                     </div>
 
                     <div className={styles.ActionRow}>
+                      {session.state === 'zombie' && (
+                        <button
+                          className={styles.ReconnectButton}
+                          onClick={() => onReconnectSession(session.id)}
+                          title="Reconnect session"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="23 4 23 10 17 10" />
+                            <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+                          </svg>
+                          Reconnect
+                        </button>
+                      )}
                       {confirmKill === session.id ? (
                         <div className={styles.ConfirmKill}>
                           <span className={styles.ConfirmText}>Kill this session?</span>

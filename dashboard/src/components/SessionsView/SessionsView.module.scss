@@ -56,6 +56,33 @@
   color: var(--color-text-secondary);
 }
 
+.RefreshButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+  }
+
+  &:active {
+    svg {
+      transition: transform 0.4s ease;
+      transform: rotate(360deg);
+    }
+  }
+}
+
 /* ── Empty State ── */
 .Empty {
   display: flex;
@@ -478,6 +505,27 @@
   gap: 8px;
   padding-top: 10px;
   border-top: 1px solid var(--color-border-subtle);
+}
+
+.ReconnectButton {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border: 1px solid var(--color-success);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-success) 10%, transparent);
+  color: var(--color-success);
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--color-success);
+    color: white;
+  }
 }
 
 .KillButton {
