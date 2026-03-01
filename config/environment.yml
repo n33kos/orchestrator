@@ -20,7 +20,6 @@ tools:
 # Orchestrator State
 state:
   queue_file: ~/.claude/orchestrator/queue.json
-  dashboard_file: ~/.claude/orchestrator/dashboard.md
   profile_file: ~/.claude/orchestrator/profile.md
 
 # Concurrency
