@@ -107,9 +107,9 @@ c. Record your assessment in status.json under `commit_reviews`:
 }
 ```
 
-d. If you find concerns, send feedback to the worker via tmux:
+d. If you find concerns, send feedback to the worker:
 ```bash
-tmux send-keys -t <worker_tmux_session> "your feedback message" Enter
+vmux send <worker_session_id> "your feedback message"
 ```
 
 Use Conventional Comments format for structured feedback:
@@ -124,7 +124,7 @@ Use the transcript idle check and commit history together:
 
 - **Worker idle (in standby loop) + no recent commits**: The worker has likely completed or stalled. Send a prod:
   ```bash
-  tmux send-keys -t <worker_tmux_session> "Are you still working on the task? If you're done, please create a PR. If you're blocked, let me know what you need." Enter
+  vmux send <worker_session_id> "Are you still working on the task? If you're done, please create a PR. If you're blocked, let me know what you need."
   ```
 - **Worker idle + recent commits**: Worker may be resting after a push. Check if a PR exists.
 - **Worker active + no recent commits**: Worker is still coding. Give them time.
@@ -224,15 +224,19 @@ After handling any message, immediately run the next monitoring cycle and re-ent
 
 ## Sending Messages to the Worker
 
-**Use `tmux send-keys` to communicate with the worker, NOT `vmux send`.** This is more reliable because it goes directly to the worker's CLI input:
+Use `vmux send` as the primary way to message workers — this ensures the conversation appears in the vmux web app transcript for the user to see:
+
+```bash
+vmux send <worker_session_id> "your message"
+```
+
+If `vmux send` fails (e.g., "Session not found"), fall back to tmux:
 
 ```bash
 tmux send-keys -t <worker_tmux_session> "your message" Enter
 ```
 
-Find the worker's tmux session name from `tmux list-sessions` or from the initial prompt assignment.
-
-Keep messages concise and actionable. The worker will process them when it returns to its input prompt.
+Both the worker session ID and tmux session name are in your initial-prompt.md assignment. Keep messages concise and actionable.
 
 ## Communication Guidelines
 

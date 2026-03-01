@@ -100,7 +100,12 @@ cat > "$DELEGATOR_DIR/initial-prompt.md" << PROMPT
 
 ## Commands
 
-Send message to worker (use tmux for reliability):
+Send message to worker (primary — shows in web transcript):
+\`\`\`bash
+$VMUX send $WORKER_SESSION_ID "your message"
+\`\`\`
+
+Fallback if vmux send fails:
 \`\`\`bash
 tmux send-keys -t $WORKER_TMUX_SESSION "your message" Enter
 \`\`\`
@@ -144,9 +149,9 @@ curl -s -X PATCH http://localhost:${DASHBOARD_PORT}/api/queue/update \\
 
 ## CI Test Failures
 
-When a PR has failing CI checks, instruct the worker via tmux:
+When a PR has failing CI checks, instruct the worker:
 \`\`\`bash
-tmux send-keys -t $WORKER_TMUX_SESSION "CI checks are failing on this PR. Run /fix-ci-tests to identify and fix the failing tests." Enter
+$VMUX send $WORKER_SESSION_ID "CI checks are failing on this PR. Run /fix-ci-tests to identify and fix the failing tests."
 \`\`\`
 
 ## Startup Sequence
