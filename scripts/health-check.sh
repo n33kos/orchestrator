@@ -82,6 +82,49 @@ print(json.dumps({
 }))
 ")"
 
+# Check delegator health
+DELEGATORS_DIR="$HOME/.claude/orchestrator/delegators"
+DELEGATOR_HEALTH="$(python3 -c "
+import json, os
+from pathlib import Path
+from datetime import datetime, timezone
+
+delegators_dir = Path('$DELEGATORS_DIR')
+stalled = []
+healthy = 0
+total = 0
+
+if delegators_dir.exists():
+    for item_dir in delegators_dir.iterdir():
+        if not item_dir.is_dir():
+            continue
+        status_file = item_dir / 'status.json'
+        if not status_file.exists():
+            continue
+        total += 1
+        try:
+            with open(status_file) as f:
+                status = json.load(f)
+            last_check = status.get('last_check_at') or status.get('started_at', '')
+            if last_check:
+                ts = datetime.fromisoformat(last_check.replace('Z', '+00:00'))
+                hours = (datetime.now(timezone.utc) - ts).total_seconds() / 3600
+                if hours > $STALL_THRESHOLD_HOURS:
+                    stalled.append({
+                        'item_id': status.get('item_id', item_dir.name),
+                        'hours': round(hours, 1),
+                        'status': status.get('status', 'unknown'),
+                    })
+                else:
+                    healthy += 1
+            else:
+                healthy += 1
+        except (json.JSONDecodeError, KeyError):
+            stalled.append({'item_id': item_dir.name, 'hours': 0, 'status': 'parse_error'})
+
+print(json.dumps({'total': total, 'healthy': healthy, 'stalled': stalled}))
+")"
+
 if [[ "$JSON_OUTPUT" == "true" ]]; then
     # Build zombie IDs as a proper JSON array
     ZOMBIE_JSON="[]"
@@ -106,10 +149,14 @@ for s in queue.get('stalled', []):
     issues.append({'type': 'stalled_stream', 'id': s['id'], 'message': f'{s[\"title\"]} active for {s[\"hours\"]}h'})
 for b in queue.get('blocked', []):
     issues.append({'type': 'blocked_item', 'id': b['id'], 'message': f'{b[\"title\"]} has unresolved blockers'})
+delegators = json.loads('''$DELEGATOR_HEALTH''')
+for d in delegators.get('stalled', []):
+    issues.append({'type': 'stalled_delegator', 'id': d['item_id'], 'message': f'Delegator {d[\"item_id\"]} stalled ({d[\"hours\"]}h, status: {d[\"status\"]})'})
 
 health = {
     'sessions': sessions,
     'queue': queue,
+    'delegators': delegators,
     'issues': issues,
 }
 print(json.dumps(health, indent=2))
@@ -159,6 +206,24 @@ for b in data['blocked']:
 "
 fi
 
+# Delegator health
+DELEGATOR_TOTAL="$(echo "$DELEGATOR_HEALTH" | python3 -c "import json,sys; print(json.load(sys.stdin)['total'])")"
+DELEGATOR_STALLED_COUNT="$(echo "$DELEGATOR_HEALTH" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['stalled']))")"
+
+if [[ "$DELEGATOR_TOTAL" -gt 0 ]]; then
+    DELEGATOR_HEALTHY="$(echo "$DELEGATOR_HEALTH" | python3 -c "import json,sys; print(json.load(sys.stdin)['healthy'])")"
+    echo ""
+    echo "Delegators: $DELEGATOR_TOTAL total, $DELEGATOR_HEALTHY healthy, $DELEGATOR_STALLED_COUNT stalled"
+    if [[ "$DELEGATOR_STALLED_COUNT" -gt 0 ]]; then
+        echo "$DELEGATOR_HEALTH" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for d in data['stalled']:
+    print(f\"  - {d['item_id']}: stalled {d['hours']}h (status: {d['status']})\")
+"
+    fi
+fi
+
 # Auto-recover zombies
 if [[ "$AUTO_RECOVER" == "true" && ${#ZOMBIES[@]} -gt 0 ]]; then
     echo ""
@@ -181,7 +246,7 @@ if [[ "$AUTO_RECOVER" == "true" && ${#ZOMBIES[@]} -gt 0 ]]; then
 fi
 
 # Summary
-ISSUES=$((${#ZOMBIES[@]} + STALLED_COUNT + BLOCKED_COUNT))
+ISSUES=$((${#ZOMBIES[@]} + STALLED_COUNT + BLOCKED_COUNT + DELEGATOR_STALLED_COUNT))
 if [[ "$ISSUES" -eq 0 ]]; then
     echo ""
     echo "All clear — no issues detected."
