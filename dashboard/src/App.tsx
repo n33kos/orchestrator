@@ -34,6 +34,7 @@ import { OfflineIndicator } from './components/OfflineIndicator/OfflineIndicator
 import { FloatingActionButton } from './components/FloatingActionButton/FloatingActionButton.tsx'
 import { GlobalSearch } from './components/GlobalSearch/GlobalSearch.tsx'
 import { AnalyticsView } from './components/AnalyticsView/AnalyticsView.tsx'
+import { DelegatorPanel } from './components/DelegatorPanel/DelegatorPanel.tsx'
 import { BreakpointIndicator } from './components/BreakpointIndicator/BreakpointIndicator.tsx'
 import { PinnedSection } from './components/PinnedSection/PinnedSection.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
@@ -217,6 +218,7 @@ export function App() {
     { id: 'projects', label: 'Projects', count: queue.projects.length, alertCount: projectBlockers },
     { id: 'quick_fixes', label: 'Quick Fixes', count: queue.quickFixes.length, alertCount: qfBlockers },
     { id: 'all', label: 'All', count: queue.items.length, alertCount: queue.blockedItems.length },
+    { id: 'delegators', label: 'Delegators' },
     { id: 'sessions', label: 'Sessions', count: sessions.length, alertCount: zombieCount },
     { id: 'analytics', label: 'Analytics' },
   ]
@@ -814,6 +816,8 @@ export function App() {
         <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
         {activeTab === 'analytics' ? (
           <AnalyticsView items={queue.items} sessions={sessions} />
+        ) : activeTab === 'delegators' ? (
+          <DelegatorPanel onSendMessage={handleSendMessage} />
         ) : activeTab === 'sessions' ? (
           <SessionsView
             sessions={sessions}

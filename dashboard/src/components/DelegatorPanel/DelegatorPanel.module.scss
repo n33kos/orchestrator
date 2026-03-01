@@ -1,0 +1,410 @@
+.Root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.Loading {
+  padding: 32px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+/* ── Empty State ── */
+.Empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.EmptyIcon {
+  color: var(--color-text-muted);
+  opacity: 0.5;
+}
+
+.EmptyTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-strong);
+  margin: 0;
+}
+
+.EmptyDesc {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  max-width: 400px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── Summary ── */
+.Summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-md);
+}
+
+.SummaryCount {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text-strong);
+}
+
+.SummaryLabel {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.SummaryDivider {
+  width: 1px;
+  height: 16px;
+  background: var(--color-border);
+}
+
+.SummaryStat {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.RefreshButton {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text-strong);
+  }
+}
+
+/* ── Card ── */
+.Card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.CardExpanded {
+  border-color: var(--color-primary);
+}
+
+.CardHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+
+  &:hover {
+    background: var(--color-surface-hover);
+  }
+}
+
+.StatusDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  &.statusInit { background: var(--color-text-muted); }
+  &.statusActive { background: var(--color-success); animation: pulse 2s infinite; }
+  &.statusReview { background: var(--color-warning); }
+  &.statusIdle { background: var(--color-text-muted); }
+  &.statusError { background: var(--color-error); }
+  &.statusDone { background: var(--color-primary); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.CardInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.CardTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-strong);
+}
+
+.CardStatus {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.CardStats {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.StatChip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--color-surface-secondary);
+  color: var(--color-text-muted);
+}
+
+.StatChipIssue {
+  color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+}
+
+.StatChipStall {
+  color: var(--color-error);
+  background: color-mix(in srgb, var(--color-error) 15%, transparent);
+}
+
+.Chevron {
+  color: var(--color-text-muted);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.ChevronOpen {
+  transform: rotate(180deg);
+}
+
+/* ── Card Body ── */
+.CardBody {
+  padding: 0 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.MetaGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.MetaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.MetaLabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+}
+
+.MetaValue {
+  font-size: 13px;
+  color: var(--color-text-strong);
+  word-break: break-all;
+}
+
+/* ── Sections ── */
+.Section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.SectionTitle {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.ErrorTitle {
+  color: var(--color-error);
+}
+
+/* ── Assessment ── */
+.Assessment {
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--color-primary);
+}
+
+.AssessmentText {
+  font-size: 13px;
+  color: var(--color-text-strong);
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
+
+/* ── Reviews ── */
+.ReviewList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ReviewItem {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.CommitHash {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.CommitMsg {
+  color: var(--color-text-strong);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.CommitAssessment {
+  color: var(--color-text-muted);
+  font-style: italic;
+  flex-shrink: 0;
+}
+
+/* ── Issues ── */
+.IssueList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.IssueItem {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-secondary);
+
+  &.issue_critical, &.issue_high {
+    background: color-mix(in srgb, var(--color-error) 10%, transparent);
+    border-left: 3px solid var(--color-error);
+  }
+
+  &.issue_medium {
+    background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+    border-left: 3px solid var(--color-warning);
+  }
+}
+
+.IssueSeverity {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.IssueDesc {
+  color: var(--color-text-strong);
+  flex: 1;
+}
+
+.IssueFile {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+/* ── Errors ── */
+.ErrorList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ErrorItem {
+  font-size: 12px;
+  color: var(--color-error);
+  padding: 4px 8px;
+  background: color-mix(in srgb, var(--color-error) 8%, transparent);
+  border-radius: var(--radius-sm);
+}
+
+/* ── Messaging ── */
+.MessageSection {
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.SendRow {
+  display: flex;
+  gap: 6px;
+}
+
+.SendInput {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 13px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-strong);
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+  }
+}
+
+.SendButton {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: white;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+}
