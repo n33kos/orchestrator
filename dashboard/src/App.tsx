@@ -14,6 +14,7 @@ import { SessionsPanel } from './components/SessionsPanel/SessionsPanel.tsx'
 import { CommandPalette } from './components/CommandPalette/CommandPalette.tsx'
 import { ToastContainer } from './components/Toast/Toast.tsx'
 import { BatchActionBar } from './components/BatchActionBar/BatchActionBar.tsx'
+import { SessionsView } from './components/SessionsView/SessionsView.tsx'
 import { KeyboardHints } from './components/KeyboardHints/KeyboardHints.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import { useQueue } from './hooks/useQueue.ts'
@@ -76,6 +77,7 @@ export function App() {
     { id: 'projects', label: 'Projects', count: queue.projects.length },
     { id: 'quick_fixes', label: 'Quick Fixes', count: queue.quickFixes.length },
     { id: 'all', label: 'All', count: queue.items.length },
+    { id: 'sessions', label: 'Sessions', count: sessions.length },
   ]
 
   const filteredItems = useMemo(() => {
@@ -257,6 +259,23 @@ export function App() {
     })
   }
 
+  async function handleKillSession(sessionId: string) {
+    try {
+      const res = await fetch('/api/sessions/kill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      })
+      if (res.ok) {
+        addToast('Session killed', 'success')
+      } else {
+        addToast('Failed to kill session', 'error')
+      }
+    } catch {
+      addToast('Failed to kill session', 'error')
+    }
+  }
+
   function handleDelete(id: string) {
     const item = queue.items.find(i => i.id === id)
     setConfirmAction({
@@ -290,73 +309,85 @@ export function App() {
       />
       <main className={styles.Main}>
         <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
-        <SearchBar ref={searchRef} value={searchQuery} onChange={setSearchQuery} />
-        <StatsBar
-          totalItems={queue.items.length}
-          activeCount={queue.activeItems.length}
-          queuedCount={queue.queuedItems.length}
-          completedCount={queue.completedItems.length}
-          blockedCount={queue.blockedItems.length}
-          showCompleted={showCompleted}
-          onToggleCompleted={() => setShowCompleted(!showCompleted)}
-        />
-        <div className={styles.ControlsRow}>
-          <SortControls
-            sortField={sortField}
-            sortDirection={sortDirection}
-            statusFilter={statusFilter}
-            onSortChange={(field, direction) => { setSortField(field); setSortDirection(direction) }}
-            onStatusFilterChange={setStatusFilter}
+        {activeTab === 'sessions' ? (
+          <SessionsView
+            sessions={sessions}
+            items={queue.items}
+            messagesBySession={messagesBySession}
+            onSendMessage={handleSendMessage}
+            onKillSession={handleKillSession}
           />
-          <button
-            className={`${styles.SelectToggle} ${selectionMode ? styles.SelectToggleActive : ''}`}
-            onClick={() => {
-              if (selectionMode) {
-                setSelectedIds(new Set())
+        ) : (
+          <>
+            <SearchBar ref={searchRef} value={searchQuery} onChange={setSearchQuery} />
+            <StatsBar
+              totalItems={queue.items.length}
+              activeCount={queue.activeItems.length}
+              queuedCount={queue.queuedItems.length}
+              completedCount={queue.completedItems.length}
+              blockedCount={queue.blockedItems.length}
+              showCompleted={showCompleted}
+              onToggleCompleted={() => setShowCompleted(!showCompleted)}
+            />
+            <div className={styles.ControlsRow}>
+              <SortControls
+                sortField={sortField}
+                sortDirection={sortDirection}
+                statusFilter={statusFilter}
+                onSortChange={(field, direction) => { setSortField(field); setSortDirection(direction) }}
+                onStatusFilterChange={setStatusFilter}
+              />
+              <button
+                className={`${styles.SelectToggle} ${selectionMode ? styles.SelectToggleActive : ''}`}
+                onClick={() => {
+                  if (selectionMode) {
+                    setSelectedIds(new Set())
+                  }
+                  setSelectionMode(!selectionMode)
+                }}
+                title={selectionMode ? 'Exit selection mode' : 'Select items'}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="9 11 12 14 22 4" />
+                  <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+                </svg>
+                {selectionMode ? 'Cancel' : 'Select'}
+              </button>
+            </div>
+            {showAddForm && (
+              <AddWorkItem
+                onAdd={handleAddItem}
+                onCancel={() => setShowAddForm(false)}
+              />
+            )}
+            <WorkStreamList
+              items={filteredItems}
+              loading={queue.loading}
+              hasSearch={searchQuery.trim().length > 0}
+              sortField={sortField}
+              sortDirection={sortDirection}
+              sessions={sessions}
+              messagesBySession={messagesBySession}
+              selectable={selectionMode}
+              selectedIds={selectedIds}
+              onSelect={handleToggleSelect}
+              emptyLabel={
+                activeTab === 'quick_fixes' ? 'No quick fixes' :
+                activeTab === 'projects' ? 'No projects' : undefined
               }
-              setSelectionMode(!selectionMode)
-            }}
-            title={selectionMode ? 'Exit selection mode' : 'Select items'}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="9 11 12 14 22 4" />
-              <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-            </svg>
-            {selectionMode ? 'Cancel' : 'Select'}
-          </button>
-        </div>
-        {showAddForm && (
-          <AddWorkItem
-            onAdd={handleAddItem}
-            onCancel={() => setShowAddForm(false)}
-          />
+              onStatusChange={handleStatusChange}
+              onPriorityChange={handlePriorityChange}
+              onDelegatorToggle={handleDelegatorToggle}
+              onEdit={handleEdit}
+              onAddBlocker={handleAddBlocker}
+              onResolveBlocker={handleResolveBlocker}
+              onUnresolveBlocker={handleUnresolveBlocker}
+              onDelete={handleDelete}
+              onReorder={handleReorder}
+              onSendMessage={handleSendMessage}
+            />
+          </>
         )}
-        <WorkStreamList
-          items={filteredItems}
-          loading={queue.loading}
-          hasSearch={searchQuery.trim().length > 0}
-          sortField={sortField}
-          sortDirection={sortDirection}
-          sessions={sessions}
-          messagesBySession={messagesBySession}
-          selectable={selectionMode}
-          selectedIds={selectedIds}
-          onSelect={handleToggleSelect}
-          emptyLabel={
-            activeTab === 'quick_fixes' ? 'No quick fixes' :
-            activeTab === 'projects' ? 'No projects' : undefined
-          }
-          onStatusChange={handleStatusChange}
-          onPriorityChange={handlePriorityChange}
-          onDelegatorToggle={handleDelegatorToggle}
-          onEdit={handleEdit}
-          onAddBlocker={handleAddBlocker}
-          onResolveBlocker={handleResolveBlocker}
-          onUnresolveBlocker={handleUnresolveBlocker}
-          onDelete={handleDelete}
-          onReorder={handleReorder}
-          onSendMessage={handleSendMessage}
-        />
       </main>
       {selectionMode && selectedIds.size > 0 && (
         <BatchActionBar

@@ -1,0 +1,550 @@
+.Root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Summary Bar ── */
+.Summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 14px;
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-md);
+}
+
+.SummaryItem {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.SummaryDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+
+  &.dotActive {
+    background: var(--color-warning);
+  }
+
+  &.dotStandby {
+    background: var(--color-success);
+  }
+
+  &.dotZombie {
+    background: var(--color-error);
+  }
+}
+
+.SummaryCount {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-strong);
+}
+
+.SummaryLabel {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.SummaryTotal {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+/* ── Empty State ── */
+.Empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  text-align: center;
+}
+
+.EmptyIcon {
+  color: var(--color-text-muted);
+  margin-bottom: 16px;
+}
+
+.EmptyTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  margin-bottom: 8px;
+}
+
+.EmptyDesc {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  max-width: 340px;
+  margin-bottom: 24px;
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--color-surface-secondary);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+}
+
+.EmptyHints {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 380px;
+}
+
+.EmptyHint {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-md);
+  text-align: left;
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  span {
+    font-size: 11px;
+    color: var(--color-text-muted);
+  }
+}
+
+/* ── Groups ── */
+.Group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.GroupLabel {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  padding-left: 2px;
+}
+
+/* ── Session Card ── */
+.Card {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+
+  &.CardExpanded {
+    border-color: var(--color-border);
+  }
+}
+
+.CardHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: none;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-family);
+
+  &:hover {
+    background: var(--color-surface-hover);
+  }
+}
+
+.StateDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  &.standby {
+    background: var(--color-success);
+    box-shadow: 0 0 6px var(--color-success);
+  }
+
+  &.thinking {
+    background: var(--color-warning);
+    animation: pulse 1.5s ease infinite;
+  }
+
+  &.responding {
+    background: var(--color-primary);
+    animation: pulse 1s ease infinite;
+  }
+
+  &.zombie {
+    background: var(--color-error);
+  }
+
+  &.unknown {
+    background: var(--color-text-muted);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.CardInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.CardName {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.CardState {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.LinkedBadge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-primary);
+  background: var(--color-primary-muted);
+  padding: 2px 8px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.Chevron {
+  color: var(--color-text-muted);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+
+  &.ChevronOpen {
+    transform: rotate(180deg);
+  }
+}
+
+/* ── Card Body ── */
+.CardBody {
+  padding: 14px;
+  border-top: 1px solid var(--color-border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--color-surface);
+  animation: bodyIn 0.15s ease;
+}
+
+@keyframes bodyIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.MetaGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.MetaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  &.MetaWide {
+    grid-column: 1 / -1;
+  }
+}
+
+.MetaLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.MetaValue {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--color-text-secondary);
+  word-break: break-all;
+}
+
+.MetaState {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-family);
+  text-transform: capitalize;
+}
+
+.MiniDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+
+  &.standby { background: var(--color-success); }
+  &.thinking { background: var(--color-warning); }
+  &.responding { background: var(--color-primary); }
+  &.zombie { background: var(--color-error); }
+  &.unknown { background: var(--color-text-muted); }
+}
+
+/* ── Linked Items ── */
+.LinkedSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.SectionLabel {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.LinkedList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.LinkedItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.LinkedDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  &.linked_active { background: var(--color-success); }
+  &.linked_queued { background: var(--color-warning); }
+  &.linked_paused { background: var(--color-error); }
+  &.linked_review { background: var(--color-primary); }
+  &.linked_completed { background: var(--color-text-muted); }
+  &.linked_planning { background: var(--color-warning); }
+}
+
+.LinkedTitle {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.LinkedStatus {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-transform: capitalize;
+  flex-shrink: 0;
+}
+
+/* ── Messages ── */
+.MessagesSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.Messages {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.Msg {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+
+  &.sent {
+    background: var(--color-primary-muted);
+    color: var(--color-primary);
+  }
+
+  &.received {
+    background: var(--color-surface-secondary);
+    color: var(--color-text-secondary);
+  }
+}
+
+.MsgTime {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+/* ── Send Row ── */
+.SendRow {
+  display: flex;
+  gap: 6px;
+}
+
+.SendInput {
+  flex: 1;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: 12px;
+  padding: 7px 10px;
+  outline: none;
+  transition: border-color 0.15s ease;
+
+  &:focus {
+    border-color: var(--color-primary);
+  }
+
+  &::placeholder {
+    color: var(--color-text-muted);
+  }
+}
+
+.SendButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: white;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+
+  &:hover:not(:disabled) {
+    opacity: 0.85;
+  }
+
+  &:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+}
+
+/* ── Actions ── */
+.ActionRow {
+  display: flex;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.KillButton {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--color-error-muted);
+    color: var(--color-error);
+    border-color: var(--color-error);
+  }
+}
+
+.ConfirmKill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ConfirmText {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-error);
+}
+
+.ConfirmYes {
+  padding: 4px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-error);
+  color: white;
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+
+  &:hover {
+    opacity: 0.85;
+  }
+}
+
+.ConfirmNo {
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+  }
+}
