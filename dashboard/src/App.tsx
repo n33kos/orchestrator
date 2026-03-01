@@ -35,6 +35,7 @@ import { useFaviconBadge } from './hooks/useFaviconBadge.ts'
 import { usePersistedState } from './hooks/usePersistedState.ts'
 import { useDebounce } from './hooks/useDebounce.ts'
 import { useActivitySparkline } from './hooks/useActivitySparkline.ts'
+import { usePinnedItems } from './hooks/usePinnedItems.ts'
 import type { WorkItemStatus, MessageEntry } from './types.ts'
 
 export function App() {
@@ -43,6 +44,7 @@ export function App() {
   const { theme, toggle: toggleTheme } = useTheme()
   const { toasts, history, addToast, dismissToast, clearHistory } = useToast()
   const activitySparkline = useActivitySparkline(history)
+  const { pinned, togglePin } = usePinnedItems()
   useNotifications(queue.items, settings.notificationsEnabled)
   const { sessions, sendMessage, refresh: refreshSessions } = useSessions()
   const zombieCount = sessions.filter(s => s.state === 'zombie').length
@@ -607,6 +609,8 @@ export function App() {
               onSelect={handleToggleSelect}
               focusedItemId={focusedItemId}
               onClearFocus={() => setFocusedItemId(null)}
+              pinnedIds={pinned}
+              onTogglePin={togglePin}
               emptyLabel={
                 activeTab === 'quick_fixes' ? 'No quick fixes' :
                 activeTab === 'projects' ? 'No projects' : undefined

@@ -10,6 +10,7 @@ import { ContextMenu } from '../ContextMenu/ContextMenu.tsx'
 import type { ContextMenuItem } from '../ContextMenu/ContextMenu.tsx'
 import { timeAgo, formatDate } from '../../utils/time.ts'
 import { useTimeRefresh } from '../../hooks/useTimeRefresh.ts'
+import { ProgressBar } from '../ProgressBar/ProgressBar.tsx'
 import type { WorkItem, WorkItemStatus, SessionInfo, MessageEntry } from '../../types.ts'
 
 interface WorkStreamCardProps {
@@ -34,6 +35,8 @@ interface WorkStreamCardProps {
   onUnresolveBlocker: (id: string, blockerId: string) => void
   onDelete: (id: string) => void
   onDuplicate?: (id: string) => void
+  pinned?: boolean
+  onTogglePin?: (id: string) => void
   onSendMessage?: (sessionId: string, text: string) => void
   onDragStart?: (id: string) => void
   onDragOver?: (id: string) => void
@@ -41,7 +44,7 @@ interface WorkStreamCardProps {
   onDragEnd?: () => void
 }
 
-export function WorkStreamCard({ item, position, totalCount, isDragging, isDragOver, selectable, selected, onSelect, focused, onClearFocus, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
+export function WorkStreamCard({ item, position, totalCount, isDragging, isDragOver, selectable, selected, onSelect, focused, onClearFocus, pinned, onTogglePin, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -123,6 +126,14 @@ export function WorkStreamCard({ item, position, totalCount, isDragging, isDragO
         label: 'Copy branch name',
         icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2" /><rect x="8" y="2" width="8" height="4" rx="1" /></svg>,
         action: () => navigator.clipboard.writeText(item.branch),
+      })
+    }
+    if (onTogglePin) {
+      items.push({
+        id: 'pin',
+        label: pinned ? 'Unpin' : 'Pin to top',
+        icon: <svg width="14" height="14" viewBox="0 0 24 24" fill={pinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2"><path d="M12 2l2.09 6.26L21 9.27l-5 3.9L17.18 22 12 18.27 6.82 22 8 13.17l-5-3.9 6.91-1.01z" /></svg>,
+        action: () => onTogglePin(item.id),
       })
     }
     items.push({
@@ -212,6 +223,17 @@ export function WorkStreamCard({ item, position, totalCount, isDragging, isDragO
           )}
         </div>
         <div className={styles.HeaderRight}>
+          {onTogglePin && (
+            <button
+              className={classnames(styles.PinButton, pinned && styles.PinButtonActive)}
+              onClick={e => { e.stopPropagation(); onTogglePin(item.id) }}
+              title={pinned ? 'Unpin' : 'Pin to top'}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill={pinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                <path d="M12 2l2.09 6.26L21 9.27l-5 3.9L17.18 22 12 18.27 6.82 22 8 13.17l-5-3.9 6.91-1.01z" />
+              </svg>
+            </button>
+          )}
           <StatusBadge status={item.status} />
           <span className={classnames(styles.Chevron, expanded && styles.ChevronOpen)}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -300,6 +322,10 @@ export function WorkStreamCard({ item, position, totalCount, isDragging, isDragO
             )}
           </div>
         </div>
+      )}
+
+      {!expanded && (
+        <ProgressBar status={item.status} />
       )}
 
       {expanded && (

@@ -20,6 +20,8 @@ interface WorkStreamListProps {
   onSelect?: (id: string) => void
   focusedItemId?: string | null
   onClearFocus?: () => void
+  pinnedIds?: Set<string>
+  onTogglePin?: (id: string) => void
   onAddClick?: () => void
   onStatusChange: (id: string, status: WorkItemStatus) => void
   onPriorityChange: (id: string, priority: number) => void
@@ -45,7 +47,7 @@ function findSession(sessions: SessionInfo[], item: WorkItem): SessionInfo | und
   return undefined
 }
 
-export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab, sortField, sortDirection, sessions, messagesBySession, selectable, selectedIds, onSelect, focusedItemId, onClearFocus, onAddClick, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onReorder, onSendMessage }: WorkStreamListProps) {
+export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab, sortField, sortDirection, sessions, messagesBySession, selectable, selectedIds, onSelect, focusedItemId, onClearFocus, pinnedIds, onTogglePin, onAddClick, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onReorder, onSendMessage }: WorkStreamListProps) {
   const { dragId, overId, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(onReorder)
   if (loading) {
     return <SkeletonList count={4} />
@@ -158,6 +160,11 @@ export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab
   const dir = sortDirection === 'asc' ? 1 : -1
 
   const sorted = [...items].sort((a, b) => {
+    // Pinned items always come first
+    const aPinned = pinnedIds?.has(a.id) ? 1 : 0
+    const bPinned = pinnedIds?.has(b.id) ? 1 : 0
+    if (aPinned !== bPinned) return bPinned - aPinned
+
     switch (sortField) {
       case 'status': {
         const statusDiff = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99)
@@ -197,6 +204,8 @@ export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab
             onSelect={onSelect}
             focused={focusedItemId === item.id}
             onClearFocus={onClearFocus}
+            pinned={pinnedIds?.has(item.id)}
+            onTogglePin={onTogglePin}
             sessionInfo={session}
             messages={session ? messagesBySession[session.id] ?? [] : []}
             onStatusChange={onStatusChange}

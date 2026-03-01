@@ -89,6 +89,36 @@
   flex-shrink: 0;
 }
 
+.PinButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0;
+  opacity: 0;
+  transition: all 0.15s ease;
+
+  .Root:hover & {
+    opacity: 0.6;
+  }
+
+  &:hover {
+    opacity: 1 !important;
+    color: var(--color-warning);
+  }
+
+  &.PinButtonActive {
+    opacity: 1;
+    color: var(--color-warning);
+  }
+}
+
 .Chevron {
   color: var(--color-text-muted);
   transition: transform 0.2s ease;

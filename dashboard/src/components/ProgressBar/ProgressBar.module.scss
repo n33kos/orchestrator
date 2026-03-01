@@ -1,0 +1,37 @@
+.Root {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.Track {
+  height: 3px;
+  background: var(--color-surface-hover);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.Fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.Steps {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 1px;
+}
+
+.Dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-surface-hover);
+  transition: background 0.2s ease;
+}
+
+.DotReached {
+  // background set inline
+}
