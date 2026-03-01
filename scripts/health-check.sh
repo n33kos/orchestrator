@@ -240,8 +240,17 @@ if [[ "$AUTO_RECOVER" == "true" && ${#ZOMBIES[@]} -gt 0 ]]; then
             if $VMUX reconnect "$CWD" 2>&1; then
                 emit_event "health.recovered" "Recovered zombie session $zid" --session-id "$zid"
             else
-                echo "    Failed to reconnect $zid"
-                emit_event "health.recovery_failed" "Failed to recover zombie $zid" --session-id "$zid" --severity warn
+                echo "    Reconnect failed — attempting full respawn..."
+                # Kill the broken session and respawn
+                $VMUX kill "$zid" 2>/dev/null || true
+                sleep 2
+                if $VMUX spawn "$CWD" 2>&1; then
+                    emit_event "health.respawned" "Respawned dead session $zid at $CWD" --session-id "$zid"
+                    echo "    Respawned successfully"
+                else
+                    echo "    Full respawn also failed for $zid"
+                    emit_event "health.recovery_failed" "Failed to recover zombie $zid (reconnect + respawn both failed)" --session-id "$zid" --severity error
+                fi
             fi
         else
             echo "  Cannot find cwd for $zid, skipping"

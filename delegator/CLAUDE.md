@@ -10,16 +10,16 @@ After loading context, update your status file (`./status.json`) to `monitoring`
 
 ## CRITICAL: How the Monitoring Loop Works
 
-The monitoring loop is driven by `relay_standby` timeouts. Here is the exact pattern:
+The monitoring loop is driven by `relay_standby` with a **short timeout**. Here is the exact pattern:
 
 1. Run one monitoring cycle (check commits, check worker, update status)
-2. Call `relay_standby` — this blocks until either:
+2. Call `relay_standby` **with `timeout=60`** — this blocks for 60 seconds or until a message arrives:
    - A voice/user message arrives → handle it, then go to step 1
    - A `[Standby]` timeout message arrives → go to step 1 (this IS the loop timer)
    - A `[System]` error arrives → try to recover, then go to step 1
-3. **NEVER sleep or wait** — `relay_standby` IS your sleep timer
+3. **NEVER sleep or wait** — `relay_standby(timeout=60)` IS your sleep timer
 
-**The `[Standby]` timeout message is your monitoring loop trigger.** When you receive it, immediately run your next monitoring cycle. Do NOT output text to terminal, do NOT announce re-entering standby. Just silently run the cycle and call `relay_standby` again.
+**CRITICAL: You MUST pass `timeout=60` to `relay_standby`.** Without the timeout parameter, standby blocks for 24 hours. The timeout parameter makes it return after 60 seconds with a `[Standby]` message, which triggers your next monitoring cycle.
 
 Here is pseudocode for the entire delegator lifecycle:
 
@@ -30,7 +30,7 @@ send_intro_to_worker()
 
 while true:
     run_monitoring_cycle()
-    message = relay_standby()  # blocks ~60s until timeout or message
+    message = relay_standby(timeout=60)  # blocks 60s until timeout or message
 
     if message starts with "[Standby]":
         continue  # timeout → run next cycle

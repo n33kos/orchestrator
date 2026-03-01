@@ -435,13 +435,156 @@ for item in data['items']:
     done
 }
 
+function check_services() {
+    # Ensure critical services (vmux daemon, relay) are running
+    local vmux_path
+    vmux_path="$(grep 'vmux:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
+
+    # Check vmux daemon
+    if ! "$vmux_path" status &>/dev/null; then
+        echo "[watchdog] vmux daemon is down — restarting..."
+        emit_event "watchdog.service_restart" "Restarting vmux daemon" --severity warn
+        launchctl start com.vmux.daemon 2>/dev/null || true
+        sleep 3
+        if "$vmux_path" status &>/dev/null; then
+            echo "[watchdog] vmux daemon restarted successfully"
+            emit_event "watchdog.service_recovered" "vmux daemon recovered"
+        else
+            echo "[watchdog] ERROR: vmux daemon failed to restart" >&2
+            emit_event "watchdog.service_failed" "vmux daemon failed to restart" --severity error
+        fi
+    fi
+}
+
+function recover_delegators() {
+    # Check each active item's delegator — respawn if dead or stalled
+    local vmux_path
+    vmux_path="$(grep 'vmux:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
+    local delegators_dir="$HOME/.claude/orchestrator/delegators"
+    local stall_minutes
+    stall_minutes="$(grep 'threshold_minutes:' "$CONFIG" | sed 's/.*: *//')"
+    stall_minutes="${stall_minutes:-30}"
+
+    python3 -c "
+import json, subprocess, sys, os
+from datetime import datetime, timezone, timedelta
+from pathlib import Path
+
+queue_file = '$QUEUE_FILE'
+delegators_dir = Path('$delegators_dir')
+vmux = '$vmux_path'
+stall_minutes = $stall_minutes
+
+with open(queue_file) as f:
+    data = json.load(f)
+
+# Find active items that should have delegators
+active_items = [i for i in data['items'] if i['status'] == 'active' and i.get('delegator_id')]
+
+if not active_items:
+    sys.exit(0)
+
+# Get live session list
+try:
+    result = subprocess.run([vmux, 'sessions'], capture_output=True, text=True, timeout=10)
+    live_sessions = result.stdout if result.returncode == 0 else ''
+except Exception:
+    live_sessions = ''
+
+now = datetime.now(timezone.utc)
+
+for item in active_items:
+    item_id = item['id']
+    delegator_id = item['delegator_id']
+    status_file = delegators_dir / item_id / 'status.json'
+
+    needs_respawn = False
+    reason = ''
+
+    # Check 1: Is the delegator's tmux session actually alive?
+    if delegator_id not in live_sessions:
+        needs_respawn = True
+        reason = f'session {delegator_id} not found in live sessions'
+    else:
+        # Check 2: Is the delegator stalled (no status update in threshold)?
+        if status_file.exists():
+            try:
+                with open(status_file) as f:
+                    status = json.load(f)
+                last_check = status.get('last_check_at') or status.get('last_check') or status.get('started_at', '')
+                if last_check:
+                    ts = datetime.fromisoformat(last_check.replace('Z', '+00:00'))
+                    if ts.tzinfo is None:
+                        ts = ts.replace(tzinfo=timezone.utc)
+                    minutes_since = (now - ts).total_seconds() / 60
+                    if minutes_since > stall_minutes * 3:
+                        # Stalled for 3x the normal threshold — definitely stuck
+                        needs_respawn = True
+                        reason = f'stalled for {int(minutes_since)}m (last check: {last_check})'
+                else:
+                    # Never checked — if started > stall_minutes ago, it's stuck
+                    started = status.get('started_at', '')
+                    if started:
+                        ts = datetime.fromisoformat(started.replace('Z', '+00:00'))
+                        if ts.tzinfo is None:
+                            ts = ts.replace(tzinfo=timezone.utc)
+                        minutes_since = (now - ts).total_seconds() / 60
+                        if minutes_since > stall_minutes:
+                            needs_respawn = True
+                            reason = f'never completed a check cycle (started {int(minutes_since)}m ago)'
+            except (json.JSONDecodeError, KeyError):
+                needs_respawn = True
+                reason = 'corrupt status.json'
+
+    if needs_respawn:
+        print(f'RESPAWN:{item_id}:{reason}')
+" | while IFS= read -r line; do
+        if [[ "$line" == RESPAWN:* ]]; then
+            local item_id reason
+            item_id="$(echo "$line" | cut -d: -f2)"
+            reason="$(echo "$line" | cut -d: -f3-)"
+
+            if [[ "$DRY_RUN" == "true" ]]; then
+                echo "[watchdog] Would respawn delegator for $item_id: $reason"
+            else
+                echo "[watchdog] Respawning delegator for $item_id: $reason"
+                emit_event "watchdog.delegator_respawn" "Respawning delegator for $item_id: $reason" --item-id "$item_id" --severity warn
+
+                # Kill existing session if it's still around
+                local old_delegator_id
+                old_delegator_id="$(python3 -c "
+import json
+with open('$QUEUE_FILE') as f:
+    data = json.load(f)
+for item in data['items']:
+    if item['id'] == '$item_id':
+        print(item.get('delegator_id', ''))
+        break
+")"
+                if [[ -n "$old_delegator_id" ]]; then
+                    "$vmux_path" kill "$old_delegator_id" 2>/dev/null || true
+                    sleep 1
+                fi
+
+                # Respawn
+                "$SCRIPT_DIR/spawn-delegator.sh" "$item_id" 2>&1 | sed 's/^/    /' || {
+                    echo "[watchdog] ERROR: Failed to respawn delegator for $item_id" >&2
+                    emit_event "watchdog.delegator_respawn_failed" "Failed to respawn delegator for $item_id" --item-id "$item_id" --severity error
+                }
+            fi
+        fi
+    done
+}
+
 function recover_sessions() {
     echo "[health] Checking for zombie sessions..."
     "$SCRIPT_DIR/health-check.sh" --auto-recover 2>&1 | sed 's/^/  /'
 }
 
 if [[ "$ONCE" == "true" ]]; then
+    check_services
     recover_sessions
+    recover_delegators
     process_worker_completions
     teardown_merged
     generate_plans
@@ -452,7 +595,9 @@ else
     echo ""
     CYCLE=0
     while true; do
+        check_services
         recover_sessions
+        recover_delegators
         process_worker_completions
         teardown_merged
         generate_plans
