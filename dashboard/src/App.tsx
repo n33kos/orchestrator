@@ -18,6 +18,7 @@ import { SessionsView } from './components/SessionsView/SessionsView.tsx'
 import { ActivityFeed } from './components/ActivityFeed/ActivityFeed.tsx'
 import { ScrollToTop } from './components/ScrollToTop/ScrollToTop.tsx'
 import { CompactList } from './components/CompactList/CompactList.tsx'
+import { DetailPanel } from './components/DetailPanel/DetailPanel.tsx'
 import { FilterChips } from './components/FilterChips/FilterChips.tsx'
 import { KeyboardHints } from './components/KeyboardHints/KeyboardHints.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
@@ -62,6 +63,7 @@ export function App() {
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null)
+  const [detailItemId, setDetailItemId] = useState<string | null>(null)
   const [viewMode, setViewMode] = usePersistedState<'cards' | 'compact'>('viewMode', 'cards')
   const [sortField, setSortField] = usePersistedState<SortField>('sortField', 'priority')
   const [sortDirection, setSortDirection] = usePersistedState<SortDirection>('sortDirection', 'asc')
@@ -122,6 +124,7 @@ export function App() {
     onFocusSearch: useCallback(() => searchRef.current?.focus(), []),
     onEscape: useCallback(() => {
       if (showCommandPalette) { setShowCommandPalette(false); return }
+      if (detailItemId) { setDetailItemId(null); return }
       if (showActivityFeed) { setShowActivityFeed(false); return }
       if (showSessions) { setShowSessions(false); return }
       if (settingsOpen) { setSettingsOpen(false); return }
@@ -129,7 +132,7 @@ export function App() {
       if (selectionMode) { setSelectedIds(new Set()); setSelectionMode(false); return }
       if (showAddForm) { setShowAddForm(false); return }
       if (searchQuery) { setSearchQuery(''); return }
-    }, [showCommandPalette, showActivityFeed, showSessions, settingsOpen, confirmAction, selectionMode, showAddForm, searchQuery, setSettingsOpen]),
+    }, [showCommandPalette, detailItemId, showActivityFeed, showSessions, settingsOpen, confirmAction, selectionMode, showAddForm, searchQuery, setSettingsOpen]),
     onRefresh: useCallback(() => {
       queue.refresh()
       addToast('Queue refreshed', 'info')
@@ -389,6 +392,38 @@ export function App() {
     setFocusedItemId(id)
   }
 
+  async function handleImportQueue(file: File) {
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+      const items = Array.isArray(data) ? data : data.items
+      if (!Array.isArray(items) || items.length === 0) {
+        addToast('Invalid file: no items found', 'error')
+        return
+      }
+      let imported = 0
+      for (const item of items) {
+        if (!item.title) continue
+        await fetch('/api/queue/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: item.title,
+            description: item.description || '',
+            type: item.type || 'quick_fix',
+            priority: item.priority ?? 50,
+            branch: item.branch || '',
+          }),
+        })
+        imported++
+      }
+      queue.refresh()
+      addToast(`Imported ${imported} work item${imported !== 1 ? 's' : ''}`, 'success')
+    } catch {
+      addToast('Failed to import: invalid JSON file', 'error')
+    }
+  }
+
   function handleExportQueue() {
     const data = { version: 1, items: queue.items, exportedAt: new Date().toISOString() }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -552,7 +587,7 @@ export function App() {
                 selectedIds={selectedIds}
                 onSelect={handleToggleSelect}
                 onStatusChange={handleStatusChange}
-                onNavigate={handleNavigateToItem}
+                onNavigate={id => setDetailItemId(id)}
                 onReorder={handleReorder}
                 onEdit={handleEdit}
               />
@@ -620,6 +655,7 @@ export function App() {
           onReset={resetSettings}
           onClose={() => setSettingsOpen(false)}
           onExportQueue={handleExportQueue}
+          onImportQueue={handleImportQueue}
         />
       )}
       {showActivityFeed && (
@@ -637,6 +673,19 @@ export function App() {
           onSendMessage={handleSendMessage}
         />
       )}
+      {detailItemId && (() => {
+        const detailItem = queue.items.find(i => i.id === detailItemId)
+        if (!detailItem) return null
+        return (
+          <DetailPanel
+            item={detailItem}
+            onClose={() => setDetailItemId(null)}
+            onStatusChange={(id, status) => { handleStatusChange(id, status); setDetailItemId(null) }}
+            onDelete={(id) => { handleDelete(id); setDetailItemId(null) }}
+            onDuplicate={(id) => { handleDuplicate(id); setDetailItemId(null) }}
+          />
+        )
+      })()}
       {showCommandPalette && (
         <CommandPalette
           items={queue.items}

@@ -8,6 +8,7 @@ interface SettingsPanelProps {
   onReset: () => void
   onClose: () => void
   onExportQueue?: () => void
+  onImportQueue?: (file: File) => void
 }
 
 function SettingRow({ label, description, children }: { label: string; description?: string; children: React.ReactNode }) {
@@ -35,7 +36,8 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   )
 }
 
-export function SettingsPanel({ settings, onUpdate, onReset, onClose, onExportQueue }: SettingsPanelProps) {
+export function SettingsPanel({ settings, onUpdate, onReset, onClose, onExportQueue, onImportQueue }: SettingsPanelProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -150,19 +152,46 @@ export function SettingsPanel({ settings, onUpdate, onReset, onClose, onExportQu
           </div>
         </div>
 
-        {onExportQueue && (
+        {(onExportQueue || onImportQueue) && (
           <div className={styles.Group}>
             <h3 className={styles.GroupTitle}>Data</h3>
-            <SettingRow label="Export queue" description="Download the current queue as a JSON file">
-              <button className={styles.ExportButton} onClick={onExportQueue}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-                Export JSON
-              </button>
-            </SettingRow>
+            {onExportQueue && (
+              <SettingRow label="Export queue" description="Download the current queue as a JSON file">
+                <button className={styles.ExportButton} onClick={onExportQueue}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Export JSON
+                </button>
+              </SettingRow>
+            )}
+            {onImportQueue && (
+              <SettingRow label="Import queue" description="Load work items from a JSON file">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json,application/json"
+                  style={{ display: 'none' }}
+                  onChange={e => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      onImportQueue(file)
+                      e.target.value = ''
+                    }
+                  }}
+                />
+                <button className={styles.ExportButton} onClick={() => fileInputRef.current?.click()}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  Import JSON
+                </button>
+              </SettingRow>
+            )}
           </div>
         )}
 
