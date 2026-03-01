@@ -187,7 +187,8 @@ def update_profile(profile_path: Path, new_insights: list[str]) -> bool:
                 insert_idx = len(lines)
             if insert_idx is not None:
                 new_lines = [f"- [{timestamp}] {ins}" for ins in insights]
-                lines = lines[:insert_idx] + new_lines + [""] + lines[insert_idx:]
+                trailing = [] if (insert_idx > 0 and lines[insert_idx - 1] == "") else [""]
+                lines = lines[:insert_idx] + new_lines + trailing + lines[insert_idx:]
                 content = "\n".join(lines)
             else:
                 # Section header not found properly, append at end
