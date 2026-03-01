@@ -1,0 +1,38 @@
+{
+  "name": "orchestrator",
+  "version": "0.1.0",
+  "description": "Autonomous work orchestrator — manages priority queues, isolated dev environments, Claude worker sessions, and delegator instances",
+  "author": "Your Name",
+  "skills": {
+    "status": {
+      "path": "skills/status.md",
+      "description": "Show orchestrator status — queue, sessions, worktrees, and next-up items",
+      "user_invocable": true
+    },
+    "add-work": {
+      "path": "skills/add-work.md",
+      "description": "Add a new work item to the orchestrator queue",
+      "user_invocable": true
+    },
+    "activate": {
+      "path": "skills/activate.md",
+      "description": "Activate a queued work item — create worktree, spawn session, start delegator",
+      "user_invocable": true
+    },
+    "teardown": {
+      "path": "skills/teardown.md",
+      "description": "Tear down a work stream — kill session, remove worktree, preserve branch",
+      "user_invocable": true
+    },
+    "discover": {
+      "path": "skills/discover.md",
+      "description": "Discover new work items from configured sources",
+      "user_invocable": true
+    },
+    "health": {
+      "path": "skills/health.md",
+      "description": "Run health check — detect zombie sessions, stalled streams, and issues",
+      "user_invocable": true
+    }
+  }
+}
