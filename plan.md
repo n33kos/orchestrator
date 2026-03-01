@@ -220,10 +220,17 @@ Refinement and scaling capabilities.
 - Unified interface for both communication and work management
 - Deep linking between voice sessions and work streams
 
-### 5.3 Multi-Repo Support
-- Support work items across different repositories
-- Configure worktree manager targets per work item
+### 5.3 Multi-Repo Support *(partially implemented)*
+- ~~Support work items across different repositories~~ ✓ metadata.repo_path
+- ~~Configure worktree manager targets per work item~~ ✓ activate-stream.sh cross-repo
 - Handle cross-repo dependencies
+- Auto-detect repo tooling (Rostrum for myproject, git worktree for others)
+
+### 5.5 Worker Completion Automation
+- Workers self-report completion via API endpoint or vmux message
+- Orchestrator auto-marks work items as complete when worker reports done
+- Optional: detect git push events and auto-complete quick fixes
+- Optional: webhook-based completion for CI/CD integration
 
 ### 5.4 Learning & Optimization
 - Track time-to-completion per work type
