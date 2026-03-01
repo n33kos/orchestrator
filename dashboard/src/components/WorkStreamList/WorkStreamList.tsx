@@ -187,12 +187,14 @@ export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab
 
   return (
     <div className={styles.Root}>
-      {sorted.map(item => {
+      {sorted.map((item, i) => {
         const session = findSession(sessions, item)
         return (
           <WorkStreamCard
             key={item.id}
             item={item}
+            position={i + 1}
+            totalCount={sorted.length}
             isDragging={dragId === item.id}
             isDragOver={overId === item.id}
             selectable={selectable}

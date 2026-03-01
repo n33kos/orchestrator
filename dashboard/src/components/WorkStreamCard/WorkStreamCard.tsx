@@ -11,6 +11,8 @@ import type { WorkItem, WorkItemStatus, SessionInfo, MessageEntry } from '../../
 
 interface WorkStreamCardProps {
   item: WorkItem
+  position?: number
+  totalCount?: number
   isDragging?: boolean
   isDragOver?: boolean
   selectable?: boolean
@@ -35,7 +37,7 @@ interface WorkStreamCardProps {
   onDragEnd?: () => void
 }
 
-export function WorkStreamCard({ item, isDragging, isDragOver, selectable, selected, onSelect, focused, onClearFocus, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
+export function WorkStreamCard({ item, position, totalCount, isDragging, isDragOver, selectable, selected, onSelect, focused, onClearFocus, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
   const [expanded, setExpanded] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
 
@@ -177,6 +179,11 @@ export function WorkStreamCard({ item, isDragging, isDragOver, selectable, selec
               <span className={styles.MetaLabel}>Branch</span>
               <code className={styles.MetaValue}>{item.branch}</code>
             </span>
+            {position != null && totalCount != null && (
+              <span className={styles.QueuePosition} title={`Position ${position} of ${totalCount}`}>
+                {position}/{totalCount}
+              </span>
+            )}
             <span className={styles.TimeAgo} title={formatDate(item.activated_at || item.created_at)}>
               {item.activated_at ? `Active ${timeAgo(item.activated_at)}` : `Created ${timeAgo(item.created_at)}`}
             </span>

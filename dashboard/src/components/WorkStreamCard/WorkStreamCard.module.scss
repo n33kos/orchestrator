@@ -249,6 +249,17 @@
   overflow: hidden;
 }
 
+.QueuePosition {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  background: var(--color-surface-hover);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
 .TimeAgo {
   font-size: 11px;
   color: var(--color-text-muted);
