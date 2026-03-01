@@ -12,9 +12,10 @@ interface KeyboardActions {
   onNavigateDown?: () => void
   onNavigateUp?: () => void
   onOpenFocused?: () => void
+  onShowShortcuts?: () => void
 }
 
-export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode, onNavigateDown, onNavigateUp, onOpenFocused }: KeyboardActions) {
+export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode, onNavigateDown, onNavigateUp, onOpenFocused, onShowShortcuts }: KeyboardActions) {
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement
@@ -84,9 +85,15 @@ export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onC
         e.preventDefault()
         onOpenFocused?.()
       }
+
+      // ? to show shortcuts sheet
+      if (e.key === '?' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        onShowShortcuts?.()
+      }
     }
 
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode, onNavigateDown, onNavigateUp, onOpenFocused])
+  }, [onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode, onNavigateDown, onNavigateUp, onOpenFocused, onShowShortcuts])
 }

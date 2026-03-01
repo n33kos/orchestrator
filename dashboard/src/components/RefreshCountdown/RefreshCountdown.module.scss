@@ -1,0 +1,26 @@
+.Root {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.Ring {
+  flex-shrink: 0;
+}
+
+.Track {
+  stroke: var(--color-border);
+}
+
+.Progress {
+  stroke: var(--color-primary);
+  transition: stroke-dashoffset 1s linear;
+}
+
+.Seconds {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 20px;
+}

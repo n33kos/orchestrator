@@ -11,6 +11,8 @@ import type { ContextMenuItem } from '../ContextMenu/ContextMenu.tsx'
 import { timeAgo, formatDate } from '../../utils/time.ts'
 import { useTimeRefresh } from '../../hooks/useTimeRefresh.ts'
 import { ProgressBar } from '../ProgressBar/ProgressBar.tsx'
+import { PlanEditor } from '../PlanEditor/PlanEditor.tsx'
+import type { Plan } from '../PlanEditor/PlanEditor.tsx'
 import { usePrStatus } from '../../hooks/usePrStatus.ts'
 import type { WorkItem, WorkItemStatus, SessionInfo, MessageEntry } from '../../types.ts'
 
@@ -40,6 +42,7 @@ interface WorkStreamCardProps {
   onActivateStream?: (id: string) => void
   onTeardownStream?: (id: string) => void
   onPrUrlChange?: (id: string, prUrl: string) => void
+  onPlanChange?: (id: string, plan: Plan) => void
   activating?: boolean
   tearingDown?: boolean
   pinned?: boolean
@@ -51,7 +54,7 @@ interface WorkStreamCardProps {
   onDragEnd?: () => void
 }
 
-export function WorkStreamCard({ item, index = 0, position, totalCount, isDragging, isDragOver, selectable, selected, onSelect, focused, onClearFocus, pinned, onTogglePin, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onActivateStream, onTeardownStream, onPrUrlChange, activating, tearingDown, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
+export function WorkStreamCard({ item, index = 0, position, totalCount, isDragging, isDragOver, selectable, selected, onSelect, focused, onClearFocus, pinned, onTogglePin, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onActivateStream, onTeardownStream, onPrUrlChange, onPlanChange, activating, tearingDown, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -76,6 +79,7 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
   const notes = item.metadata.notes as string | undefined
   const { status: prStatus, loading: prLoading } = usePrStatus(expanded ? item.pr_url : null)
   const delegatorAssessment = item.metadata.delegator_assessment as string | undefined
+  const itemPlan = item.metadata.plan as Plan | undefined
 
   const activityEntries = useMemo(() => {
     const entries: { timestamp: string; action: string; detail?: string }[] = []
@@ -95,7 +99,13 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
   function getQuickAction(): { label: string; status: WorkItemStatus; useStream?: boolean } | null {
     if (activating) return { label: 'Activating...', status: 'active' }
     if (tearingDown) return { label: 'Tearing down...', status: 'completed' }
-    if (item.status === 'queued' || item.status === 'planning') return { label: 'Activate', status: 'active', useStream: !!onActivateStream }
+    if (item.status === 'queued') return { label: 'Plan', status: 'planning' }
+    if (item.status === 'planning') {
+      const planApproved = itemPlan?.approved
+      return planApproved
+        ? { label: 'Activate', status: 'active', useStream: !!onActivateStream }
+        : null // Can't activate without approved plan
+    }
     if (item.status === 'active') return { label: 'Review', status: 'review' }
     if (item.status === 'review') return { label: 'Complete', status: 'completed' }
     if (item.status === 'paused') return { label: 'Resume', status: 'active', useStream: !!onActivateStream }
@@ -400,6 +410,26 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
                   <li key={i} className={styles.Note}>{note}</li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {/* Implementation Plan */}
+          {onPlanChange && (item.status === 'planning' || item.status === 'queued' || itemPlan) && (
+            <div className={styles.Section}>
+              <h4 className={styles.SectionTitle}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+                  <rect x="9" y="3" width="6" height="4" rx="1" />
+                  <line x1="9" y1="12" x2="15" y2="12" />
+                  <line x1="9" y1="16" x2="15" y2="16" />
+                </svg>
+                Implementation Plan
+              </h4>
+              <PlanEditor
+                plan={itemPlan ?? null}
+                onSave={plan => onPlanChange(item.id, plan)}
+                readOnly={item.status === 'completed'}
+              />
             </div>
           )}
 

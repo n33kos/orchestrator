@@ -26,6 +26,8 @@ import { Breadcrumb } from './components/Breadcrumb/Breadcrumb.tsx'
 import { KeyboardHints } from './components/KeyboardHints/KeyboardHints.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary.tsx'
 import { HealthPanel } from './components/HealthPanel/HealthPanel.tsx'
+import { ShortcutSheet } from './components/ShortcutSheet/ShortcutSheet.tsx'
+import { StatusFooter } from './components/StatusFooter/StatusFooter.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import { useQueue } from './hooks/useQueue.ts'
 import { useTheme } from './hooks/useTheme.ts'
@@ -45,6 +47,8 @@ import { useFileDrop } from './hooks/useFileDrop.ts'
 import { usePinnedItems } from './hooks/usePinnedItems.ts'
 import { useSearchHistory } from './hooks/useSearchHistory.ts'
 import { playNotificationSound } from './utils/sound.ts'
+import { exportWorkItemsCsv, downloadCsv } from './utils/csv.ts'
+import type { Plan } from './components/PlanEditor/PlanEditor.tsx'
 import type { WorkItemStatus, MessageEntry } from './types.ts'
 
 export function App() {
@@ -124,6 +128,7 @@ export function App() {
   const [tearingDownIds, setTearingDownIds] = useState<Set<string>>(new Set())
   const [healthIssues, setHealthIssues] = useState(0)
   const [showHealthPanel, setShowHealthPanel] = useState(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
 
   // Periodic health check for issue count
   useEffect(() => {
@@ -186,6 +191,7 @@ export function App() {
     onNewItem: useCallback(() => setShowAddForm(true), []),
     onFocusSearch: useCallback(() => searchRef.current?.focus(), []),
     onEscape: useCallback(() => {
+      if (showShortcuts) { setShowShortcuts(false); return }
       if (showCommandPalette) { setShowCommandPalette(false); return }
       if (showHealthPanel) { setShowHealthPanel(false); return }
       if (detailItemId) { setDetailItemId(null); return }
@@ -196,7 +202,7 @@ export function App() {
       if (selectionMode) { setSelectedIds(new Set()); setSelectionMode(false); return }
       if (showAddForm) { setShowAddForm(false); return }
       if (searchQuery) { setSearchQuery(''); return }
-    }, [showCommandPalette, showHealthPanel, detailItemId, showActivityFeed, showSessions, settingsOpen, confirmAction, selectionMode, showAddForm, searchQuery, setSettingsOpen]),
+    }, [showShortcuts, showCommandPalette, showHealthPanel, detailItemId, showActivityFeed, showSessions, settingsOpen, confirmAction, selectionMode, showAddForm, searchQuery, setSettingsOpen]),
     onRefresh: useCallback(() => {
       queue.refresh()
       addToast('Queue refreshed', 'info')
@@ -241,6 +247,7 @@ export function App() {
     onOpenFocused: useCallback(() => {
       if (focusedItemId) setDetailItemId(focusedItemId)
     }, [focusedItemId]),
+    onShowShortcuts: useCallback(() => setShowShortcuts(prev => !prev), []),
   })
 
   async function handleDuplicate(id: string) {
@@ -519,6 +526,12 @@ export function App() {
     addToast('Queue exported', 'success')
   }
 
+  function handleExportCsv() {
+    const csv = exportWorkItemsCsv(queue.items)
+    downloadCsv(csv, `orchestrator-queue-${new Date().toISOString().slice(0, 10)}.csv`)
+    addToast('Queue exported as CSV', 'success')
+  }
+
   function handleDelete(id: string) {
     const item = queue.items.find(i => i.id === id)
     setConfirmAction({
@@ -537,6 +550,24 @@ export function App() {
   function handlePrUrlChange(id: string, prUrl: string) {
     queue.updateItem(id, { pr_url: prUrl || null })
     addToast('PR URL updated', 'success')
+  }
+
+  async function handlePlanChange(id: string, plan: Plan) {
+    try {
+      await fetch('/api/queue/update', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, metadata: { plan } }),
+      })
+      queue.refresh()
+      if (plan.approved) {
+        addToast('Plan approved — ready for activation', 'success')
+      } else {
+        addToast('Plan updated', 'info')
+      }
+    } catch {
+      addToast('Failed to save plan', 'error')
+    }
   }
 
   async function handleActivateStream(id: string) {
@@ -847,6 +878,7 @@ export function App() {
               activatingIds={activatingIds}
               tearingDownIds={tearingDownIds}
               onPrUrlChange={handlePrUrlChange}
+              onPlanChange={handlePlanChange}
               onReorder={handleReorder}
               onSendMessage={handleSendMessage}
             />
@@ -855,6 +887,14 @@ export function App() {
         )}
         </ErrorBoundary>
       </main>
+      <StatusFooter
+        totalItems={queue.items.length}
+        filteredCount={filteredItems.length}
+        sessionCount={sessions.length}
+        pollIntervalMs={settings.pollIntervalMs}
+        lastUpdated={queue.lastUpdated}
+        viewMode={viewMode}
+      />
       {selectionMode && selectedIds.size > 0 && (
         <BatchActionBar
           selectedCount={selectedIds.size}
@@ -883,6 +923,7 @@ export function App() {
           onReset={resetSettings}
           onClose={() => setSettingsOpen(false)}
           onExportQueue={handleExportQueue}
+          onExportCsv={handleExportCsv}
           onImportQueue={handleImportQueue}
         />
       )}
@@ -942,6 +983,9 @@ export function App() {
           onClose={() => setShowHealthPanel(false)}
           onAutoRecover={handleAutoRecover}
         />
+      )}
+      {showShortcuts && (
+        <ShortcutSheet onClose={() => setShowShortcuts(false)} />
       )}
       {isDraggingOver && (
         <div className={styles.DropOverlay}>
