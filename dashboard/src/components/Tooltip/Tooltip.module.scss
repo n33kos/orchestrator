@@ -1,0 +1,45 @@
+.Trigger {
+  display: inline-flex;
+  position: relative;
+}
+
+.Tip {
+  position: fixed;
+  z-index: 10000;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: white;
+  background: var(--color-text);
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: tooltipIn 0.15s ease;
+
+  &.Top {
+    transform: translate(-50%, -100%);
+  }
+
+  &.Bottom {
+    transform: translate(-50%, 0);
+  }
+
+  &.Left {
+    transform: translate(-100%, -50%);
+  }
+
+  &.Right {
+    transform: translate(0, -50%);
+  }
+}
+
+@keyframes tooltipIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -100%) scale(1);
+  }
+}
