@@ -25,6 +25,17 @@ export function AddWorkItem({ onAdd, onCancel }: AddWorkItemProps) {
 
   const canSubmit = title.trim().length > 0
 
+  function generateBranch() {
+    const slug = title.trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .slice(0, 50)
+    const prefix = type === 'quick_fix' ? 'fix' : 'feat'
+    setBranch(`${prefix}/${slug}`)
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
@@ -94,13 +105,20 @@ export function AddWorkItem({ onAdd, onCancel }: AddWorkItemProps) {
 
       <div className={styles.Field}>
         <label className={styles.Label}>Branch (optional)</label>
-        <input
-          className={styles.Input}
-          type="text"
-          value={branch}
-          onChange={e => setBranch(e.target.value)}
-          placeholder="e.g., me/react-18/enzyme-migration/1/consumer-registry"
-        />
+        <div className={styles.BranchRow}>
+          <input
+            className={styles.Input}
+            type="text"
+            value={branch}
+            onChange={e => setBranch(e.target.value)}
+            placeholder="e.g., me/react-18/enzyme-migration/1/consumer-registry"
+          />
+          {title.trim() && !branch && (
+            <button type="button" className={styles.GenerateButton} onClick={generateBranch}>
+              Generate
+            </button>
+          )}
+        </div>
       </div>
 
       <div className={styles.Actions}>
