@@ -10,6 +10,7 @@ import { WorkStreamList } from './components/WorkStreamList/WorkStreamList.tsx'
 import { AddWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import { ConfirmDialog } from './components/ConfirmDialog/ConfirmDialog.tsx'
 import { SettingsPanel } from './components/SettingsPanel/SettingsPanel.tsx'
+import { SessionsPanel } from './components/SessionsPanel/SessionsPanel.tsx'
 import { CommandPalette } from './components/CommandPalette/CommandPalette.tsx'
 import { ToastContainer } from './components/Toast/Toast.tsx'
 import { KeyboardHints } from './components/KeyboardHints/KeyboardHints.tsx'
@@ -36,6 +37,7 @@ export function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showCompleted, setShowCompleted] = useState(false)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
+  const [showSessions, setShowSessions] = useState(false)
   const [sortField, setSortField] = useState<SortField>('priority')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -53,11 +55,12 @@ export function App() {
     onFocusSearch: useCallback(() => searchRef.current?.focus(), []),
     onEscape: useCallback(() => {
       if (showCommandPalette) { setShowCommandPalette(false); return }
+      if (showSessions) { setShowSessions(false); return }
       if (settingsOpen) { setSettingsOpen(false); return }
       if (confirmAction) { setConfirmAction(null); return }
       if (showAddForm) { setShowAddForm(false); return }
       if (searchQuery) { setSearchQuery(''); return }
-    }, [showCommandPalette, settingsOpen, confirmAction, showAddForm, searchQuery, setSettingsOpen]),
+    }, [showCommandPalette, showSessions, settingsOpen, confirmAction, showAddForm, searchQuery, setSettingsOpen]),
     onRefresh: useCallback(() => {
       queue.refresh()
       addToast('Queue refreshed', 'info')
@@ -222,12 +225,14 @@ export function App() {
         queuedCount={queue.queuedItems.length}
         pausedCount={queue.pausedItems.length}
         blockedCount={queue.blockedItems.length}
+        sessionCount={sessions.length}
         lastUpdated={queue.lastUpdated}
         onAddClick={() => setShowAddForm(!showAddForm)}
         showingAddForm={showAddForm}
         theme={theme}
         onThemeToggle={toggleTheme}
         onSettingsClick={() => setSettingsOpen(true)}
+        onSessionsClick={() => setShowSessions(true)}
       />
       <main className={styles.Main}>
         <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
@@ -296,6 +301,14 @@ export function App() {
           onUpdate={updateSetting}
           onReset={resetSettings}
           onClose={() => setSettingsOpen(false)}
+        />
+      )}
+      {showSessions && (
+        <SessionsPanel
+          sessions={sessions}
+          messagesBySession={messagesBySession}
+          onClose={() => setShowSessions(false)}
+          onSendMessage={handleSendMessage}
         />
       )}
       {showCommandPalette && (
