@@ -238,17 +238,15 @@ After handling any message, immediately run the next monitoring cycle and re-ent
 
 ## Sending Messages to the Worker
 
-Use `vmux send` as the primary way to message workers — this ensures the conversation appears in the vmux web app transcript for the user to see:
+Use `vmux send` as the **ONLY** way to message workers. This ensures the conversation appears in the vmux web app transcript for the user to see:
 
 ```bash
 vmux send <worker_session_id> "your message"
 ```
 
-If `vmux send` fails (e.g., "Session not found"), fall back to tmux:
+**Do NOT fall back to tmux send-keys.** If `vmux send` fails, log the error and skip the message — do not use tmux as a fallback. The user relies on the vmux web transcript for visibility, and tmux messages bypass it entirely.
 
-```bash
-tmux send-keys -t <worker_tmux_session> "your message" Enter
-```
+**CRITICAL for sub-agents**: When you spawn a background agent to run a monitoring cycle, include the exact `vmux send` command in the agent prompt. The sub-agent MUST use `vmux send`, never `tmux send-keys`.
 
 Both the worker session ID and tmux session name are in your initial-prompt.md assignment. Keep messages concise and actionable.
 

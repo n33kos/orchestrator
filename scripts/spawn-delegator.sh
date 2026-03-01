@@ -100,15 +100,12 @@ cat > "$DELEGATOR_DIR/initial-prompt.md" << PROMPT
 
 ## Commands
 
-Send message to worker (primary — shows in web transcript):
+Send message to worker (**ALWAYS use this** — shows in web transcript):
 \`\`\`bash
 $VMUX send $WORKER_SESSION_ID "your message"
 \`\`\`
 
-Fallback if vmux send fails:
-\`\`\`bash
-tmux send-keys -t $WORKER_TMUX_SESSION "your message" Enter
-\`\`\`
+**Do NOT use tmux send-keys to message the worker.** Only use vmux send. If vmux send fails, log the error and skip — do not fall back to tmux.
 
 Read worker's full session transcript:
 \`\`\`bash
@@ -159,8 +156,8 @@ $VMUX send $WORKER_SESSION_ID "CI checks are failing on this PR. Run /fix-ci-tes
 2. Read the user profile at $PROFILE_FILE (if it exists)
 3. Update status.json to "monitoring"
 4. Read the worker's transcript to understand current state
-5. Send a brief introduction to the worker via tmux
-6. Begin the monitoring loop using relay_standby(timeout=60)
+5. Send a brief introduction to the worker via vmux send
+6. Begin the monitoring loop (wait for scheduler triggers via relay_standby)
 PROMPT
 
 # Write the delegator CLAUDE.md for the session

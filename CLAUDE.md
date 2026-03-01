@@ -115,6 +115,43 @@ When a work item completes or when the user asks to tear down an environment:
 | `vmux interrupt <session-id>` | Send Ctrl-C to a session |
 | `vmux hard-interrupt <session-id>` | Ctrl-C + MCP reconnect + re-enter standby |
 
+## Debugging Sessions — Reading Logs and Sending Keystrokes
+
+When investigating why a session is stuck, idle, or misbehaving:
+
+### Reading Session Logs
+
+Use the transcript reader to understand what a session is doing:
+
+```bash
+# Full summary of recent activity
+python3 ~/orchestrator/scripts/read-worker-transcript.py <worktree_path> --lines 500
+
+# Quick idle check (returns IDLE:<reason> or ACTIVE)
+python3 ~/orchestrator/scripts/read-worker-transcript.py <worktree_path> --format idle-check
+```
+
+You can also read the raw tmux pane to see what's currently on screen:
+
+```bash
+tmux capture-pane -t <tmux_session_name> -p -S -50
+```
+
+### Recovering Stuck Sessions
+
+When a session is stuck (e.g., waiting for input, MCP disconnected, frozen):
+
+| Action | Command |
+|--------|---------|
+| Send Ctrl-C (interrupt current operation) | `vmux interrupt <session-id>` |
+| Ctrl-C + MCP reconnect + re-enter standby | `vmux hard-interrupt <session-id>` |
+| MCP reconnect only | `vmux reconnect <path>` |
+| Send arbitrary text to session | `vmux send <session-id> "message"` |
+| Send raw keystrokes via tmux | `tmux send-keys -t <tmux_session> "text" Enter` |
+| Restart session completely | `vmux restart <session-id>` |
+
+Always try `vmux hard-interrupt` first — it handles the most common stuck states (blocked on relay_standby, MCP disconnected, etc.).
+
 ## Critical Rules
 
 - **NEVER delete git branches** unless the user explicitly tells you to. When tearing down worktrees, do NOT use `--delete-branch`. Branches must always be preserved.

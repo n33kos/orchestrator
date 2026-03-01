@@ -179,7 +179,7 @@ echo "  Status: active"
 echo "  Session ID: $SESSION_ID"
 
 # Step 4: Optionally spawn delegator
-if [[ "$ITEM_TYPE" == "project" && "$NO_DELEGATOR" == "false" && "$DELEGATOR_ENABLED" == "True" ]]; then
+if [[ "$NO_DELEGATOR" == "false" && "$DELEGATOR_ENABLED" != "False" ]]; then
     echo ""
     echo "Step 4: Spawning delegator..."
     "$SCRIPT_DIR/spawn-delegator.sh" "$ITEM_ID" || {
