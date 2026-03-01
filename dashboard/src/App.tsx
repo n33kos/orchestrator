@@ -13,6 +13,7 @@ import { SettingsPanel } from './components/SettingsPanel/SettingsPanel.tsx'
 import { SessionsPanel } from './components/SessionsPanel/SessionsPanel.tsx'
 import { CommandPalette } from './components/CommandPalette/CommandPalette.tsx'
 import { ToastContainer } from './components/Toast/Toast.tsx'
+import { BatchActionBar } from './components/BatchActionBar/BatchActionBar.tsx'
 import { KeyboardHints } from './components/KeyboardHints/KeyboardHints.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import { useQueue } from './hooks/useQueue.ts'
@@ -38,6 +39,8 @@ export function App() {
   const [showCompleted, setShowCompleted] = useState(false)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [showSessions, setShowSessions] = useState(false)
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [sortField, setSortField] = useState<SortField>('priority')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -58,9 +61,10 @@ export function App() {
       if (showSessions) { setShowSessions(false); return }
       if (settingsOpen) { setSettingsOpen(false); return }
       if (confirmAction) { setConfirmAction(null); return }
+      if (selectionMode) { setSelectedIds(new Set()); setSelectionMode(false); return }
       if (showAddForm) { setShowAddForm(false); return }
       if (searchQuery) { setSearchQuery(''); return }
-    }, [showCommandPalette, showSessions, settingsOpen, confirmAction, showAddForm, searchQuery, setSettingsOpen]),
+    }, [showCommandPalette, showSessions, settingsOpen, confirmAction, selectionMode, showAddForm, searchQuery, setSettingsOpen]),
     onRefresh: useCallback(() => {
       queue.refresh()
       addToast('Queue refreshed', 'info')
@@ -203,6 +207,56 @@ export function App() {
     }
   }
 
+  function handleToggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  function handleClearSelection() {
+    setSelectedIds(new Set())
+    setSelectionMode(false)
+  }
+
+  function handleBatchStatusChange(status: WorkItemStatus) {
+    const count = selectedIds.size
+    for (const id of selectedIds) {
+      queue.updateItem(id, { status })
+    }
+    setSelectedIds(new Set())
+    setSelectionMode(false)
+    const labels: Record<string, string> = {
+      active: 'activated', paused: 'paused', completed: 'completed',
+      queued: 'queued', review: 'moved to review',
+    }
+    addToast(`${count} item${count !== 1 ? 's' : ''} ${labels[status] || status}`, 'success')
+  }
+
+  function handleBatchDelete() {
+    setConfirmAction({
+      title: 'Remove Selected Items',
+      message: `Are you sure you want to remove ${selectedIds.size} item${selectedIds.size !== 1 ? 's' : ''}? This cannot be undone.`,
+      confirmLabel: 'Remove All',
+      danger: true,
+      onConfirm: () => {
+        const count = selectedIds.size
+        for (const id of selectedIds) {
+          queue.deleteItem(id)
+        }
+        setSelectedIds(new Set())
+        setSelectionMode(false)
+        setConfirmAction(null)
+        addToast(`${count} item${count !== 1 ? 's' : ''} removed`, 'success')
+      },
+    })
+  }
+
   function handleDelete(id: string) {
     const item = queue.items.find(i => i.id === id)
     setConfirmAction({
@@ -246,13 +300,31 @@ export function App() {
           showCompleted={showCompleted}
           onToggleCompleted={() => setShowCompleted(!showCompleted)}
         />
-        <SortControls
-          sortField={sortField}
-          sortDirection={sortDirection}
-          statusFilter={statusFilter}
-          onSortChange={(field, direction) => { setSortField(field); setSortDirection(direction) }}
-          onStatusFilterChange={setStatusFilter}
-        />
+        <div className={styles.ControlsRow}>
+          <SortControls
+            sortField={sortField}
+            sortDirection={sortDirection}
+            statusFilter={statusFilter}
+            onSortChange={(field, direction) => { setSortField(field); setSortDirection(direction) }}
+            onStatusFilterChange={setStatusFilter}
+          />
+          <button
+            className={`${styles.SelectToggle} ${selectionMode ? styles.SelectToggleActive : ''}`}
+            onClick={() => {
+              if (selectionMode) {
+                setSelectedIds(new Set())
+              }
+              setSelectionMode(!selectionMode)
+            }}
+            title={selectionMode ? 'Exit selection mode' : 'Select items'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="9 11 12 14 22 4" />
+              <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+            </svg>
+            {selectionMode ? 'Cancel' : 'Select'}
+          </button>
+        </div>
         {showAddForm && (
           <AddWorkItem
             onAdd={handleAddItem}
@@ -267,6 +339,9 @@ export function App() {
           sortDirection={sortDirection}
           sessions={sessions}
           messagesBySession={messagesBySession}
+          selectable={selectionMode}
+          selectedIds={selectedIds}
+          onSelect={handleToggleSelect}
           emptyLabel={
             activeTab === 'quick_fixes' ? 'No quick fixes' :
             activeTab === 'projects' ? 'No projects' : undefined
@@ -283,6 +358,14 @@ export function App() {
           onSendMessage={handleSendMessage}
         />
       </main>
+      {selectionMode && selectedIds.size > 0 && (
+        <BatchActionBar
+          selectedCount={selectedIds.size}
+          onStatusChange={handleBatchStatusChange}
+          onDelete={handleBatchDelete}
+          onClearSelection={handleClearSelection}
+        />
+      )}
       <KeyboardHints />
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
       {confirmAction && (

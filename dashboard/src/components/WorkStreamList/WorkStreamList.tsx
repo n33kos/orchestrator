@@ -13,6 +13,9 @@ interface WorkStreamListProps {
   sortDirection: SortDirection
   sessions: SessionInfo[]
   messagesBySession: Record<string, MessageEntry[]>
+  selectable?: boolean
+  selectedIds?: Set<string>
+  onSelect?: (id: string) => void
   onStatusChange: (id: string, status: WorkItemStatus) => void
   onPriorityChange: (id: string, priority: number) => void
   onDelegatorToggle: (id: string, enabled: boolean) => void
@@ -36,7 +39,7 @@ function findSession(sessions: SessionInfo[], item: WorkItem): SessionInfo | und
   return undefined
 }
 
-export function WorkStreamList({ items, loading, hasSearch, emptyLabel, sortField, sortDirection, sessions, messagesBySession, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onReorder, onSendMessage }: WorkStreamListProps) {
+export function WorkStreamList({ items, loading, hasSearch, emptyLabel, sortField, sortDirection, sessions, messagesBySession, selectable, selectedIds, onSelect, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onReorder, onSendMessage }: WorkStreamListProps) {
   const { dragId, overId, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(onReorder)
   if (loading) {
     return (
@@ -123,6 +126,9 @@ export function WorkStreamList({ items, loading, hasSearch, emptyLabel, sortFiel
             item={item}
             isDragging={dragId === item.id}
             isDragOver={overId === item.id}
+            selectable={selectable}
+            selected={selectedIds?.has(item.id)}
+            onSelect={onSelect}
             sessionInfo={session}
             messages={session ? messagesBySession[session.id] ?? [] : []}
             onStatusChange={onStatusChange}

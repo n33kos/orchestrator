@@ -50,6 +50,11 @@
     border-style: dashed;
   }
 
+  &.selected {
+    border-color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary-muted) 30%, var(--color-surface));
+  }
+
   &.dragOver {
     border-color: var(--color-primary);
     box-shadow: 0 0 0 1px var(--color-primary), 0 2px 8px var(--color-primary-muted);
@@ -88,6 +93,53 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+
+/* ── Selection Checkbox ── */
+.Checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+
+  input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+}
+
+.CheckboxMark {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-border);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  background: transparent;
+
+  input:checked + & {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+
+    &::after {
+      content: '';
+      display: block;
+      width: 4px;
+      height: 8px;
+      border: solid white;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg) translateY(-1px);
+    }
+  }
+
+  &:hover {
+    border-color: var(--color-primary);
+  }
 }
 
 .DragHandle {

@@ -12,6 +12,9 @@ interface WorkStreamCardProps {
   item: WorkItem
   isDragging?: boolean
   isDragOver?: boolean
+  selectable?: boolean
+  selected?: boolean
+  onSelect?: (id: string) => void
   sessionInfo?: SessionInfo
   messages?: MessageEntry[]
   onStatusChange: (id: string, status: WorkItemStatus) => void
@@ -35,7 +38,7 @@ function formatDate(iso: string | null): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-export function WorkStreamCard({ item, isDragging, isDragOver, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
+export function WorkStreamCard({ item, isDragging, isDragOver, selectable, selected, onSelect, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
   const [expanded, setExpanded] = useState(false)
   const hasLiveSession = !!sessionInfo
   const hasSession = !!item.session_id
@@ -72,6 +75,7 @@ export function WorkStreamCard({ item, isDragging, isDragOver, sessionInfo, mess
         styles.Root,
         styles[item.status],
         expanded && styles.expanded,
+        selected && styles.selected,
         isDragging && styles.dragging,
         isDragOver && styles.dragOver,
       )}
@@ -95,6 +99,16 @@ export function WorkStreamCard({ item, isDragging, isDragOver, sessionInfo, mess
     >
       <div className={styles.Header}>
         <div className={styles.TitleRow}>
+          {selectable && (
+            <label className={styles.Checkbox} onClick={e => e.stopPropagation()}>
+              <input
+                type="checkbox"
+                checked={selected ?? false}
+                onChange={() => onSelect?.(item.id)}
+              />
+              <span className={styles.CheckboxMark} />
+            </label>
+          )}
           <span className={styles.DragHandle} title="Drag to reorder" onClick={e => e.stopPropagation()}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
               <circle cx="9" cy="5" r="1.5" /><circle cx="15" cy="5" r="1.5" />
