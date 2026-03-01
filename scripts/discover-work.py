@@ -182,7 +182,7 @@ def generate_id(existing_items: list[dict]) -> str:
         match = re.match(r"ws-(\d+)", item.get("id", ""))
         if match:
             max_id = max(max_id, int(match.group(1)))
-    return f"ws-{str(max_id + 1).padStart(3, '0')}" if hasattr(str, 'padStart') else f"ws-{max_id + 1:03d}"
+    return f"ws-{max_id + 1:03d}"
 
 
 def poll_github_issues(source_name: str, config: dict) -> list[dict]:

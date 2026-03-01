@@ -37,10 +37,10 @@ export function AnalyticsView({ items, sessions, delegators = [], events = [] }:
 
   // Session state distribution
   const sessionStates = [
-    { label: 'Ready', value: sessions.filter(s => s.state === 'standby').length, color: 'var(--color-success)' },
-    { label: 'Running', value: sessions.filter(s => s.state === 'running').length, color: 'var(--color-primary)' },
+    { label: 'Standby', value: sessions.filter(s => s.state === 'standby').length, color: 'var(--color-success)' },
+    { label: 'Thinking', value: sessions.filter(s => s.state === 'thinking').length, color: 'var(--color-warning)' },
+    { label: 'Responding', value: sessions.filter(s => s.state === 'responding').length, color: 'var(--color-primary)' },
     { label: 'Zombie', value: sessions.filter(s => s.state === 'zombie').length, color: 'var(--color-error)' },
-    { label: 'Idle', value: sessions.filter(s => s.state === 'idle').length, color: 'var(--color-warning)' },
   ]
 
   // Blocker stats

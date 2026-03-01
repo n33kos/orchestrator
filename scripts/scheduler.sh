@@ -242,7 +242,7 @@ for item in state['ready']:
             else
                 echo "[scheduler] Activating: $item_id — $item_title ($item_type)"
                 emit_event "scheduler.activating" "Auto-activating: $item_title" --item-id "$item_id"
-                "$SCRIPT_DIR/activate-stream.sh" "$item_id" --quick 2>&1 | sed 's/^/  /' || {
+                "$SCRIPT_DIR/activate-stream.sh" "$item_id" 2>&1 | sed 's/^/  /' || {
                     echo "[scheduler] ERROR: Failed to activate $item_id" >&2
                     emit_event "scheduler.error" "Failed to activate $item_id" --item-id "$item_id" --severity error
                 }

@@ -26,8 +26,8 @@ interface HealthData {
   queue: {
     active_count: number
     max_concurrent: number
-    stalled?: string[]
-    blocked?: string[]
+    stalled?: { id: string; title: string; hours: number }[]
+    blocked?: { id: string; title: string }[]
   }
   issues: HealthIssue[]
 }
@@ -147,8 +147,8 @@ export function HealthPanel({ onClose, onAutoRecover }: HealthPanelProps) {
                   {stalledCount} Stalled Stream{stalledCount !== 1 ? 's' : ''}
                 </h3>
                 <div className={styles.WarnList}>
-                  {health!.queue.stalled!.map((id, i) => (
-                    <div key={i} className={styles.WarnItem}>{id}</div>
+                  {health!.queue.stalled!.map((s, i) => (
+                    <div key={i} className={styles.WarnItem}>{s.title} ({s.hours}h)</div>
                   ))}
                 </div>
                 <p className={styles.WarnHint}>No commit activity detected. Workers may need intervention.</p>
@@ -165,8 +165,8 @@ export function HealthPanel({ onClose, onAutoRecover }: HealthPanelProps) {
                   {blockedCount} Blocked Item{blockedCount !== 1 ? 's' : ''}
                 </h3>
                 <div className={styles.WarnList}>
-                  {health!.queue.blocked!.map((id, i) => (
-                    <div key={i} className={styles.WarnItem}>{id}</div>
+                  {health!.queue.blocked!.map((b, i) => (
+                    <div key={i} className={styles.WarnItem}>{b.title}</div>
                   ))}
                 </div>
                 <p className={styles.WarnHint}>Items have unresolved blockers preventing progress.</p>

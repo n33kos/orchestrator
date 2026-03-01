@@ -48,6 +48,7 @@ branches:
 # Dashboard (API runs inline via Vite dev server middleware)
 dashboard:
   port: 3201
+  api_port: 3201
 
 # Scheduler
 scheduler:

@@ -19,6 +19,8 @@ const CONFIG_SYNCED_KEYS = new Set<keyof OrchestratorSettings>([
   'maxConcurrentProjects',
   'autoActivate',
   'defaultDelegatorEnabled',
+  'stallThresholdMinutes',
+  'archiveAfterDays',
 ])
 
 const DEFAULTS: OrchestratorSettings = {

@@ -380,21 +380,26 @@ export function App() {
       planning: 'moved to planning',
     }
 
-    // Suspend session when moving active -> review (stop burning tokens)
-    if (status === 'review' && previousStatus === 'active' && hasSession) {
-      addToast('Suspending session for review...', 'info')
+    // Suspend session when moving active -> review or active -> paused (stop burning tokens)
+    if ((status === 'review' || status === 'paused') && previousStatus === 'active' && hasSession) {
+      const label = status === 'review' ? 'review' : 'paused'
+      addToast(`Suspending session (${label})...`, 'info')
+      // Use suspend script to kill session + delegator, then update status
       fetch('/api/stream/suspend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ itemId: id }),
       }).then(res => {
         if (res.ok) {
+          // suspend-stream.sh sets status to 'review', but we may want 'paused'
+          if (status === 'paused') {
+            queue.updateItem(id, { status: 'paused' })
+          }
           queue.refresh()
-          addToast('Moved to review — session suspended', 'success')
+          addToast(`${status === 'review' ? 'Moved to review' : 'Paused'} — session suspended`, 'success')
         } else {
-          // Fallback: just update status without killing session
           queue.updateItem(id, { status })
-          addToast('Moved to review (session suspend failed)', 'warning')
+          addToast(`${status === 'review' ? 'Moved to review' : 'Paused'} (session suspend failed)`, 'warning')
         }
       }).catch(() => {
         queue.updateItem(id, { status })

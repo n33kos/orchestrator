@@ -104,7 +104,7 @@ After each cycle, update `./status.json`:
 Update the work item's metadata in the queue to surface your assessment in the dashboard:
 
 ```bash
-curl -X PATCH http://localhost:3200/api/queue/update \
+curl -X PATCH http://localhost:3201/api/queue/update \
   -H 'Content-Type: application/json' \
   -d '{"id": "<item_id>", "metadata": {"delegator_assessment": "your summary", "delegator_status": "monitoring"}}'
 ```

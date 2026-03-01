@@ -836,6 +836,14 @@ function queueApiPlugin(): Plugin {
                 pattern: /^(\s*enabled_by_default:\s*).+$/m,
                 format: (v) => `$1${v}`,
               },
+              stallThresholdMinutes: {
+                pattern: /^(\s*threshold_minutes:\s*).+$/m,
+                format: (v) => `$1${v}`,
+              },
+              archiveAfterDays: {
+                pattern: /^(\s*archive_after_days:\s*).+$/m,
+                format: (v) => `$1${v}`,
+              },
             }
 
             for (const [key, value] of Object.entries(body)) {
@@ -870,6 +878,8 @@ function queueApiPlugin(): Plugin {
             maxConcurrentProjects: parseInt(getVal('max_active_projects') || '2', 10),
             autoActivate: getVal('auto_activate') === 'true',
             defaultDelegatorEnabled: getVal('enabled_by_default') === 'true',
+            stallThresholdMinutes: parseInt(getVal('threshold_minutes') || '30', 10),
+            archiveAfterDays: parseInt(getVal('archive_after_days') || '7', 10),
           }))
         } catch (err) {
           res.statusCode = 500

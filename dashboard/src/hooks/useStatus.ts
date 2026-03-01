@@ -4,7 +4,7 @@ import type { DelegatorStatus } from './useDelegators.ts'
 
 interface HealthData {
   sessions?: { total: number; healthy: number; zombie: number; zombie_list?: string[] }
-  queue?: { active_count: number; max_concurrent: number; stalled?: string[]; blocked?: string[] }
+  queue?: { active_count: number; max_concurrent: number; stalled?: { id: string; title: string; hours: number }[]; blocked?: { id: string; title: string }[] }
   issues?: { type: string; message: string; item_id?: string; session_id?: string }[]
 }
 
