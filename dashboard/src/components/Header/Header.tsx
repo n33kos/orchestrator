@@ -2,6 +2,7 @@ import classnames from 'classnames'
 import styles from './Header.module.scss'
 import { ThemeToggle } from '../ThemeToggle/ThemeToggle.tsx'
 import { ConnectionStatus } from '../ConnectionStatus/ConnectionStatus.tsx'
+import { Sparkline } from '../Sparkline/Sparkline.tsx'
 
 interface HeaderProps {
   activeCount: number
@@ -10,6 +11,7 @@ interface HeaderProps {
   blockedCount: number
   sessionCount: number
   activityCount: number
+  activitySparkline: number[]
   lastUpdated: Date | null
   onAddClick: () => void
   showingAddForm: boolean
@@ -20,7 +22,7 @@ interface HeaderProps {
   onActivityFeedClick: () => void
 }
 
-export function Header({ activeCount, queuedCount, pausedCount, blockedCount, sessionCount, activityCount, lastUpdated, onAddClick, showingAddForm, theme, onThemeToggle, onSettingsClick, onSessionsClick, onActivityFeedClick }: HeaderProps) {
+export function Header({ activeCount, queuedCount, pausedCount, blockedCount, sessionCount, activityCount, activitySparkline, lastUpdated, onAddClick, showingAddForm, theme, onThemeToggle, onSettingsClick, onSessionsClick, onActivityFeedClick }: HeaderProps) {
   return (
     <header className={styles.Root}>
       <div className={styles.Left}>
@@ -52,6 +54,11 @@ export function Header({ activeCount, queuedCount, pausedCount, blockedCount, se
             </span>
           )}
         </div>
+        {activitySparkline.some(v => v > 0) && (
+          <div className={styles.SparklineWrapper} title="Activity over the last hour">
+            <Sparkline data={activitySparkline} width={60} height={18} />
+          </div>
+        )}
       </div>
       <div className={styles.Actions}>
         <ThemeToggle theme={theme} onToggle={onThemeToggle} />

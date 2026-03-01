@@ -30,6 +30,7 @@ import { useSessions } from './hooks/useSessions.ts'
 import { useDocumentTitle } from './hooks/useDocumentTitle.ts'
 import { useFaviconBadge } from './hooks/useFaviconBadge.ts'
 import { usePersistedState } from './hooks/usePersistedState.ts'
+import { useActivitySparkline } from './hooks/useActivitySparkline.ts'
 import type { WorkItemStatus, MessageEntry } from './types.ts'
 
 export function App() {
@@ -37,6 +38,7 @@ export function App() {
   const queue = useQueue(settings.pollIntervalMs)
   const { theme, toggle: toggleTheme } = useTheme()
   const { toasts, history, addToast, dismissToast, clearHistory } = useToast()
+  const activitySparkline = useActivitySparkline(history)
   useNotifications(queue.items, settings.notificationsEnabled)
   const { sessions, sendMessage, refresh: refreshSessions } = useSessions()
   const zombieCount = sessions.filter(s => s.state === 'zombie').length
@@ -395,6 +397,7 @@ export function App() {
         blockedCount={queue.blockedItems.length}
         sessionCount={sessions.length}
         activityCount={history.length}
+        activitySparkline={activitySparkline}
         lastUpdated={queue.lastUpdated}
         onAddClick={() => setShowAddForm(!showAddForm)}
         showingAddForm={showAddForm}
