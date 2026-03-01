@@ -6,9 +6,11 @@ interface KeyboardActions {
   onEscape?: () => void
   onRefresh?: () => void
   onCommandPalette?: () => void
+  onTabSwitch?: (index: number) => void
+  onSelectAll?: () => void
 }
 
-export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette }: KeyboardActions) {
+export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll }: KeyboardActions) {
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement
@@ -43,9 +45,21 @@ export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onC
         e.preventDefault()
         onRefresh?.()
       }
+
+      // Number keys 1-4 switch tabs
+      if (['1', '2', '3', '4'].includes(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        onTabSwitch?.(parseInt(e.key, 10) - 1)
+      }
+
+      // Cmd+A / Ctrl+A to toggle select all (when not in input)
+      if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        onSelectAll?.()
+      }
     }
 
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette])
+  }, [onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll])
 }

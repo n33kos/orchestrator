@@ -71,6 +71,23 @@ export function App() {
       addToast('Queue refreshed', 'info')
     }, [queue, addToast]),
     onCommandPalette: useCallback(() => setShowCommandPalette(prev => !prev), []),
+    onTabSwitch: useCallback((index: number) => {
+      const tabIds = ['projects', 'quick_fixes', 'all', 'sessions']
+      if (index >= 0 && index < tabIds.length) {
+        setActiveTab(tabIds[index])
+      }
+    }, []),
+    onSelectAll: useCallback(() => {
+      if (!selectionMode) {
+        setSelectionMode(true)
+      }
+      setSelectedIds(prev => {
+        if (prev.size === filteredItems.length && filteredItems.length > 0) {
+          return new Set()
+        }
+        return new Set(filteredItems.map(i => i.id))
+      })
+    }, [selectionMode, filteredItems]),
   })
 
   const tabs = [
