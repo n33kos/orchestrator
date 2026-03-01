@@ -24,7 +24,10 @@ fi
 # Install
 echo "Installing scheduler daemon..."
 mkdir -p "$HOME/Library/LaunchAgents"
-cp "$PLIST_SRC" "$PLIST_DST"
+# Substitute actual paths so the plist works regardless of where the project lives
+sed -e "s|\$HOME/orchestrator|$PROJECT_ROOT|g" \
+    -e "s|$HOME|$HOME|g" \
+    "$PLIST_SRC" > "$PLIST_DST"
 
 # Unload first in case it's already running
 launchctl unload "$PLIST_DST" 2>/dev/null || true
