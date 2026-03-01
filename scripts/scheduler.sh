@@ -247,7 +247,13 @@ if [[ "$CLEANUP" == "true" ]]; then
     [[ "$ONCE" == "true" ]] && exit 0
 fi
 
+function recover_sessions() {
+    echo "[health] Checking for zombie sessions..."
+    "$SCRIPT_DIR/health-check.sh" --auto-recover 2>&1 | sed 's/^/  /'
+}
+
 if [[ "$ONCE" == "true" ]]; then
+    recover_sessions
     teardown_merged
     check_and_activate
 else
@@ -256,6 +262,7 @@ else
     echo ""
     CYCLE=0
     while true; do
+        recover_sessions
         teardown_merged
         check_and_activate
         # Run cleanup every 10 cycles (every ~20 minutes)
