@@ -1,27 +1,19 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import classnames from 'classnames'
 import styles from './DelegatorPanel.module.scss'
 import { timeAgo } from '../../utils/time.ts'
+import type { DelegatorStatus } from '../../hooks/useDelegators.ts'
 
-interface DelegatorStatus {
-  status: string
-  item_id: string
-  worker_session: string
-  worktree_path: string
-  branch: string
-  started_at: string
-  last_check: string | null
-  last_seen_commit: string | null
-  commits_reviewed: number
-  commit_reviews: { hash: string; message: string; assessment: string; timestamp: string }[]
-  issues_found: { severity: string; description: string; file?: string; timestamp: string }[]
-  stall_detected: boolean
-  pr_reviewed: boolean
-  assessment: string | null
-  errors: string[]
+interface WorkItem {
+  id: string
+  title: string
 }
 
 interface DelegatorPanelProps {
+  delegators: DelegatorStatus[]
+  loading: boolean
+  items?: WorkItem[]
+  onRefresh?: () => void
   onSendMessage?: (sessionId: string, text: string) => void
 }
 
@@ -34,26 +26,8 @@ const statusLabels: Record<string, { label: string; cls: string }> = {
   completed: { label: 'Completed', cls: 'statusDone' },
 }
 
-export function DelegatorPanel({ onSendMessage }: DelegatorPanelProps) {
-  const [delegators, setDelegators] = useState<DelegatorStatus[]>([])
-  const [loading, setLoading] = useState(true)
+export function DelegatorPanel({ delegators, loading, items, onRefresh, onSendMessage }: DelegatorPanelProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
-
-  const fetchDelegators = useCallback(() => {
-    fetch('/api/delegators')
-      .then(r => r.json())
-      .then(data => {
-        setDelegators(data.delegators || [])
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }, [])
-
-  useEffect(() => {
-    fetchDelegators()
-    const interval = setInterval(fetchDelegators, 10_000)
-    return () => clearInterval(interval)
-  }, [fetchDelegators])
 
   if (loading) {
     return <div className={styles.Loading}>Loading delegator status...</div>
@@ -87,12 +61,14 @@ export function DelegatorPanel({ onSendMessage }: DelegatorPanelProps) {
         <span className={styles.SummaryStat}>
           {delegators.reduce((sum, d) => sum + d.issues_found.length, 0)} issues found
         </span>
-        <button className={styles.RefreshButton} onClick={fetchDelegators} title="Refresh">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="23 4 23 10 17 10" />
-            <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
-          </svg>
-        </button>
+        {onRefresh && (
+          <button className={styles.RefreshButton} onClick={onRefresh} title="Refresh">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {delegators.map(d => {
@@ -107,8 +83,8 @@ export function DelegatorPanel({ onSendMessage }: DelegatorPanelProps) {
             >
               <span className={classnames(styles.StatusDot, styles[statusInfo.cls])} />
               <div className={styles.CardInfo}>
-                <span className={styles.CardTitle}>{d.item_id}</span>
-                <span className={styles.CardStatus}>{statusInfo.label}</span>
+                <span className={styles.CardTitle}>{items?.find(i => i.id === d.item_id)?.title || d.item_id}</span>
+                <span className={styles.CardStatus}>{statusInfo.label} &middot; {d.item_id}</span>
               </div>
               <div className={styles.CardStats}>
                 <span className={styles.StatChip} title="Commits reviewed">
