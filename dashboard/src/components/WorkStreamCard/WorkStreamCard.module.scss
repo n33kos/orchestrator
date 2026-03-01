@@ -180,6 +180,25 @@
   }
 }
 
+.PrLink {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-primary);
+  text-decoration: none;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-muted);
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--color-primary);
+    color: white;
+  }
+}
+
 .TypeBadge {
   font-size: 10px;
   font-weight: 700;
@@ -216,6 +235,17 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--color-text-secondary);
+}
+
+.SectionCount {
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--color-error-muted);
+  color: var(--color-error);
+  padding: 0 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
 }
 
 /* ── Blockers ── */
@@ -328,6 +358,18 @@
   font-family: var(--font-mono);
   color: var(--color-text);
   word-break: break-all;
+}
+
+.MetaGridLink {
+  font-size: 13px;
+  font-family: var(--font-mono);
+  color: var(--color-primary);
+  word-break: break-all;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
 }
 
 /* ── Status Row ── */

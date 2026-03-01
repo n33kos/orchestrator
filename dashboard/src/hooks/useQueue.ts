@@ -7,6 +7,7 @@ function normalizeItem(raw: Record<string, unknown>): WorkItem {
   return {
     ...raw,
     blockers: Array.isArray(raw.blockers) ? raw.blockers as WorkItem['blockers'] : [],
+    pr_url: (raw.pr_url as string) ?? null,
   } as WorkItem
 }
 
@@ -48,6 +49,24 @@ export function useQueue() {
     await fetchQueue()
   }, [fetchQueue])
 
+  const addBlocker = useCallback(async (id: string, description: string) => {
+    await fetch('/api/queue/blocker/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, description }),
+    })
+    await fetchQueue()
+  }, [fetchQueue])
+
+  const resolveBlocker = useCallback(async (id: string, blockerId: string, resolved = true) => {
+    await fetch('/api/queue/blocker/resolve', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, blockerId, resolved }),
+    })
+    await fetchQueue()
+  }, [fetchQueue])
+
   const deleteItem = useCallback(async (id: string) => {
     await fetch('/api/queue/delete', {
       method: 'DELETE',
@@ -80,6 +99,8 @@ export function useQueue() {
     lastUpdated,
     refresh: fetchQueue,
     updateItem,
+    addBlocker,
+    resolveBlocker,
     deleteItem,
   }
 }

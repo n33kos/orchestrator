@@ -8,10 +8,13 @@ interface WorkStreamListProps {
   onStatusChange: (id: string, status: WorkItemStatus) => void
   onPriorityChange: (id: string, priority: number) => void
   onDelegatorToggle: (id: string, enabled: boolean) => void
+  onAddBlocker: (id: string, description: string) => void
+  onResolveBlocker: (id: string, blockerId: string) => void
+  onUnresolveBlocker: (id: string, blockerId: string) => void
   onDelete: (id: string) => void
 }
 
-export function WorkStreamList({ items, loading, onStatusChange, onPriorityChange, onDelegatorToggle, onDelete }: WorkStreamListProps) {
+export function WorkStreamList({ items, loading, onStatusChange, onPriorityChange, onDelegatorToggle, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete }: WorkStreamListProps) {
   if (loading) {
     return (
       <div className={styles.Root}>
@@ -65,6 +68,9 @@ export function WorkStreamList({ items, loading, onStatusChange, onPriorityChang
           onStatusChange={onStatusChange}
           onPriorityChange={onPriorityChange}
           onDelegatorToggle={onDelegatorToggle}
+          onAddBlocker={onAddBlocker}
+          onResolveBlocker={onResolveBlocker}
+          onUnresolveBlocker={onUnresolveBlocker}
           onDelete={onDelete}
         />
       ))}

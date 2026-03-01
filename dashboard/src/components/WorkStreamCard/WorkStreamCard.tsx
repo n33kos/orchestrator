@@ -2,6 +2,7 @@ import { useState } from 'react'
 import classnames from 'classnames'
 import styles from './WorkStreamCard.module.scss'
 import { StatusBadge } from '../StatusBadge/StatusBadge.tsx'
+import { BlockerManager } from '../BlockerManager/BlockerManager.tsx'
 import type { WorkItem, WorkItemStatus } from '../../types.ts'
 
 interface WorkStreamCardProps {
@@ -9,6 +10,9 @@ interface WorkStreamCardProps {
   onStatusChange: (id: string, status: WorkItemStatus) => void
   onPriorityChange: (id: string, priority: number) => void
   onDelegatorToggle: (id: string, enabled: boolean) => void
+  onAddBlocker: (id: string, description: string) => void
+  onResolveBlocker: (id: string, blockerId: string) => void
+  onUnresolveBlocker: (id: string, blockerId: string) => void
   onDelete: (id: string) => void
 }
 
@@ -18,7 +22,7 @@ function formatDate(iso: string | null): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-export function WorkStreamCard({ item, onStatusChange, onPriorityChange, onDelegatorToggle, onDelete }: WorkStreamCardProps) {
+export function WorkStreamCard({ item, onStatusChange, onPriorityChange, onDelegatorToggle, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete }: WorkStreamCardProps) {
   const [expanded, setExpanded] = useState(false)
   const hasSession = !!item.session_id
   const hasDelegator = !!item.delegator_id
@@ -66,6 +70,23 @@ export function WorkStreamCard({ item, onStatusChange, onPriorityChange, onDeleg
             <code className={styles.MetaValue}>{item.branch}</code>
           </span>
           <div className={styles.Indicators}>
+            {item.pr_url && (
+              <a
+                className={styles.PrLink}
+                href={item.pr_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                title="Open PR"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="18" cy="18" r="3" />
+                  <circle cx="6" cy="6" r="3" />
+                  <path d="M6 21V9a9 9 0 009 9" />
+                </svg>
+                PR
+              </a>
+            )}
             <span className={classnames(styles.Indicator, hasSession && styles.IndicatorActive)} title="Worker session">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="2" y="3" width="20" height="14" rx="2" />
@@ -86,29 +107,24 @@ export function WorkStreamCard({ item, onStatusChange, onPriorityChange, onDeleg
       {expanded && (
         <div className={styles.Details}>
           {/* Blockers Section */}
-          {(unresolvedBlockers.length > 0 || resolvedBlockers.length > 0) && (
-            <div className={styles.Section}>
-              <h4 className={styles.SectionTitle}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
-                </svg>
-                Blockers
-              </h4>
-              {unresolvedBlockers.map(b => (
-                <div key={b.id} className={styles.Blocker}>
-                  <span className={styles.BlockerIcon} data-resolved="false" />
-                  <span className={styles.BlockerText}>{b.description}</span>
-                </div>
-              ))}
-              {resolvedBlockers.map(b => (
-                <div key={b.id} className={classnames(styles.Blocker, styles.BlockerResolved)}>
-                  <span className={styles.BlockerIcon} data-resolved="true" />
-                  <span className={styles.BlockerText}>{b.description}</span>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className={styles.Section}>
+            <h4 className={styles.SectionTitle}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+              </svg>
+              Blockers
+              {unresolvedBlockers.length > 0 && (
+                <span className={styles.SectionCount}>{unresolvedBlockers.length}</span>
+              )}
+            </h4>
+            <BlockerManager
+              blockers={item.blockers}
+              onAddBlocker={desc => onAddBlocker(item.id, desc)}
+              onResolveBlocker={bid => onResolveBlocker(item.id, bid)}
+              onUnresolveBlocker={bid => onUnresolveBlocker(item.id, bid)}
+            />
+          </div>
 
           {/* Implementation Notes */}
           {implementationNotes && implementationNotes.length > 0 && (
@@ -164,6 +180,20 @@ export function WorkStreamCard({ item, onStatusChange, onPriorityChange, onDeleg
               <span className={styles.MetaGridLabel}>Completed</span>
               <span className={styles.MetaGridValue}>{formatDate(item.completed_at)}</span>
             </div>
+            {item.pr_url && (
+              <div className={classnames(styles.MetaGridItem, styles.MetaGridWide)}>
+                <span className={styles.MetaGridLabel}>Pull Request</span>
+                <a
+                  className={styles.MetaGridLink}
+                  href={item.pr_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                >
+                  {item.pr_url}
+                </a>
+              </div>
+            )}
             {item.worktree_path && (
               <div className={classnames(styles.MetaGridItem, styles.MetaGridWide)}>
                 <span className={styles.MetaGridLabel}>Worktree</span>

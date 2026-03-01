@@ -18,6 +18,7 @@ export interface WorkItem {
   priority: number
   status: WorkItemStatus
   branch: string
+  pr_url: string | null
   worktree_path: string | null
   session_id: string | null
   delegator_id: string | null

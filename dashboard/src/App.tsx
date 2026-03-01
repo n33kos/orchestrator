@@ -105,6 +105,21 @@ export function App() {
     queue.updateItem(id, { priority })
   }
 
+  function handleAddBlocker(id: string, description: string) {
+    queue.addBlocker(id, description)
+    addToast('Blocker added', 'info')
+  }
+
+  function handleResolveBlocker(id: string, blockerId: string) {
+    queue.resolveBlocker(id, blockerId, true)
+    addToast('Blocker resolved', 'success')
+  }
+
+  function handleUnresolveBlocker(id: string, blockerId: string) {
+    queue.resolveBlocker(id, blockerId, false)
+    addToast('Blocker reopened', 'info')
+  }
+
   function handleDelegatorToggle(id: string, enabled: boolean) {
     queue.updateItem(id, { delegator_enabled: enabled })
     addToast(`Delegator ${enabled ? 'enabled' : 'disabled'}`, 'info')
@@ -162,6 +177,9 @@ export function App() {
           onStatusChange={handleStatusChange}
           onPriorityChange={handlePriorityChange}
           onDelegatorToggle={handleDelegatorToggle}
+          onAddBlocker={handleAddBlocker}
+          onResolveBlocker={handleResolveBlocker}
+          onUnresolveBlocker={handleUnresolveBlocker}
           onDelete={handleDelete}
         />
       </main>

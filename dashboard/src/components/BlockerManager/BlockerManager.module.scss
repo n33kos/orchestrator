@@ -1,0 +1,147 @@
+.Root {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.Blocker {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--color-error-muted);
+  border-radius: var(--radius-sm);
+
+  &.BlockerResolved {
+    background: var(--color-surface-secondary);
+    opacity: 0.6;
+  }
+}
+
+.BlockerDot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 2px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+
+  &[data-resolved="false"] {
+    background: var(--color-error);
+    border-color: var(--color-error);
+
+    &:hover {
+      background: var(--color-success);
+      border-color: var(--color-success);
+    }
+  }
+
+  &[data-resolved="true"] {
+    background: var(--color-success);
+    border-color: var(--color-success);
+
+    &:hover {
+      background: var(--color-error);
+      border-color: var(--color-error);
+    }
+  }
+}
+
+.BlockerText {
+  font-size: 13px;
+  color: var(--color-text);
+  line-height: 1.4;
+}
+
+.AddButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-family);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+    border-color: var(--color-border);
+  }
+}
+
+.AddForm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.AddInput {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: 13px;
+  outline: none;
+
+  &:focus {
+    border-color: var(--color-primary);
+  }
+
+  &::placeholder {
+    color: var(--color-text-muted);
+  }
+}
+
+.AddActions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.AddCancel {
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-family);
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+  }
+}
+
+.AddSubmit {
+  padding: 4px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-error);
+  color: white;
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  &:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+}
