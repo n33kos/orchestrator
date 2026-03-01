@@ -10,11 +10,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 CONFIG="$PROJECT_ROOT/config/environment.yml"
-QUEUE_FILE="$(grep 'queue_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
-VMUX="$(grep 'vmux:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
-ROSTRUM="$(grep 'rostrum:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
-REPO_PATH="$(grep 'path:' "$CONFIG" | head -1 | sed 's/.*: *//' | sed "s|~|$HOME|")"
-MAX_ACTIVE="$(grep 'max_active_projects:' "$CONFIG" | sed 's/.*: *//')"
+eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
+
+QUEUE_FILE="$CONFIG_QUEUE_FILE"
+VMUX="$CONFIG_TOOL_VMUX"
+ROSTRUM="$CONFIG_TOOL_ROSTRUM"
+REPO_PATH="$CONFIG_REPO_PATH"
+MAX_ACTIVE="$CONFIG_MAX_ACTIVE_PROJECTS"
 
 # shellcheck source=validate-env.sh
 source "$SCRIPT_DIR/validate-env.sh"

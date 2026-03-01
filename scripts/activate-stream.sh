@@ -14,15 +14,16 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 # shellcheck source=emit-event.sh
 source "$SCRIPT_DIR/emit-event.sh"
 
-# Parse config (lightweight YAML parsing via grep/sed)
 CONFIG="$PROJECT_ROOT/config/environment.yml"
-QUEUE_FILE="$(grep 'queue_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
-REPO_PATH="$(grep 'path:' "$CONFIG" | head -1 | sed 's/.*: *//' | sed "s|~|$HOME|")"
-WORKTREE_PREFIX="$(grep 'worktree_prefix:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
-ROSTRUM="$(grep 'rostrum:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
-VMUX="$(grep 'vmux:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
-MAX_ACTIVE="$(grep 'max_active_projects:' "$CONFIG" | sed 's/.*: *//')"
-DELEGATOR_DEFAULT="$(grep 'enabled_by_default:' "$CONFIG" | sed 's/.*: *//')"
+eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
+
+QUEUE_FILE="$CONFIG_QUEUE_FILE"
+REPO_PATH="$CONFIG_REPO_PATH"
+WORKTREE_PREFIX="$CONFIG_WORKTREE_PREFIX"
+ROSTRUM="$CONFIG_TOOL_ROSTRUM"
+VMUX="$CONFIG_TOOL_VMUX"
+MAX_ACTIVE="$CONFIG_MAX_ACTIVE_PROJECTS"
+DELEGATOR_DEFAULT="$CONFIG_DELEGATOR_ENABLED"
 
 # shellcheck source=validate-env.sh
 source "$SCRIPT_DIR/validate-env.sh"

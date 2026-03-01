@@ -34,12 +34,14 @@ fi
 echo "[ok] Config file found"
 
 # 2. Parse config values
-QUEUE_FILE="$(grep 'queue_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
-PROFILE_FILE="$(grep 'profile_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
-VMUX="$(grep 'vmux:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
-ROSTRUM="$(grep 'rostrum:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
-GRAPHITE="$(grep 'graphite:' "$CONFIG" | sed 's/.*: *//')"
-REPO_PATH="$(grep 'path:' "$CONFIG" | head -1 | sed 's/.*: *//' | sed "s|~|$HOME|")"
+eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
+
+QUEUE_FILE="$CONFIG_QUEUE_FILE"
+PROFILE_FILE="$CONFIG_PROFILE_FILE"
+VMUX="$CONFIG_TOOL_VMUX"
+ROSTRUM="$CONFIG_TOOL_ROSTRUM"
+GRAPHITE="$CONFIG_TOOL_GRAPHITE"
+REPO_PATH="$CONFIG_REPO_PATH"
 
 # 3. Check prerequisites
 echo ""

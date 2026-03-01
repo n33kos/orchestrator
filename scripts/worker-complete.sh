@@ -16,7 +16,9 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 source "$SCRIPT_DIR/emit-event.sh"
 
 CONFIG="$PROJECT_ROOT/config/environment.yml"
-QUEUE_FILE="$(grep 'queue_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
+eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
+
+QUEUE_FILE="$CONFIG_QUEUE_FILE"
 
 # shellcheck source=validate-env.sh
 source "$SCRIPT_DIR/validate-env.sh"

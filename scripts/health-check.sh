@@ -13,11 +13,12 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 source "$SCRIPT_DIR/emit-event.sh"
 
 CONFIG="$PROJECT_ROOT/config/environment.yml"
-QUEUE_FILE="$(grep 'queue_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
-VMUX="$(grep 'vmux:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
-MAX_ACTIVE="$(grep 'max_active_projects:' "$CONFIG" | sed 's/.*: *//')"
-STALL_THRESHOLD_MIN="$(grep 'threshold_minutes:' "$CONFIG" | sed 's/.*: *//')"
-STALL_THRESHOLD_MIN="${STALL_THRESHOLD_MIN:-30}"
+eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
+
+QUEUE_FILE="$CONFIG_QUEUE_FILE"
+VMUX="$CONFIG_TOOL_VMUX"
+MAX_ACTIVE="$CONFIG_MAX_ACTIVE_PROJECTS"
+STALL_THRESHOLD_MIN="${CONFIG_STALL_THRESHOLD_MIN:-30}"
 STALL_THRESHOLD_HOURS="$(python3 -c "print($STALL_THRESHOLD_MIN / 60)")"
 
 # shellcheck source=validate-env.sh

@@ -20,10 +20,12 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 source "$SCRIPT_DIR/emit-event.sh"
 
 CONFIG="$PROJECT_ROOT/config/environment.yml"
-QUEUE_FILE="$(grep 'queue_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
-PROFILE_FILE="$(grep 'profile_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
-VMUX="$(grep 'vmux:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
-DASHBOARD_PORT="$(grep 'api_port:' "$CONFIG" | sed 's/.*: *//')"
+eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
+
+QUEUE_FILE="$CONFIG_QUEUE_FILE"
+PROFILE_FILE="$CONFIG_PROFILE_FILE"
+VMUX="$CONFIG_TOOL_VMUX"
+DASHBOARD_PORT="$CONFIG_API_PORT"
 
 # shellcheck source=validate-env.sh
 source "$SCRIPT_DIR/validate-env.sh"

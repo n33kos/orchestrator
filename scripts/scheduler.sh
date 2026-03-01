@@ -17,18 +17,18 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 source "$SCRIPT_DIR/emit-event.sh"
 
 CONFIG="$PROJECT_ROOT/config/environment.yml"
-QUEUE_FILE="$(grep 'queue_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
-MAX_ACTIVE="$(grep 'max_active_projects:' "$CONFIG" | sed 's/.*: *//')"
-AUTO_ACTIVATE="$(grep 'auto_activate:' "$CONFIG" | sed 's/.*: *//')"
-AUTO_APPROVE_PLANS="$(grep 'auto_approve_plans:' "$CONFIG" | sed 's/.*: *//')"
-POLL_INTERVAL="$(grep 'poll_interval:' "$CONFIG" | sed 's/.*: *//')"
-POLL_INTERVAL="${POLL_INTERVAL:-120}"
-DELEGATOR_CYCLE_INTERVAL="$(grep 'cycle_interval:' "$CONFIG" | sed 's/#.*//' | sed 's/[^0-9]//g')"
-DELEGATOR_CYCLE_INTERVAL="${DELEGATOR_CYCLE_INTERVAL:-300}"
-CLEANUP_EVERY="$(grep 'cleanup_every:' "$CONFIG" | sed 's/[^0-9]//g')"
-CLEANUP_EVERY="${CLEANUP_EVERY:-10}"
-ARCHIVE_AFTER_DAYS="$(grep 'archive_after_days:' "$CONFIG" | sed 's/[^0-9]//g')"
-ARCHIVE_AFTER_DAYS="${ARCHIVE_AFTER_DAYS:-7}"
+
+# Parse config using shared parser
+eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
+
+QUEUE_FILE="$CONFIG_QUEUE_FILE"
+MAX_ACTIVE="$CONFIG_MAX_ACTIVE_PROJECTS"
+AUTO_ACTIVATE="$CONFIG_AUTO_ACTIVATE"
+AUTO_APPROVE_PLANS="$CONFIG_AUTO_APPROVE_PLANS"
+POLL_INTERVAL="${CONFIG_POLL_INTERVAL:-120}"
+DELEGATOR_CYCLE_INTERVAL="${CONFIG_DELEGATOR_CYCLE_INTERVAL:-300}"
+CLEANUP_EVERY="${CONFIG_CLEANUP_EVERY:-10}"
+ARCHIVE_AFTER_DAYS="${CONFIG_ARCHIVE_AFTER_DAYS:-7}"
 
 # shellcheck source=validate-env.sh
 source "$SCRIPT_DIR/validate-env.sh"
@@ -441,7 +441,7 @@ for item in data['items']:
 function check_services() {
     # Ensure critical services (vmux daemon, relay) are running
     local vmux_path
-    vmux_path="$(grep 'vmux:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
+    vmux_path="$CONFIG_TOOL_VMUX"
 
     # Check vmux daemon
     if ! "$vmux_path" status &>/dev/null; then
@@ -461,12 +461,9 @@ function check_services() {
 
 function recover_delegators() {
     # Check each active item's delegator — respawn if dead or stalled
-    local vmux_path
-    vmux_path="$(grep 'vmux:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
+    local vmux_path="$CONFIG_TOOL_VMUX"
     local delegators_dir="$HOME/.claude/orchestrator/delegators"
-    local stall_minutes
-    stall_minutes="$(grep 'threshold_minutes:' "$CONFIG" | sed 's/.*: *//')"
-    stall_minutes="${stall_minutes:-30}"
+    local stall_minutes="${CONFIG_STALL_THRESHOLD_MIN:-30}"
 
     python3 -c "
 import json, subprocess, sys, os
@@ -582,8 +579,7 @@ for item in data['items']:
 function trigger_delegator_cycles() {
     # Send monitoring cycle triggers to active delegators via vmux send.
     # This wakes up delegators that are blocking in relay_standby.
-    local vmux_path
-    vmux_path="$(grep 'vmux:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
+    local vmux_path="$CONFIG_TOOL_VMUX"
 
     python3 -c "
 import json, sys

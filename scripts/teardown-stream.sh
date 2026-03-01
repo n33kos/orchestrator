@@ -15,10 +15,12 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 source "$SCRIPT_DIR/emit-event.sh"
 
 CONFIG="$PROJECT_ROOT/config/environment.yml"
-QUEUE_FILE="$(grep 'queue_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
-REPO_PATH="$(grep 'path:' "$CONFIG" | head -1 | sed 's/.*: *//' | sed "s|~|$HOME|")"
-ROSTRUM="$(grep 'rostrum:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
-VMUX="$(grep 'vmux:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
+eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
+
+QUEUE_FILE="$CONFIG_QUEUE_FILE"
+REPO_PATH="$CONFIG_REPO_PATH"
+ROSTRUM="$CONFIG_TOOL_ROSTRUM"
+VMUX="$CONFIG_TOOL_VMUX"
 
 # shellcheck source=validate-env.sh
 source "$SCRIPT_DIR/validate-env.sh"
@@ -116,7 +118,7 @@ echo "  Status: completed"
 # Step 5: Auto-train profile from the session transcript
 echo ""
 echo "Step 5: Training profile from session..."
-TRAINING_MODE="$(grep 'training_mode:' "$CONFIG" | sed 's/.*: *//')"
+TRAINING_MODE="$CONFIG_DELEGATOR_TRAINING_MODE"
 if [[ "$TRAINING_MODE" == "true" && -n "$SESSION_ID" ]]; then
     # Find the most recent JSONL transcript matching this session's cwd
     TRANSCRIPT="$(python3 -c "
