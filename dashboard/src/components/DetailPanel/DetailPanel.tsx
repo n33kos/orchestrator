@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import styles from './DetailPanel.module.scss'
 import { StatusBadge } from '../StatusBadge/StatusBadge.tsx'
+import { PriorityBadge } from '../PriorityBadge/PriorityBadge.tsx'
 import { timeAgo, formatDate } from '../../utils/time.ts'
 import type { WorkItem, WorkItemStatus } from '../../types.ts'
 
@@ -60,7 +61,7 @@ export function DetailPanel({ item, onClose, onStatusChange, onDelete, onDuplica
             </div>
             <div className={styles.MetaItem}>
               <span className={styles.MetaLabel}>Priority</span>
-              <span className={styles.MetaValue}>{item.priority}</span>
+              <PriorityBadge priority={item.priority} size="md" />
             </div>
             <div className={styles.MetaItem}>
               <span className={styles.MetaLabel}>Type</span>

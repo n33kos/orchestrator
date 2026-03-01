@@ -1,0 +1,41 @@
+.Root {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+}
+
+.sm {
+  font-size: 10px;
+  min-width: 22px;
+  padding: 2px 4px;
+}
+
+.md {
+  font-size: 12px;
+  min-width: 28px;
+  padding: 3px 6px;
+}
+
+.critical {
+  color: var(--color-error);
+  background: var(--color-error-muted);
+}
+
+.high {
+  color: var(--color-warning);
+  background: var(--color-warning-muted);
+}
+
+.medium {
+  color: var(--color-primary);
+  background: var(--color-primary-muted);
+}
+
+.low {
+  color: var(--color-text-muted);
+  background: var(--color-surface-hover);
+}

@@ -35,17 +35,40 @@ import { useFaviconBadge } from './hooks/useFaviconBadge.ts'
 import { usePersistedState } from './hooks/usePersistedState.ts'
 import { useDebounce } from './hooks/useDebounce.ts'
 import { useActivitySparkline } from './hooks/useActivitySparkline.ts'
+import { useChangeDetection } from './hooks/useChangeDetection.ts'
 import { usePinnedItems } from './hooks/usePinnedItems.ts'
 import { useSearchHistory } from './hooks/useSearchHistory.ts'
+import { playNotificationSound } from './utils/sound.ts'
 import type { WorkItemStatus, MessageEntry } from './types.ts'
 
 export function App() {
   const { settings, update: updateSetting, reset: resetSettings, open: settingsOpen, setOpen: setSettingsOpen } = useSettings()
   const queue = useQueue(settings.pollIntervalMs)
   const { theme, toggle: toggleTheme } = useTheme()
-  const { toasts, history, addToast, dismissToast, clearHistory } = useToast()
+  const { toasts, history, addToast: rawAddToast, dismissToast, clearHistory } = useToast()
+  const addToast = useCallback((...args: Parameters<typeof rawAddToast>) => {
+    rawAddToast(...args)
+    if (settings.soundEnabled) {
+      playNotificationSound(args[1] || 'info')
+    }
+  }, [rawAddToast, settings.soundEnabled])
   const activitySparkline = useActivitySparkline(history)
   const { pinned, togglePin } = usePinnedItems()
+  const changes = useChangeDetection(queue.items)
+
+  // Auto-toast when items change status from polling
+  useEffect(() => {
+    for (const [, diffs] of changes) {
+      for (const diff of diffs) {
+        if (diff.field === 'status') {
+          const item = queue.items.find(i => i.id === diff.id)
+          if (item) {
+            rawAddToast(`"${item.title}" changed to ${diff.to}`, 'info')
+          }
+        }
+      }
+    }
+  }, [changes, queue.items, rawAddToast])
   const { history: searchHistory, addSearch, clearHistory: clearSearchHistory, removeItem: removeSearchItem } = useSearchHistory()
   useNotifications(queue.items, settings.notificationsEnabled)
   const { sessions, sendMessage, refresh: refreshSessions } = useSessions()

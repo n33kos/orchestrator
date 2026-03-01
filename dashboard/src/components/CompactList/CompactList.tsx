@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import classnames from 'classnames'
 import styles from './CompactList.module.scss'
 import { StatusBadge } from '../StatusBadge/StatusBadge.tsx'
+import { PriorityBadge } from '../PriorityBadge/PriorityBadge.tsx'
 import { timeAgo } from '../../utils/time.ts'
 import { useDragReorder } from '../../hooks/useDragReorder.ts'
 import { useTimeRefresh } from '../../hooks/useTimeRefresh.ts'
@@ -13,6 +14,8 @@ interface CompactListProps {
   selectedIds?: Set<string>
   onSelect?: (id: string) => void
   onStatusChange: (id: string, status: WorkItemStatus) => void
+  onActivateStream?: (id: string) => void
+  activatingIds?: Set<string>
   onNavigate: (id: string) => void
   onReorder?: (dragId: string, dropId: string) => void
   onEdit?: (id: string, updates: { title?: string }) => void
@@ -60,7 +63,7 @@ function InlineEditTitle({ value, onSave, onCancel }: { value: string; onSave: (
   )
 }
 
-export function CompactList({ items, selectable, selectedIds, onSelect, onStatusChange, onNavigate, onReorder, onEdit }: CompactListProps) {
+export function CompactList({ items, selectable, selectedIds, onSelect, onStatusChange, onActivateStream, activatingIds, onNavigate, onReorder, onEdit }: CompactListProps) {
   const { dragId, overId, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(onReorder ?? (() => {}))
   const [editingId, setEditingId] = useState<string | null>(null)
   useTimeRefresh(60_000) // force re-render every minute to keep relative times fresh
@@ -112,7 +115,7 @@ export function CompactList({ items, selectable, selectedIds, onSelect, onStatus
                 />
               </label>
             )}
-            <span className={styles.ColPriority}>{item.priority}</span>
+            <span className={styles.ColPriority}><PriorityBadge priority={item.priority} /></span>
             <span className={styles.ColTitle}>
               {editingId === item.id ? (
                 <InlineEditTitle
@@ -146,14 +149,19 @@ export function CompactList({ items, selectable, selectedIds, onSelect, onStatus
               {timeAgo(item.activated_at || item.created_at)}
             </span>
             <span className={styles.ColAction} onClick={e => e.stopPropagation()}>
-              {action && (
-                <button
-                  className={styles.QuickAction}
-                  onClick={() => onStatusChange(item.id, action.nextStatus)}
-                >
-                  {action.label}
-                </button>
-              )}
+              {action && (() => {
+                const isActivating = activatingIds?.has(item.id)
+                const useStream = onActivateStream && (item.status === 'queued' || item.status === 'planning' || item.status === 'paused')
+                return (
+                  <button
+                    className={styles.QuickAction}
+                    onClick={() => useStream ? onActivateStream(item.id) : onStatusChange(item.id, action.nextStatus)}
+                    disabled={isActivating}
+                  >
+                    {isActivating ? 'Activating...' : action.label}
+                  </button>
+                )
+              })()}
             </span>
           </div>
         )
