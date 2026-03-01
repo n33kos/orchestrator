@@ -9,6 +9,7 @@ import { MessageComposer } from '../MessageComposer/MessageComposer.tsx'
 import { ContextMenu } from '../ContextMenu/ContextMenu.tsx'
 import type { ContextMenuItem } from '../ContextMenu/ContextMenu.tsx'
 import { timeAgo, formatDate } from '../../utils/time.ts'
+import { useTimeRefresh } from '../../hooks/useTimeRefresh.ts'
 import type { WorkItem, WorkItemStatus, SessionInfo, MessageEntry } from '../../types.ts'
 
 interface WorkStreamCardProps {
@@ -44,6 +45,7 @@ export function WorkStreamCard({ item, position, totalCount, isDragging, isDragO
   const [expanded, setExpanded] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
+  useTimeRefresh(60_000)
 
   useEffect(() => {
     if (focused) {

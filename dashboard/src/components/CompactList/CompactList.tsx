@@ -1,7 +1,10 @@
+import { useState, useRef, useEffect } from 'react'
 import classnames from 'classnames'
 import styles from './CompactList.module.scss'
 import { StatusBadge } from '../StatusBadge/StatusBadge.tsx'
 import { timeAgo } from '../../utils/time.ts'
+import { useDragReorder } from '../../hooks/useDragReorder.ts'
+import { useTimeRefresh } from '../../hooks/useTimeRefresh.ts'
 import type { WorkItem, WorkItemStatus } from '../../types.ts'
 
 interface CompactListProps {
@@ -11,6 +14,8 @@ interface CompactListProps {
   onSelect?: (id: string) => void
   onStatusChange: (id: string, status: WorkItemStatus) => void
   onNavigate: (id: string) => void
+  onReorder?: (dragId: string, dropId: string) => void
+  onEdit?: (id: string, updates: { title?: string }) => void
 }
 
 function getQuickAction(status: WorkItemStatus): { label: string; nextStatus: WorkItemStatus } | null {
@@ -21,7 +26,45 @@ function getQuickAction(status: WorkItemStatus): { label: string; nextStatus: Wo
   return null
 }
 
-export function CompactList({ items, selectable, selectedIds, onSelect, onStatusChange, onNavigate }: CompactListProps) {
+function InlineEditTitle({ value, onSave, onCancel }: { value: string; onSave: (v: string) => void; onCancel: () => void }) {
+  const ref = useRef<HTMLInputElement>(null)
+  const [text, setText] = useState(value)
+
+  useEffect(() => {
+    ref.current?.focus()
+    ref.current?.select()
+  }, [])
+
+  function commit() {
+    const trimmed = text.trim()
+    if (trimmed && trimmed !== value) {
+      onSave(trimmed)
+    } else {
+      onCancel()
+    }
+  }
+
+  return (
+    <input
+      ref={ref}
+      className={styles.InlineEditInput}
+      value={text}
+      onChange={e => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => {
+        if (e.key === 'Enter') commit()
+        if (e.key === 'Escape') onCancel()
+      }}
+      onClick={e => e.stopPropagation()}
+    />
+  )
+}
+
+export function CompactList({ items, selectable, selectedIds, onSelect, onStatusChange, onNavigate, onReorder, onEdit }: CompactListProps) {
+  const { dragId, overId, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(onReorder ?? (() => {}))
+  const [editingId, setEditingId] = useState<string | null>(null)
+  useTimeRefresh(60_000) // force re-render every minute to keep relative times fresh
+
   if (items.length === 0) {
     return (
       <div className={styles.Empty}>
@@ -47,7 +90,17 @@ export function CompactList({ items, selectable, selectedIds, onSelect, onStatus
         return (
           <div
             key={item.id}
-            className={classnames(styles.Row, selectedIds?.has(item.id) && styles.RowSelected)}
+            className={classnames(
+              styles.Row,
+              selectedIds?.has(item.id) && styles.RowSelected,
+              dragId === item.id && styles.RowDragging,
+              overId === item.id && styles.RowDragOver,
+            )}
+            draggable={!!onReorder}
+            onDragStart={() => handleDragStart(item.id)}
+            onDragOver={e => { e.preventDefault(); handleDragOver(item.id) }}
+            onDrop={() => handleDrop(item.id)}
+            onDragEnd={handleDragEnd}
             onClick={() => onNavigate(item.id)}
           >
             {selectable && (
@@ -61,7 +114,21 @@ export function CompactList({ items, selectable, selectedIds, onSelect, onStatus
             )}
             <span className={styles.ColPriority}>{item.priority}</span>
             <span className={styles.ColTitle}>
-              <span className={styles.TitleText}>{item.title}</span>
+              {editingId === item.id ? (
+                <InlineEditTitle
+                  value={item.title}
+                  onSave={v => { onEdit?.(item.id, { title: v }); setEditingId(null) }}
+                  onCancel={() => setEditingId(null)}
+                />
+              ) : (
+                <span
+                  className={styles.TitleText}
+                  onDoubleClick={e => { e.stopPropagation(); if (onEdit) setEditingId(item.id) }}
+                  title={onEdit ? 'Double-click to edit' : undefined}
+                >
+                  {item.title}
+                </span>
+              )}
               {unresolvedBlockers.length > 0 && (
                 <span className={styles.BlockerCount} title={`${unresolvedBlockers.length} blocker(s)`}>
                   {unresolvedBlockers.length}

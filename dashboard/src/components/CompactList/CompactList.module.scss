@@ -54,6 +54,14 @@
   &.RowSelected {
     background: color-mix(in srgb, var(--color-primary-muted) 30%, var(--color-surface));
   }
+
+  &.RowDragging {
+    opacity: 0.4;
+  }
+
+  &.RowDragOver {
+    border-top: 2px solid var(--color-primary);
+  }
 }
 
 .ColCheck {
@@ -104,6 +112,21 @@
   padding: 0 5px;
   border-radius: 6px;
   flex-shrink: 0;
+}
+
+.InlineEditInput {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-family);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  padding: 1px 4px;
+  outline: none;
+  width: 100%;
+  min-width: 0;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 25%, transparent);
 }
 
 .TypeTag {

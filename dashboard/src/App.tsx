@@ -553,6 +553,8 @@ export function App() {
                 onSelect={handleToggleSelect}
                 onStatusChange={handleStatusChange}
                 onNavigate={handleNavigateToItem}
+                onReorder={handleReorder}
+                onEdit={handleEdit}
               />
             ) : (
             <WorkStreamList
