@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync } from 'fs'
+import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync, unlinkSync } from 'fs'
 import { execFile } from 'child_process'
 import { join } from 'path'
 import { homedir } from 'os'
@@ -1024,6 +1024,61 @@ function queueApiPlugin(): Plugin {
         }
       })
 
+      // GET/POST /api/orchestrator/pause — get or toggle orchestrator pause state
+      const pauseFilePath = join(homedir(), '.claude/orchestrator/paused')
+      server.middlewares.use('/api/orchestrator/pause', async (req, res) => {
+        res.setHeader('Content-Type', 'application/json')
+        if (req.method === 'GET') {
+          const paused = existsSync(pauseFilePath)
+          res.end(JSON.stringify({ paused }))
+          return
+        }
+        if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
+        try {
+          const body = JSON.parse(await readBody(req))
+          const shouldPause = body.paused !== undefined ? body.paused : !existsSync(pauseFilePath)
+
+          if (shouldPause) {
+            // Create pause file
+            writeFileSync(pauseFilePath, new Date().toISOString(), 'utf-8')
+            // Update auto_activate to false in config
+            const configPath = join(__dirname, '..', 'config', 'environment.yml')
+            let config = readFileSync(configPath, 'utf-8')
+            config = config.replace(/^(\s*auto_activate:\s*).+$/m, '$1false')
+            writeFileSync(configPath, config, 'utf-8')
+            // Kill all delegators
+            const vmuxPath = join(homedir(), '.local/bin/vmux')
+            const delegatorDir = join(homedir(), '.claude/orchestrator/delegators')
+            if (existsSync(delegatorDir)) {
+              const { readdirSync } = require('fs')
+              const delegatorDirs = readdirSync(delegatorDir)
+              for (const dir of delegatorDirs) {
+                const pidFile = join(delegatorDir, dir, 'session_id')
+                if (existsSync(pidFile)) {
+                  const sessionId = readFileSync(pidFile, 'utf-8').trim()
+                  if (sessionId) {
+                    execFile(vmuxPath, ['kill', sessionId], { env: { ...process.env, HOME: homedir() } }, () => {})
+                  }
+                }
+              }
+            }
+            res.end(JSON.stringify({ paused: true, message: 'Orchestration paused. Auto-activate disabled, delegators killed.' }))
+          } else {
+            // Remove pause file
+            if (existsSync(pauseFilePath)) unlinkSync(pauseFilePath)
+            // Update auto_activate to true in config
+            const configPath = join(__dirname, '..', 'config', 'environment.yml')
+            let config = readFileSync(configPath, 'utf-8')
+            config = config.replace(/^(\s*auto_activate:\s*).+$/m, '$1true')
+            writeFileSync(configPath, config, 'utf-8')
+            res.end(JSON.stringify({ paused: false, message: 'Orchestration resumed. Auto-activate enabled.' }))
+          }
+        } catch (err) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: String(err) }))
+        }
+      })
+
       // GET /api/config — read environment.yml as structured settings
       server.middlewares.use('/api/config', async (req, res) => {
         if (req.method === 'PATCH') {
@@ -1062,6 +1117,10 @@ function queueApiPlugin(): Plugin {
                 pattern: /^(\s*archive_after_days:\s*).+$/m,
                 format: (v) => `$1${v}`,
               },
+              plansDirectory: {
+                pattern: /^(\s*directory:\s*).+$/m,
+                format: (v) => `$1${v}`,
+              },
               delegatorCycleInterval: {
                 pattern: /^(\s*cycle_interval:\s*)\S+(.*)$/m,
                 format: (v) => `$1${v}$2`,
@@ -1076,6 +1135,16 @@ function queueApiPlugin(): Plugin {
             }
 
             writeFileSync(configPath, content)
+
+            // Signal the scheduler to reload config immediately
+            const schedulerPidFile = join(homedir(), '.claude/orchestrator/scheduler.pid')
+            if (existsSync(schedulerPidFile)) {
+              try {
+                const pid = parseInt(readFileSync(schedulerPidFile, 'utf-8').trim(), 10)
+                if (pid > 0) process.kill(pid, 'SIGUSR1')
+              } catch { /* scheduler may not be running */ }
+            }
+
             res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ ok: true }))
           } catch (err) {
@@ -1101,6 +1170,7 @@ function queueApiPlugin(): Plugin {
             maxConcurrentQuickFixes: parseInt(getVal('quick_fix_limit') || '4', 10),
             autoActivate: getVal('auto_activate') === 'true',
             requireApprovedPlan: getVal('require_approved_plan') === 'true',
+            plansDirectory: getVal('directory') || '~/Desktop/plans',
             defaultDelegatorEnabled: getVal('enabled_by_default') === 'true',
             stallThresholdMinutes: parseInt(getVal('threshold_minutes') || '30', 10),
             archiveAfterDays: parseInt(getVal('archive_after_days') || '7', 10),

@@ -129,6 +129,7 @@ export function App() {
   const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [showSessions, setShowSessions] = useState(false)
   const [showActivityFeed, setShowActivityFeed] = useState(false)
+  const [orchestratorPaused, setOrchestratorPaused] = useState(false)
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null)
@@ -171,6 +172,31 @@ export function App() {
     const interval = setInterval(checkHealth, 60000)
     return () => clearInterval(interval)
   }, [])
+
+  // Fetch pause state on mount
+  useEffect(() => {
+    fetch('/api/orchestrator/pause')
+      .then(r => r.json())
+      .then(data => setOrchestratorPaused(data.paused))
+      .catch(() => {})
+  }, [])
+
+  async function handlePauseToggle() {
+    try {
+      const res = await fetch('/api/orchestrator/pause', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paused: !orchestratorPaused }),
+      })
+      const data = await res.json()
+      setOrchestratorPaused(data.paused)
+      addToast(data.message || (data.paused ? 'Paused' : 'Resumed'), data.paused ? 'warning' : 'success')
+      // Refresh settings to reflect auto_activate change
+      updateSetting('autoActivate', !data.paused)
+    } catch {
+      addToast('Failed to toggle pause', 'error')
+    }
+  }
 
   // Auto-scheduler: when auto-activate is enabled, periodically run the scheduler
   useEffect(() => {
@@ -909,6 +935,8 @@ export function App() {
         onActivityFeedClick={() => setShowActivityFeed(true)}
         onHealthClick={() => setShowHealthPanel(true)}
         onDiscoverClick={handleDiscoverWork}
+        orchestratorPaused={orchestratorPaused}
+        onPauseToggle={handlePauseToggle}
       />
       <main ref={mainRef} id="main-content" className={styles.Main}>
         <ErrorBoundary fallbackLabel="The main content area crashed. Try refreshing the page.">

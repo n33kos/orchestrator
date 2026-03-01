@@ -244,6 +244,18 @@ export function SettingsPanel({
               />
             </SettingRow>
             <SettingRow
+              label="Plans directory"
+              description="Where plan files are stored"
+            >
+              <input
+                className={styles.TextInput}
+                type="text"
+                value={settings.plansDirectory}
+                onChange={(e) => onUpdate("plansDirectory", e.target.value)}
+                placeholder="~/Desktop/plans"
+              />
+            </SettingRow>
+            <SettingRow
               label="Delegator by default"
               description="Enable delegator for new work items"
             >

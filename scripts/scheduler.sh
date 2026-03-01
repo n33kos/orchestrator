@@ -39,6 +39,7 @@ source "$SCRIPT_DIR/validate-env.sh"
 ONCE=false
 DRY_RUN=false
 CLEANUP=false
+PID_FILE="$HOME/.claude/orchestrator/scheduler.pid"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -49,6 +50,14 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
+
+# Write PID file so external processes can signal us
+echo $$ > "$PID_FILE"
+trap 'rm -f "$PID_FILE"' EXIT
+
+# SIGUSR1 handler — interrupts sleep for immediate config reload
+CONFIG_CHANGED=false
+trap 'CONFIG_CHANGED=true' USR1
 
 function cleanup_completed() {
     # Archive completed items older than configured days
@@ -241,6 +250,13 @@ function teardown_merged() {
 }
 
 function check_and_activate() {
+    # Check if orchestrator is paused
+    local pause_file="$HOME/.claude/orchestrator/paused"
+    if [[ -f "$pause_file" ]]; then
+        echo "[scheduler] Orchestrator is paused — skipping activation"
+        return 0
+    fi
+
     # Check auto_activate setting
     if [[ "$AUTO_ACTIVATE" != "true" ]]; then
         echo "[scheduler] auto_activate is disabled in config"
@@ -731,6 +747,14 @@ else
             rotate_event_log
         fi
         echo "[scheduler] Next check in ${POLL_INTERVAL}s..."
-        sleep "$POLL_INTERVAL"
+        # Sleep in 1s increments so SIGUSR1 can interrupt quickly
+        for (( _s=0; _s<POLL_INTERVAL; _s++ )); do
+            if [[ "$CONFIG_CHANGED" == "true" ]]; then
+                CONFIG_CHANGED=false
+                echo "[scheduler] Config change signal received — running immediate cycle"
+                break
+            fi
+            sleep 1
+        done
     done
 fi

@@ -31,9 +31,11 @@ interface HeaderProps {
   onActivityFeedClick: () => void
   onHealthClick: () => void
   onDiscoverClick: () => void
+  orchestratorPaused?: boolean
+  onPauseToggle?: () => void
 }
 
-export function Header({ activeCount, queuedCount, pausedCount, blockedCount, sessionCount, workersActiveCount, zombieCount, activityCount, activitySparkline, healthIssues, lastUpdated, notificationHistory, orchestratorEvents, onClearNotifications, onAddClick, showingAddForm, theme, onThemeToggle, onSettingsClick, onSessionsClick, onActivityFeedClick, onHealthClick, onDiscoverClick }: HeaderProps) {
+export function Header({ activeCount, queuedCount, pausedCount, blockedCount, sessionCount, workersActiveCount, zombieCount, activityCount, activitySparkline, healthIssues, lastUpdated, notificationHistory, orchestratorEvents, onClearNotifications, onAddClick, showingAddForm, theme, onThemeToggle, onSettingsClick, onSessionsClick, onActivityFeedClick, onHealthClick, onDiscoverClick, orchestratorPaused, onPauseToggle }: HeaderProps) {
   return (
     <header className={styles.Root}>
       <div className={styles.Left}>
@@ -72,6 +74,27 @@ export function Header({ activeCount, queuedCount, pausedCount, blockedCount, se
         )}
       </div>
       <div className={styles.Actions}>
+        {onPauseToggle && (
+          <button
+            className={classnames(styles.PauseButton, orchestratorPaused && styles.PauseButtonActive)}
+            onClick={onPauseToggle}
+            title={orchestratorPaused ? 'Resume all orchestration' : 'Pause all orchestration & delegators'}
+          >
+            {orchestratorPaused ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                <rect x="6" y="4" width="4" height="16" rx="1" />
+                <rect x="14" y="4" width="4" height="16" rx="1" />
+              </svg>
+            )}
+            <span className={styles.PauseLabel}>
+              {orchestratorPaused ? 'Resume' : 'Pause'}
+            </span>
+          </button>
+        )}
         <ThemeToggle theme={theme} onToggle={onThemeToggle} />
         <button
           className={styles.DiscoverButton}

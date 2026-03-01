@@ -6,6 +6,7 @@ export interface OrchestratorSettings {
   pollIntervalMs: number
   autoActivate: boolean
   requireApprovedPlan: boolean
+  plansDirectory: string
   defaultDelegatorEnabled: boolean
   notificationsEnabled: boolean
   soundEnabled: boolean
@@ -22,6 +23,7 @@ const CONFIG_SYNCED_KEYS = new Set<keyof OrchestratorSettings>([
   'maxConcurrentQuickFixes',
   'autoActivate',
   'requireApprovedPlan',
+  'plansDirectory',
   'defaultDelegatorEnabled',
   'stallThresholdMinutes',
   'archiveAfterDays',
@@ -34,6 +36,7 @@ const DEFAULTS: OrchestratorSettings = {
   pollIntervalMs: 5000,
   autoActivate: false,
   requireApprovedPlan: false,
+  plansDirectory: '~/Desktop/plans',
   defaultDelegatorEnabled: true,
   notificationsEnabled: true,
   soundEnabled: false,
