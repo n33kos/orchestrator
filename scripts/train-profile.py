@@ -139,6 +139,22 @@ def find_new_insights(messages: list[str], existing_profile: str) -> list[str]:
     return unique
 
 
+def categorize_insight(insight: str) -> str:
+    """Determine which profile section an insight belongs to."""
+    lower = insight.lower()
+    if lower.startswith("always:") or lower.startswith("never:"):
+        return "## Invariants"
+    if lower.startswith("prefers:") or lower.startswith("avoids:"):
+        return "## Style Preferences"
+    if any(k in lower for k in ["test", "type safety", "accessibility", "performance", "error handling", "security"]):
+        return "## Quality Priorities"
+    if any(k in lower for k in ["review", "pr ", "pull request", "code review"]):
+        return "## Review Patterns"
+    if any(k in lower for k in ["delegate", "hand off", "worker", "session"]):
+        return "## Delegation Patterns"
+    return "## Training Log"
+
+
 def update_profile(profile_path: Path, new_insights: list[str]) -> bool:
     """Append new insights to the appropriate profile sections."""
     if not new_insights:
@@ -147,13 +163,42 @@ def update_profile(profile_path: Path, new_insights: list[str]) -> bool:
     content = profile_path.read_text()
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    # Find the "Things Always Checked" section and append before "Things Rarely Flagged"
-    # For now, append to a training log section
-    if "## Training Log" not in content:
-        content += "\n## Training Log\n\n"
-
+    # Group insights by target section
+    by_section: dict[str, list[str]] = {}
     for insight in new_insights:
-        content += f"- [{timestamp}] {insight}\n"
+        section = categorize_insight(insight)
+        by_section.setdefault(section, []).append(insight)
+
+    for section, insights in by_section.items():
+        if section in content:
+            # Find the section and append before the next ## heading
+            lines = content.split("\n")
+            insert_idx = None
+            in_section = False
+            for i, line in enumerate(lines):
+                if line.strip() == section:
+                    in_section = True
+                    continue
+                if in_section:
+                    if line.startswith("## "):
+                        insert_idx = i
+                        break
+            if insert_idx is None and in_section:
+                insert_idx = len(lines)
+            if insert_idx is not None:
+                new_lines = [f"- [{timestamp}] {ins}" for ins in insights]
+                lines = lines[:insert_idx] + new_lines + [""] + lines[insert_idx:]
+                content = "\n".join(lines)
+            else:
+                # Section header not found properly, append at end
+                content += f"\n{section}\n\n"
+                for ins in insights:
+                    content += f"- [{timestamp}] {ins}\n"
+        else:
+            # Section doesn't exist yet, create it
+            content += f"\n{section}\n\n"
+            for ins in insights:
+                content += f"- [{timestamp}] {ins}\n"
 
     profile_path.write_text(content)
     return True
