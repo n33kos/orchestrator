@@ -16,6 +16,7 @@ import { ToastContainer } from './components/Toast/Toast.tsx'
 import { BatchActionBar } from './components/BatchActionBar/BatchActionBar.tsx'
 import { SessionsView } from './components/SessionsView/SessionsView.tsx'
 import { ActivityFeed } from './components/ActivityFeed/ActivityFeed.tsx'
+import { ScrollToTop } from './components/ScrollToTop/ScrollToTop.tsx'
 import { CompactList } from './components/CompactList/CompactList.tsx'
 import { FilterChips } from './components/FilterChips/FilterChips.tsx'
 import { KeyboardHints } from './components/KeyboardHints/KeyboardHints.tsx'
@@ -64,6 +65,7 @@ export function App() {
   const [sortDirection, setSortDirection] = usePersistedState<SortDirection>('sortDirection', 'asc')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const searchRef = useRef<HTMLInputElement>(null)
+  const mainRef = useRef<HTMLElement>(null)
   const [confirmAction, setConfirmAction] = useState<{
     title: string
     message: string
@@ -429,7 +431,7 @@ export function App() {
         onSessionsClick={() => setShowSessions(true)}
         onActivityFeedClick={() => setShowActivityFeed(true)}
       />
-      <main className={styles.Main}>
+      <main ref={mainRef} className={styles.Main}>
         <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
         {activeTab === 'sessions' ? (
           <SessionsView
@@ -593,6 +595,7 @@ export function App() {
         />
       )}
       <KeyboardHints />
+      <ScrollToTop scrollContainer={mainRef.current} />
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
       {confirmAction && (
         <ConfirmDialog
