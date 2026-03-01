@@ -63,42 +63,6 @@ export function App() {
     onConfirm: () => void
   } | null>(null)
 
-  useKeyboard({
-    onNewItem: useCallback(() => setShowAddForm(true), []),
-    onFocusSearch: useCallback(() => searchRef.current?.focus(), []),
-    onEscape: useCallback(() => {
-      if (showCommandPalette) { setShowCommandPalette(false); return }
-      if (showSessions) { setShowSessions(false); return }
-      if (settingsOpen) { setSettingsOpen(false); return }
-      if (confirmAction) { setConfirmAction(null); return }
-      if (selectionMode) { setSelectedIds(new Set()); setSelectionMode(false); return }
-      if (showAddForm) { setShowAddForm(false); return }
-      if (searchQuery) { setSearchQuery(''); return }
-    }, [showCommandPalette, showSessions, settingsOpen, confirmAction, selectionMode, showAddForm, searchQuery, setSettingsOpen]),
-    onRefresh: useCallback(() => {
-      queue.refresh()
-      addToast('Queue refreshed', 'info')
-    }, [queue, addToast]),
-    onCommandPalette: useCallback(() => setShowCommandPalette(prev => !prev), []),
-    onTabSwitch: useCallback((index: number) => {
-      const tabIds = ['projects', 'quick_fixes', 'all', 'sessions']
-      if (index >= 0 && index < tabIds.length) {
-        setActiveTab(tabIds[index])
-      }
-    }, []),
-    onSelectAll: useCallback(() => {
-      if (!selectionMode) {
-        setSelectionMode(true)
-      }
-      setSelectedIds(prev => {
-        if (prev.size === filteredItems.length && filteredItems.length > 0) {
-          return new Set()
-        }
-        return new Set(filteredItems.map(i => i.id))
-      })
-    }, [selectionMode, filteredItems]),
-  })
-
   const tabs = [
     { id: 'projects', label: 'Projects', count: queue.projects.length },
     { id: 'quick_fixes', label: 'Quick Fixes', count: queue.quickFixes.length },
@@ -137,6 +101,42 @@ export function App() {
 
     return pool
   }, [activeTab, queue.projects, queue.quickFixes, queue.items, searchQuery, showCompleted, statusFilter])
+
+  useKeyboard({
+    onNewItem: useCallback(() => setShowAddForm(true), []),
+    onFocusSearch: useCallback(() => searchRef.current?.focus(), []),
+    onEscape: useCallback(() => {
+      if (showCommandPalette) { setShowCommandPalette(false); return }
+      if (showSessions) { setShowSessions(false); return }
+      if (settingsOpen) { setSettingsOpen(false); return }
+      if (confirmAction) { setConfirmAction(null); return }
+      if (selectionMode) { setSelectedIds(new Set()); setSelectionMode(false); return }
+      if (showAddForm) { setShowAddForm(false); return }
+      if (searchQuery) { setSearchQuery(''); return }
+    }, [showCommandPalette, showSessions, settingsOpen, confirmAction, selectionMode, showAddForm, searchQuery, setSettingsOpen]),
+    onRefresh: useCallback(() => {
+      queue.refresh()
+      addToast('Queue refreshed', 'info')
+    }, [queue, addToast]),
+    onCommandPalette: useCallback(() => setShowCommandPalette(prev => !prev), []),
+    onTabSwitch: useCallback((index: number) => {
+      const tabIds = ['projects', 'quick_fixes', 'all', 'sessions']
+      if (index >= 0 && index < tabIds.length) {
+        setActiveTab(tabIds[index])
+      }
+    }, []),
+    onSelectAll: useCallback(() => {
+      if (!selectionMode) {
+        setSelectionMode(true)
+      }
+      setSelectedIds(prev => {
+        if (prev.size === filteredItems.length && filteredItems.length > 0) {
+          return new Set()
+        }
+        return new Set(filteredItems.map(i => i.id))
+      })
+    }, [selectionMode, filteredItems]),
+  })
 
   async function handleAddItem(item: NewWorkItem) {
     try {
@@ -411,6 +411,25 @@ export function App() {
                 </svg>
                 {selectionMode ? 'Cancel' : 'Select'}
               </button>
+              {selectionMode && filteredItems.length > 0 && (
+                <label className={styles.SelectAllLabel}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.size === filteredItems.length && filteredItems.length > 0}
+                    onChange={() => {
+                      if (selectedIds.size === filteredItems.length) {
+                        setSelectedIds(new Set())
+                      } else {
+                        setSelectedIds(new Set(filteredItems.map(i => i.id)))
+                      }
+                    }}
+                    className={styles.SelectAllCheckbox}
+                  />
+                  <span className={styles.SelectAllText}>
+                    {selectedIds.size === filteredItems.length ? 'Deselect all' : `Select all (${filteredItems.length})`}
+                  </span>
+                </label>
+              )}
             </div>
             {showAddForm && (
               <AddWorkItem
