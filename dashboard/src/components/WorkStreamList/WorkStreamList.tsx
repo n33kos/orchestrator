@@ -199,6 +199,7 @@ export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab
           <WorkStreamCard
             key={item.id}
             item={item}
+            index={i}
             position={i + 1}
             totalCount={sorted.length}
             isDragging={dragId === item.id}

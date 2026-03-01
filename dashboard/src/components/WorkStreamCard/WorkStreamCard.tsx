@@ -11,10 +11,12 @@ import type { ContextMenuItem } from '../ContextMenu/ContextMenu.tsx'
 import { timeAgo, formatDate } from '../../utils/time.ts'
 import { useTimeRefresh } from '../../hooks/useTimeRefresh.ts'
 import { ProgressBar } from '../ProgressBar/ProgressBar.tsx'
+import { usePrStatus } from '../../hooks/usePrStatus.ts'
 import type { WorkItem, WorkItemStatus, SessionInfo, MessageEntry } from '../../types.ts'
 
 interface WorkStreamCardProps {
   item: WorkItem
+  index?: number
   position?: number
   totalCount?: number
   isDragging?: boolean
@@ -37,6 +39,7 @@ interface WorkStreamCardProps {
   onDuplicate?: (id: string) => void
   onActivateStream?: (id: string) => void
   onTeardownStream?: (id: string) => void
+  onPrUrlChange?: (id: string, prUrl: string) => void
   activating?: boolean
   tearingDown?: boolean
   pinned?: boolean
@@ -48,7 +51,7 @@ interface WorkStreamCardProps {
   onDragEnd?: () => void
 }
 
-export function WorkStreamCard({ item, position, totalCount, isDragging, isDragOver, selectable, selected, onSelect, focused, onClearFocus, pinned, onTogglePin, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onActivateStream, onTeardownStream, activating, tearingDown, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
+export function WorkStreamCard({ item, index = 0, position, totalCount, isDragging, isDragOver, selectable, selected, onSelect, focused, onClearFocus, pinned, onTogglePin, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onActivateStream, onTeardownStream, onPrUrlChange, activating, tearingDown, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -71,6 +74,8 @@ export function WorkStreamCard({ item, position, totalCount, isDragging, isDragO
   const unresolvedBlockers = item.blockers.filter(b => !b.resolved)
   const implementationNotes = item.metadata.implementation_notes as string[] | undefined
   const notes = item.metadata.notes as string | undefined
+  const { status: prStatus, loading: prLoading } = usePrStatus(expanded ? item.pr_url : null)
+  const delegatorAssessment = item.metadata.delegator_assessment as string | undefined
 
   const activityEntries = useMemo(() => {
     const entries: { timestamp: string; action: string; detail?: string }[] = []
@@ -187,6 +192,7 @@ export function WorkStreamCard({ item, position, totalCount, isDragging, isDragO
         isDragging && styles.dragging,
         isDragOver && styles.dragOver,
       )}
+      style={{ '--index': index } as React.CSSProperties}
       onClick={() => setExpanded(!expanded)}
       onContextMenu={e => {
         e.preventDefault()

@@ -6,6 +6,8 @@
   transition: border-color 0.15s ease;
   cursor: pointer;
   user-select: none;
+  animation: cardEnter 0.25s ease both;
+  animation-delay: calc(var(--index, 0) * 30ms);
 
   &:hover {
     border-color: var(--color-border);
@@ -847,5 +849,16 @@
   &:disabled {
     opacity: 0.5;
     cursor: wait;
+  }
+}
+
+@keyframes cardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
