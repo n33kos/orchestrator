@@ -463,9 +463,29 @@ export function App() {
     addToast('Blocker reopened', 'info')
   }
 
-  function handleDelegatorToggle(id: string, enabled: boolean) {
+  async function handleDelegatorToggle(id: string, enabled: boolean) {
     queue.updateItem(id, { delegator_enabled: enabled })
-    addToast(`Delegator ${enabled ? 'enabled' : 'disabled'}`, 'info')
+    const item = queue.items.find(i => i.id === id)
+    if (item?.status === 'active' && enabled && !item.delegator_id) {
+      addToast('Spawning delegator...', 'info')
+      try {
+        const res = await fetch('/api/delegators/spawn', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId: id }),
+        })
+        if (res.ok) {
+          queue.refresh()
+          addToast('Delegator spawned', 'success')
+        } else {
+          addToast('Delegator spawn failed', 'error')
+        }
+      } catch {
+        addToast('Delegator spawn failed', 'error')
+      }
+    } else {
+      addToast(`Delegator ${enabled ? 'enabled' : 'disabled'}`, 'info')
+    }
   }
 
   function handleReorder(dragId: string, dropId: string) {
