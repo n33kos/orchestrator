@@ -1,0 +1,83 @@
+.Root {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.Step {
+  display: flex;
+  gap: 12px;
+}
+
+.Indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.Dot {
+  all: unset;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  transition: background-color 0.2s, color 0.2s;
+
+  &.completed {
+    background: var(--color-success);
+    color: white;
+    cursor: pointer;
+  }
+
+  &.current {
+    background: var(--color-primary);
+    color: white;
+  }
+
+  &.upcoming {
+    background: var(--color-hover);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+  }
+}
+
+.Connector {
+  width: 2px;
+  flex: 1;
+  min-height: 24px;
+  background: var(--color-border);
+  transition: background-color 0.2s;
+
+  &.ConnectorActive {
+    background: var(--color-success);
+  }
+}
+
+.Content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0 20px;
+  min-width: 0;
+}
+
+.Label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+
+  &.LabelActive {
+    color: var(--color-text);
+    font-weight: 600;
+  }
+}
+
+.Description {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}

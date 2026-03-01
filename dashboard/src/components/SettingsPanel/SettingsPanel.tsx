@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import styles from './SettingsPanel.module.scss'
 import type { OrchestratorSettings } from '../../hooks/useSettings.ts'
+import { parseClipboardItems } from '../../utils/clipboard-import.ts'
 
 interface SettingsPanelProps {
   settings: OrchestratorSettings
@@ -10,6 +11,7 @@ interface SettingsPanelProps {
   onExportQueue?: () => void
   onExportCsv?: () => void
   onImportQueue?: (file: File) => void
+  onClipboardImport?: (items: { title: string; description?: string; type?: string; priority?: number }[]) => void
 }
 
 function SettingRow({ label, description, children }: { label: string; description?: string; children: React.ReactNode }) {
@@ -37,7 +39,8 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   )
 }
 
-export function SettingsPanel({ settings, onUpdate, onReset, onClose, onExportQueue, onExportCsv, onImportQueue }: SettingsPanelProps) {
+export function SettingsPanel({ settings, onUpdate, onReset, onClose, onExportQueue, onExportCsv, onImportQueue, onClipboardImport }: SettingsPanelProps) {
+  const [clipboardStatus, setClipboardStatus] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -205,6 +208,34 @@ export function SettingsPanel({ settings, onUpdate, onReset, onClose, onExportQu
                   </svg>
                   Import JSON
                 </button>
+              </SettingRow>
+            )}
+            {onClipboardImport && (
+              <SettingRow label="Import from clipboard" description="Paste JSON, CSV, or newline-separated titles">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+                  <button className={styles.ExportButton} onClick={async () => {
+                    try {
+                      const text = await navigator.clipboard.readText()
+                      const items = parseClipboardItems(text)
+                      if (items.length === 0) {
+                        setClipboardStatus('No items found in clipboard')
+                      } else {
+                        onClipboardImport(items)
+                        setClipboardStatus(`Imported ${items.length} item${items.length !== 1 ? 's' : ''}`)
+                      }
+                    } catch {
+                      setClipboardStatus('Clipboard access denied')
+                    }
+                    setTimeout(() => setClipboardStatus(null), 3000)
+                  }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2" />
+                      <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+                    </svg>
+                    Paste from Clipboard
+                  </button>
+                  {clipboardStatus && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{clipboardStatus}</span>}
+                </div>
               </SettingRow>
             )}
           </div>

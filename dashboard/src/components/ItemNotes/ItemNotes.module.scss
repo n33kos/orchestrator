@@ -1,0 +1,131 @@
+.Root {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.Header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.Title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.Count {
+  font-size: 10px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--color-hover);
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.InputRow {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.Textarea {
+  flex: 1;
+  resize: vertical;
+  min-height: 48px;
+  max-height: 120px;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 12px;
+  font-family: var(--font-family);
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-muted);
+  }
+}
+
+.AddButton {
+  all: unset;
+  cursor: pointer;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--color-primary);
+  color: white;
+  border-radius: 6px;
+  white-space: nowrap;
+
+  &:hover:not(:disabled) {
+    background: var(--color-primary-hover);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.List {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.Note {
+  padding: 8px;
+  background: var(--color-hover);
+  border-radius: 6px;
+}
+
+.NoteText {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: var(--color-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.NoteMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.NoteTime {
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+
+.RemoveButton {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  opacity: 0.5;
+
+  &:hover {
+    opacity: 1;
+    color: var(--color-error);
+    background: rgba(239, 68, 68, 0.1);
+  }
+}

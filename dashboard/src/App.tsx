@@ -52,6 +52,7 @@ import { usePinnedItems } from './hooks/usePinnedItems.ts'
 import { useSearchHistory } from './hooks/useSearchHistory.ts'
 import { useZoom } from './hooks/useZoom.ts'
 import { useScrollRestore } from './hooks/useScrollRestore.ts'
+import { usePageVisibility } from './hooks/usePageVisibility.ts'
 import { playNotificationSound } from './utils/sound.ts'
 import { exportWorkItemsCsv, downloadCsv } from './utils/csv.ts'
 import type { Plan } from './components/PlanEditor/PlanEditor.tsx'
@@ -59,7 +60,9 @@ import type { WorkItemStatus, MessageEntry } from './types.ts'
 
 export function App() {
   const { settings, update: updateSetting, reset: resetSettings, open: settingsOpen, setOpen: setSettingsOpen } = useSettings()
-  const queue = useQueue(settings.pollIntervalMs)
+  const pageVisible = usePageVisibility()
+  const effectivePollInterval = pageVisible ? settings.pollIntervalMs : settings.pollIntervalMs * 6
+  const queue = useQueue(effectivePollInterval)
   const { theme, toggle: toggleTheme } = useTheme()
   const { zoomIn, zoomOut, resetZoom } = useZoom()
   const { toasts, history, addToast: rawAddToast, dismissToast, clearHistory } = useToast()
@@ -736,6 +739,8 @@ export function App() {
         activitySparkline={activitySparkline}
         healthIssues={healthIssues}
         lastUpdated={queue.lastUpdated}
+        notificationHistory={history}
+        onClearNotifications={clearHistory}
         onAddClick={() => setShowAddForm(!showAddForm)}
         showingAddForm={showAddForm}
         theme={theme}
@@ -1016,6 +1021,27 @@ export function App() {
           onExportQueue={handleExportQueue}
           onExportCsv={handleExportCsv}
           onImportQueue={handleImportQueue}
+          onClipboardImport={async (items) => {
+            let imported = 0
+            for (const item of items) {
+              try {
+                await fetch('/api/queue/add', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    title: item.title,
+                    description: item.description || '',
+                    type: item.type || 'quick_fix',
+                    priority: item.priority ?? 50,
+                    branch: '',
+                  }),
+                })
+                imported++
+              } catch { /* continue */ }
+            }
+            queue.refresh()
+            addToast(`Imported ${imported} item${imported !== 1 ? 's' : ''} from clipboard`, 'success')
+          }}
         />
       )}
       {showActivityFeed && (
@@ -1039,10 +1065,26 @@ export function App() {
         return (
           <DetailPanel
             item={detailItem}
+            sessions={sessions}
             onClose={() => setDetailItemId(null)}
             onStatusChange={(id, status) => { handleStatusChange(id, status); setDetailItemId(null) }}
             onDelete={(id) => { handleDelete(id); setDetailItemId(null) }}
             onDuplicate={(id) => { handleDuplicate(id); setDetailItemId(null) }}
+            onNotesChange={async (id, notes) => {
+              try {
+                await fetch('/api/queue/update', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ id, metadata: { notes } }),
+                })
+                queue.refresh()
+                addToast('Notes updated', 'success')
+              } catch {
+                addToast('Failed to save notes', 'error')
+              }
+            }}
+            onActivateStream={handleActivateStream}
+            onTeardownStream={handleTeardownStream}
           />
         )
       })()}
