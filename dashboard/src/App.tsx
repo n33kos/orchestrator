@@ -663,6 +663,48 @@ export function App() {
     }
   }
 
+  async function handleRunScheduler() {
+    addToast('Running scheduler...', 'info')
+    try {
+      const res = await fetch('/api/scheduler/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const lastLine = data.output?.trim().split('\n').pop() || 'Scheduler complete'
+        queue.refresh()
+        refreshSessions()
+        addToast(lastLine, 'success')
+      } else {
+        addToast('Scheduler failed', 'error')
+      }
+    } catch {
+      addToast('Failed to run scheduler', 'error')
+    }
+  }
+
+  async function handleTrainProfile() {
+    addToast('Training profile from latest session...', 'info')
+    try {
+      const res = await fetch('/api/training/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lastN: 30 }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const lastLine = data.output?.trim().split('\n').pop() || 'Training complete'
+        addToast(lastLine, 'success')
+      } else {
+        addToast('Training failed', 'error')
+      }
+    } catch {
+      addToast('Failed to train profile', 'error')
+    }
+  }
+
   async function handleAutoRecover() {
     const zombies = sessions.filter(s => s.state === 'zombie')
     if (zombies.length === 0) return
@@ -1025,6 +1067,8 @@ export function App() {
           onDiscoverWork={handleDiscoverWork}
           onHealthCheck={() => setShowHealthPanel(true)}
           onActivateStream={handleActivateStream}
+          onRunScheduler={handleRunScheduler}
+          onTrainProfile={handleTrainProfile}
         />
       )}
       {showHealthPanel && (

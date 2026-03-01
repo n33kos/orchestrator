@@ -1,0 +1,11 @@
+.Root {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.CenterText {
+  font-size: 12px;
+  font-weight: 700;
+  fill: var(--color-text);
+  font-family: var(--font-family);
+}
