@@ -45,6 +45,9 @@ function queueApiPlugin(): Plugin {
         if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
         try {
           const body = JSON.parse(await readBody(req))
+          if (!body.title || typeof body.title !== 'string' || !body.title.trim()) {
+            res.statusCode = 400; res.end(JSON.stringify({ error: 'title is required' })); return
+          }
           const data = readQueue()
           const maxId = data.items.reduce((max: number, i: { id: string }) => {
             const n = parseInt(i.id.replace('ws-', ''), 10)
@@ -87,6 +90,7 @@ function queueApiPlugin(): Plugin {
         if (req.method !== 'PATCH') { res.statusCode = 405; res.end('Method not allowed'); return }
         try {
           const body = JSON.parse(await readBody(req))
+          if (!body.id) { res.statusCode = 400; res.end(JSON.stringify({ error: 'id is required' })); return }
           const data = readQueue()
           const item = data.items.find((i: { id: string }) => i.id === body.id)
           if (!item) { res.statusCode = 404; res.end('Not found'); return }
@@ -117,6 +121,8 @@ function queueApiPlugin(): Plugin {
         if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
         try {
           const body = JSON.parse(await readBody(req))
+          if (!body.id) { res.statusCode = 400; res.end(JSON.stringify({ error: 'id is required' })); return }
+          if (!body.description) { res.statusCode = 400; res.end(JSON.stringify({ error: 'description is required' })); return }
           const data = readQueue()
           const item = data.items.find((i: { id: string }) => i.id === body.id)
           if (!item) { res.statusCode = 404; res.end('Not found'); return }
@@ -272,6 +278,7 @@ function queueApiPlugin(): Plugin {
         if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
         try {
           const body = JSON.parse(await readBody(req))
+          if (!body.itemId) { res.statusCode = 400; res.end(JSON.stringify({ error: 'itemId is required' })); return }
           const scriptPath = join(__dirname, '..', 'scripts', 'activate-stream.sh')
           const args = [body.itemId]
           if (body.quick) args.push('--quick')
@@ -296,6 +303,7 @@ function queueApiPlugin(): Plugin {
         if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
         try {
           const body = JSON.parse(await readBody(req))
+          if (!body.itemId) { res.statusCode = 400; res.end(JSON.stringify({ error: 'itemId is required' })); return }
           const scriptPath = join(__dirname, '..', 'scripts', 'suspend-stream.sh')
           const args = [scriptPath, body.itemId]
           if (body.targetStatus) args.push('--status', body.targetStatus)
@@ -319,6 +327,7 @@ function queueApiPlugin(): Plugin {
         if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
         try {
           const body = JSON.parse(await readBody(req))
+          if (!body.itemId) { res.statusCode = 400; res.end(JSON.stringify({ error: 'itemId is required' })); return }
           const scriptPath = join(__dirname, '..', 'scripts', 'resume-stream.sh')
           const args = [body.itemId]
           if (body.noDelegator) args.push('--no-delegator')
@@ -342,6 +351,7 @@ function queueApiPlugin(): Plugin {
         if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
         try {
           const body = JSON.parse(await readBody(req))
+          if (!body.itemId) { res.statusCode = 400; res.end(JSON.stringify({ error: 'itemId is required' })); return }
           const scriptPath = join(__dirname, '..', 'scripts', 'teardown-stream.sh')
           const args = [body.itemId]
           if (body.force) args.push('--force')
