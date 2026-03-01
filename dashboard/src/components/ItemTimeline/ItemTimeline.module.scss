@@ -1,0 +1,62 @@
+.Root {
+  display: flex;
+  flex-direction: column;
+}
+
+.Event {
+  display: flex;
+  gap: 12px;
+}
+
+.Indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.Dot {
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.Line {
+  width: 1px;
+  flex: 1;
+  min-height: 16px;
+  background: var(--color-border);
+}
+
+.Content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 16px;
+  min-width: 0;
+}
+
+.Description {
+  font-size: 13px;
+  color: var(--color-text);
+  line-height: 20px;
+}
+
+.Time {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
+.Meta {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.Empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}

@@ -1,0 +1,65 @@
+.Root {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text);
+  word-break: break-word;
+
+  :global(h3),
+  :global(h4),
+  :global(h5) {
+    margin: 8px 0 4px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  :global(p) {
+    margin: 4px 0;
+  }
+
+  :global(br) {
+    display: block;
+    content: '';
+    margin: 4px 0;
+  }
+
+  :global(strong) {
+    font-weight: 600;
+  }
+
+  :global(em) {
+    font-style: italic;
+  }
+
+  :global(code) {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: var(--color-hover);
+  }
+
+  :global(a) {
+    color: var(--color-primary);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  :global(ul) {
+    margin: 4px 0;
+    padding-left: 20px;
+  }
+
+  :global(li) {
+    margin: 2px 0;
+  }
+
+  :global(blockquote) {
+    margin: 4px 0;
+    padding: 4px 12px;
+    border-left: 3px solid var(--color-border);
+    color: var(--color-text-muted);
+  }
+}

@@ -1,0 +1,13 @@
+.Root {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: white;
+  font-weight: 600;
+  font-family: var(--font-family);
+  flex-shrink: 0;
+  user-select: none;
+  object-fit: cover;
+  line-height: 1;
+}
