@@ -650,6 +650,7 @@ export function App() {
             if (text) handleSendMessage(sessionId, text)
           }}
           onGoToSessions={() => setActiveTab('sessions')}
+          onToggleViewMode={() => setViewMode(prev => prev === 'cards' ? 'compact' : 'cards')}
         />
       )}
     </div>

@@ -1,3 +1,14 @@
+.Empty {
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.EmptyText {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
 .Root {
   display: flex;
   flex-direction: column;

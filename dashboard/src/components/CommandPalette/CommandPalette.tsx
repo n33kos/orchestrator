@@ -7,7 +7,7 @@ interface Command {
   id: string
   label: string
   description?: string
-  icon: 'search' | 'add' | 'settings' | 'refresh' | 'status' | 'theme' | 'message' | 'monitor'
+  icon: 'search' | 'add' | 'settings' | 'refresh' | 'status' | 'theme' | 'message' | 'monitor' | 'view'
   action: () => void
 }
 
@@ -29,6 +29,7 @@ interface CommandPaletteProps {
   onToggleTheme: () => void
   onMessageSession: (sessionId: string) => void
   onGoToSessions?: () => void
+  onToggleViewMode?: () => void
 }
 
 const ICONS: Record<string, React.JSX.Element> = {
@@ -75,9 +76,19 @@ const ICONS: Record<string, React.JSX.Element> = {
       <line x1="12" y1="17" x2="12" y2="21" />
     </svg>
   ),
+  view: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <line x1="8" y1="6" x2="21" y2="6" />
+      <line x1="8" y1="12" x2="21" y2="12" />
+      <line x1="8" y1="18" x2="21" y2="18" />
+      <line x1="3" y1="6" x2="3.01" y2="6" />
+      <line x1="3" y1="12" x2="3.01" y2="12" />
+      <line x1="3" y1="18" x2="3.01" y2="18" />
+    </svg>
+  ),
 }
 
-export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateToItem, onStatusChange, onAddItem, onOpenSettings, onRefresh, onToggleTheme, onMessageSession, onGoToSessions }: CommandPaletteProps) {
+export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateToItem, onStatusChange, onAddItem, onOpenSettings, onRefresh, onToggleTheme, onMessageSession, onGoToSessions, onToggleViewMode }: CommandPaletteProps) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -97,8 +108,11 @@ export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateTo
     if (onGoToSessions) {
       cmds.push({ id: 'cmd-sessions', label: 'Go to sessions', description: 'View and manage active worker sessions', icon: 'monitor', action: () => { onClose(); onGoToSessions() } })
     }
+    if (onToggleViewMode) {
+      cmds.push({ id: 'cmd-view', label: 'Toggle view mode', description: 'Switch between card and compact table view', icon: 'view', action: () => { onClose(); onToggleViewMode() } })
+    }
     return cmds
-  }, [onClose, onAddItem, onOpenSettings, onRefresh, onToggleTheme, onGoToSessions])
+  }, [onClose, onAddItem, onOpenSettings, onRefresh, onToggleTheme, onGoToSessions, onToggleViewMode])
 
   const itemCommands: Command[] = useMemo(() => {
     return items.map(item => ({

@@ -22,7 +22,13 @@ function getQuickAction(status: WorkItemStatus): { label: string; nextStatus: Wo
 }
 
 export function CompactList({ items, selectable, selectedIds, onSelect, onStatusChange, onNavigate }: CompactListProps) {
-  if (items.length === 0) return null
+  if (items.length === 0) {
+    return (
+      <div className={styles.Empty}>
+        <p className={styles.EmptyText}>No matching items</p>
+      </div>
+    )
+  }
 
   return (
     <div className={styles.Root}>
