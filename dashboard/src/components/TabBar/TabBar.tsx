@@ -4,7 +4,7 @@ import styles from './TabBar.module.scss'
 export interface Tab {
   id: string
   label: string
-  count: number
+  count?: number
   alertCount?: number
 }
 
@@ -24,10 +24,10 @@ export function TabBar({ tabs, activeTab, onTabChange }: TabBarProps) {
           onClick={() => onTabChange(tab.id)}
           role="tab"
           aria-selected={tab.id === activeTab}
-          aria-label={`${tab.label}, ${tab.count} item${tab.count !== 1 ? 's' : ''}${tab.alertCount ? `, ${tab.alertCount} need attention` : ''}`}
+          aria-label={`${tab.label}${tab.count != null ? `, ${tab.count} item${tab.count !== 1 ? 's' : ''}` : ''}${tab.alertCount ? `, ${tab.alertCount} need attention` : ''}`}
         >
           <span className={styles.TabLabel}>{tab.label}</span>
-          <span className={styles.TabCount}>{tab.count}</span>
+          {tab.count != null && <span className={styles.TabCount}>{tab.count}</span>}
           {tab.alertCount != null && tab.alertCount > 0 && (
             <span className={styles.AlertDot} aria-hidden="true" />
           )}
