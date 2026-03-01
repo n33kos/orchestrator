@@ -99,7 +99,7 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
 
   const isBusy = activating || tearingDown
 
-  function getQuickAction(): { label: string; status: WorkItemStatus; useStream?: boolean } | null {
+  function getQuickAction(): { label: string; status: WorkItemStatus; useStream?: boolean; expandOnly?: boolean } | null {
     if (activating) return { label: 'Activating...', status: 'active' }
     if (tearingDown) return { label: 'Tearing down...', status: 'completed' }
     if (item.status === 'queued') return { label: 'Plan', status: 'planning' }
@@ -107,7 +107,7 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
       const planApproved = itemPlan?.approved
       return planApproved
         ? { label: 'Activate', status: 'active', useStream: !!onActivateStream }
-        : null // Can't activate without approved plan
+        : { label: 'Write Plan', status: 'planning', expandOnly: true }
     }
     if (item.status === 'active') return { label: 'Review', status: 'review' }
     if (item.status === 'review') return { label: 'Complete', status: 'completed' }
@@ -119,6 +119,10 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
 
   function handleQuickAction() {
     if (isBusy || !quickAction) return
+    if (quickAction.expandOnly) {
+      setExpanded(true)
+      return
+    }
     if (quickAction.useStream && onActivateStream) {
       onActivateStream(item.id)
     } else {
@@ -747,6 +751,24 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
                   disabled={isBusy}
                 >
                   {activating ? 'Activating...' : onActivateStream ? 'Activate Stream' : 'Activate'}
+                </button>
+              )}
+              {item.status === 'planning' && !itemPlan?.approved && item.type === 'quick_fix' && (
+                <button
+                  className={styles.ActionButtonText}
+                  onClick={() => onActivateStream ? onActivateStream(item.id) : onStatusChange(item.id, 'active')}
+                  disabled={isBusy}
+                >
+                  {activating ? 'Activating...' : 'Skip Plan & Activate'}
+                </button>
+              )}
+              {item.status === 'planning' && !itemPlan?.approved && (
+                <button
+                  className={styles.ActionButtonText}
+                  onClick={() => onStatusChange(item.id, 'queued')}
+                  disabled={isBusy}
+                >
+                  Back to Queue
                 </button>
               )}
               {item.status === 'active' && (

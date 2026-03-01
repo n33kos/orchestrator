@@ -35,7 +35,7 @@ emit_event() {
     local timestamp
     timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-    mkdir -p "$(dirname "$EVENTS_FILE")"
+    mkdir -p "$(dirname "$EVENTS_FILE")" 2>/dev/null || true
 
     EVT_TIMESTAMP="$timestamp" \
     EVT_TYPE="$event_type" \
@@ -59,7 +59,7 @@ if os.environ.get('EVT_SESSION_ID'):
 if os.environ.get('EVT_EXTRA'):
     event['extra'] = os.environ['EVT_EXTRA']
 print(json.dumps(event))
-" >> "$EVENTS_FILE"
+" >> "$EVENTS_FILE" 2>/dev/null || true
 }
 
 # If called directly (not sourced), emit the event from args

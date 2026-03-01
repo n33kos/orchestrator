@@ -396,6 +396,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Discover work items from sources")
     parser.add_argument("--dry-run", action="store_true", help="Show discoveries without adding")
+    parser.add_argument("--output-json", action="store_true", help="Output discovered items as JSON (implies --dry-run)")
     parser.add_argument("--source", type=str, help="Only poll a specific source")
     args = parser.parse_args()
 
@@ -450,12 +451,22 @@ def main():
         print("No new items to add.")
         return
 
-    if args.dry_run:
-        print("\n--- NEW ITEMS (dry run) ---")
-        for item in unique:
-            print(f"  [{item['type']}] p{item['priority']} {item['title']}")
-            if item.get("description"):
-                print(f"    {item['description']}")
+    if args.output_json or args.dry_run:
+        if args.output_json:
+            print(json.dumps([{
+                "title": item["title"],
+                "description": item.get("description", ""),
+                "type": item["type"],
+                "priority": item["priority"],
+                "source": item.get("source", "discovery"),
+                "source_ref": item.get("source_ref", ""),
+            } for item in unique]))
+        else:
+            print("\n--- NEW ITEMS (dry run) ---")
+            for item in unique:
+                print(f"  [{item['type']}] p{item['priority']} {item['title']}")
+                if item.get("description"):
+                    print(f"    {item['description']}")
         return
 
     # Add new items to queue

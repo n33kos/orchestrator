@@ -476,7 +476,7 @@ function queueApiPlugin(): Plugin {
           const body = req.method === 'POST' ? JSON.parse(await readBody(req)) : {}
           const scriptPath = join(__dirname, '..', 'scripts', 'discover-work.py')
           const args = ['python3', scriptPath]
-          if (body.dryRun) args.push('--dry-run')
+          if (body.dryRun) args.push('--output-json')
           if (body.source) args.push('--source', body.source)
           execFile(args[0], args.slice(1), { timeout: 30000, env: { ...process.env, HOME: homedir() } }, (err, stdout, stderr) => {
             res.setHeader('Content-Type', 'application/json')
@@ -485,7 +485,16 @@ function queueApiPlugin(): Plugin {
               res.end(JSON.stringify({ error: stderr || String(err), output: stdout }))
               return
             }
-            res.end(JSON.stringify({ ok: true, output: stdout }))
+            if (body.dryRun) {
+              try {
+                const items = JSON.parse(stdout)
+                res.end(JSON.stringify({ ok: true, items, output: stdout }))
+              } catch {
+                res.end(JSON.stringify({ ok: true, items: [], output: stdout }))
+              }
+            } else {
+              res.end(JSON.stringify({ ok: true, output: stdout }))
+            }
           })
         } catch (err) {
           res.statusCode = 500

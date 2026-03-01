@@ -57,15 +57,9 @@ export function DiscoverPanel({ onClose, onQueueRefresh }: DiscoverPanelProps) {
       })
       if (res.ok) {
         const data = await res.json()
-        const lines = (data.output || '').split('\n')
-        const items: DiscoveredItem[] = []
-        for (const line of lines) {
-          const match = line.match(/^\s+\[(project|quick_fix)\]\s+p(\d)\s+(.+)/)
-          if (match) {
-            items.push({ type: match[1], priority: parseInt(match[2], 10), title: match[3] })
-          }
+        if (data.items && Array.isArray(data.items)) {
+          setPreview(data.items)
         }
-        setPreview(items)
         setOutput(data.output || 'No output')
       }
     } catch {
