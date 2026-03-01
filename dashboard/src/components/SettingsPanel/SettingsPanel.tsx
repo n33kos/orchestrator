@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import styles from './SettingsPanel.module.scss'
 import type { OrchestratorSettings } from '../../hooks/useSettings.ts'
 import { parseClipboardItems } from '../../utils/clipboard-import.ts'
+import { useFocusTrap } from '../../hooks/useFocusTrap.ts'
 
 interface SettingsPanelProps {
   settings: OrchestratorSettings
@@ -42,7 +43,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 export function SettingsPanel({ settings, onUpdate, onReset, onClose, onExportQueue, onExportCsv, onImportQueue, onClipboardImport }: SettingsPanelProps) {
   const [clipboardStatus, setClipboardStatus] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
+  const panelRef = useFocusTrap<HTMLDivElement>()
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -75,7 +76,7 @@ export function SettingsPanel({ settings, onUpdate, onReset, onClose, onExportQu
       <div className={styles.Panel} ref={panelRef}>
         <div className={styles.Header}>
           <h2 className={styles.Title}>Settings</h2>
-          <button className={styles.CloseButton} onClick={onClose}>
+          <button className={styles.CloseButton} onClick={onClose} aria-label="Close settings">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
@@ -142,6 +143,40 @@ export function SettingsPanel({ settings, onUpdate, onReset, onClose, onExportQu
             </SettingRow>
             <SettingRow label="Delegator by default" description="Enable delegator for new project work items">
               <Toggle checked={settings.defaultDelegatorEnabled} onChange={v => onUpdate('defaultDelegatorEnabled', v)} />
+            </SettingRow>
+            <SettingRow label="Stall threshold" description="Minutes before a stream is flagged as stalled">
+              <div className={styles.NumberControl}>
+                <button
+                  className={styles.NumberButton}
+                  onClick={() => onUpdate('stallThresholdMinutes', Math.max(10, settings.stallThresholdMinutes - 10))}
+                  disabled={settings.stallThresholdMinutes <= 10}
+                  aria-label="Decrease stall threshold"
+                >-</button>
+                <span className={styles.NumberValue}>{settings.stallThresholdMinutes}m</span>
+                <button
+                  className={styles.NumberButton}
+                  onClick={() => onUpdate('stallThresholdMinutes', Math.min(120, settings.stallThresholdMinutes + 10))}
+                  disabled={settings.stallThresholdMinutes >= 120}
+                  aria-label="Increase stall threshold"
+                >+</button>
+              </div>
+            </SettingRow>
+            <SettingRow label="Archive after" description="Auto-archive completed items older than this">
+              <div className={styles.NumberControl}>
+                <button
+                  className={styles.NumberButton}
+                  onClick={() => onUpdate('archiveAfterDays', Math.max(1, settings.archiveAfterDays - 1))}
+                  disabled={settings.archiveAfterDays <= 1}
+                  aria-label="Decrease archive age"
+                >-</button>
+                <span className={styles.NumberValue}>{settings.archiveAfterDays}d</span>
+                <button
+                  className={styles.NumberButton}
+                  onClick={() => onUpdate('archiveAfterDays', Math.min(30, settings.archiveAfterDays + 1))}
+                  disabled={settings.archiveAfterDays >= 30}
+                  aria-label="Increase archive age"
+                >+</button>
+              </div>
             </SettingRow>
           </div>
 

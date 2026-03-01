@@ -8,6 +8,8 @@ export interface OrchestratorSettings {
   defaultDelegatorEnabled: boolean
   notificationsEnabled: boolean
   soundEnabled: boolean
+  archiveAfterDays: number
+  stallThresholdMinutes: number
 }
 
 const STORAGE_KEY = 'orchestrator-settings-config'
@@ -20,6 +22,8 @@ const DEFAULTS: OrchestratorSettings = {
   defaultDelegatorEnabled: true,
   notificationsEnabled: true,
   soundEnabled: false,
+  archiveAfterDays: 7,
+  stallThresholdMinutes: 30,
 }
 
 export function useSettings() {
