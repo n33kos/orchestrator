@@ -367,6 +367,26 @@
   color: var(--color-text-muted);
 }
 
+.RoleBadge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  flex-shrink: 0;
+
+  &.role_worker {
+    color: var(--color-primary);
+    background: var(--color-primary-muted);
+  }
+
+  &.role_delegator {
+    color: var(--color-warning);
+    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+  }
+}
+
 .LinkedBadge {
   font-size: 11px;
   font-weight: 600;

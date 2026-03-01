@@ -18,12 +18,23 @@ function getSessionName(session: SessionInfo): string {
   return parts[parts.length - 1] || session.cwd
 }
 
+type SessionRole = 'worker' | 'delegator' | 'unlinked'
+
 function findLinkedItems(session: SessionInfo, items: WorkItem[]): WorkItem[] {
   return items.filter(item => {
     if (item.session_id === session.id) return true
+    if (item.delegator_id === session.id) return true
     if (item.worktree_path && (session.cwd === item.worktree_path || item.worktree_path.startsWith(session.cwd))) return true
     return false
   })
+}
+
+function getSessionRole(session: SessionInfo, items: WorkItem[]): SessionRole {
+  for (const item of items) {
+    if (item.delegator_id === session.id) return 'delegator'
+    if (item.session_id === session.id) return 'worker'
+  }
+  return 'unlinked'
 }
 
 const stateLabels: Record<string, string> = {
@@ -176,6 +187,7 @@ export function SessionsView({ sessions, items, messagesBySession, onSendMessage
           {group.sessions.map(session => {
             const name = getSessionName(session)
             const linked = findLinkedItems(session, items)
+            const role = getSessionRole(session, items)
             const isExpanded = expandedId === session.id
             const msgs = messagesBySession[session.id] ?? []
 
@@ -193,6 +205,11 @@ export function SessionsView({ sessions, items, messagesBySession, onSendMessage
                     <span className={styles.CardName}>{name}</span>
                     <span className={styles.CardState}>{stateLabels[session.state] || session.state}</span>
                   </div>
+                  {role !== 'unlinked' && (
+                    <span className={classnames(styles.RoleBadge, styles[`role_${role}`])}>
+                      {role === 'delegator' ? 'Delegator' : 'Worker'}
+                    </span>
+                  )}
                   {linked.length > 0 && (
                     <span className={styles.LinkedBadge} title={`${linked.length} linked work item${linked.length > 1 ? 's' : ''}`}>
                       {linked.length} item{linked.length > 1 ? 's' : ''}
