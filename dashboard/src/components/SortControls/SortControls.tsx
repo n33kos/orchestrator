@@ -4,7 +4,7 @@ import styles from './SortControls.module.scss'
 
 export type SortField = 'priority' | 'status' | 'created' | 'title'
 export type SortDirection = 'asc' | 'desc'
-export type StatusFilter = 'all' | 'active' | 'queued' | 'paused' | 'review' | 'blocked'
+export type StatusFilter = 'all' | 'active' | 'queued' | 'paused' | 'review' | 'blocked' | 'completed'
 
 interface SortControlsProps {
   sortField: SortField

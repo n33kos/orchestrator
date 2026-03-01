@@ -17,6 +17,7 @@ import { BatchActionBar } from './components/BatchActionBar/BatchActionBar.tsx'
 import { SessionsView } from './components/SessionsView/SessionsView.tsx'
 import { ActivityFeed } from './components/ActivityFeed/ActivityFeed.tsx'
 import { CompactList } from './components/CompactList/CompactList.tsx'
+import { FilterChips } from './components/FilterChips/FilterChips.tsx'
 import { KeyboardHints } from './components/KeyboardHints/KeyboardHints.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import { useQueue } from './hooks/useQueue.ts'
@@ -83,7 +84,7 @@ export function App() {
         ? queue.quickFixes
         : queue.items
 
-    if (!showCompleted) {
+    if (!showCompleted && statusFilter !== 'completed') {
       pool = pool.filter(i => i.status !== 'completed')
     }
 
@@ -424,6 +425,18 @@ export function App() {
               blockedCount={queue.blockedItems.length}
               showCompleted={showCompleted}
               onToggleCompleted={() => setShowCompleted(!showCompleted)}
+            />
+            <FilterChips
+              active={statusFilter}
+              counts={{
+                active: queue.activeItems.length,
+                queued: queue.queuedItems.length,
+                review: queue.reviewItems.length,
+                paused: queue.pausedItems.length,
+                blocked: queue.blockedItems.length,
+                completed: queue.completedItems.length,
+              }}
+              onChange={setStatusFilter}
             />
             <div className={styles.ControlsRow}>
               <SortControls
