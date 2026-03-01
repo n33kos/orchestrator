@@ -804,6 +804,7 @@ export function App() {
         healthIssues={healthIssues}
         lastUpdated={queue.lastUpdated}
         notificationHistory={history}
+        orchestratorEvents={orchestratorEvents}
         onClearNotifications={clearHistory}
         onAddClick={() => setShowAddForm(!showAddForm)}
         showingAddForm={showAddForm}

@@ -1,10 +1,12 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import styles from './NotificationCenter.module.scss'
 import type { HistoryEntry } from '../../hooks/useToast.ts'
+import type { OrchestratorEvent } from '../../hooks/useEvents.ts'
 import { timeAgo } from '../../utils/time.ts'
 
 interface Props {
   history: HistoryEntry[]
+  events?: OrchestratorEvent[]
   onClear: () => void
 }
 
@@ -14,22 +16,36 @@ const TYPE_ICONS: Record<string, string> = {
   info: '\u2139',
 }
 
-export function NotificationCenter({ history, onClear }: Props) {
+export function NotificationCenter({ history, events = [], onClear }: Props) {
   const [open, setOpen] = useState(false)
   const [readCount, setReadCount] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const unreadCount = Math.max(0, history.length - readCount)
+  // Merge toast history with server events
+  const allEntries = useMemo(() => {
+    const eventEntries: HistoryEntry[] = events.map(e => ({
+      id: `evt-${e.timestamp}-${e.type}`,
+      type: e.severity === 'error' ? 'error' as const : e.type.includes('completed') || e.type.includes('merged') ? 'success' as const : 'info' as const,
+      message: e.message,
+      timestamp: e.timestamp,
+    }))
+    const merged = [...history, ...eventEntries]
+    const seen = new Set<string>()
+    return merged
+      .filter(e => { if (seen.has(e.id)) return false; seen.add(e.id); return true })
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+  }, [history, events])
+
+  const unreadCount = Math.max(0, allEntries.length - readCount)
 
   const handleToggle = useCallback(() => {
     setOpen(prev => {
       if (!prev) {
-        // Opening — mark all as read
-        setReadCount(history.length)
+        setReadCount(allEntries.length)
       }
       return !prev
     })
-  }, [history.length])
+  }, [allEntries.length])
 
   // Close on outside click
   useEffect(() => {
@@ -75,13 +91,13 @@ export function NotificationCenter({ history, onClear }: Props) {
             )}
           </div>
           <div className={styles.List}>
-            {history.length === 0 ? (
+            {allEntries.length === 0 ? (
               <div className={styles.Empty}>No notifications yet</div>
             ) : (
-              history.slice(0, 20).map((entry, i) => (
+              allEntries.slice(0, 30).map((entry) => (
                 <div
                   key={entry.id}
-                  className={`${styles.Item} ${i >= readCount - (history.length - readCount) ? '' : ''}`}
+                  className={styles.Item}
                 >
                   <span className={`${styles.TypeIcon} ${styles[`Type_${entry.type}`]}`}>
                     {TYPE_ICONS[entry.type] || '\u2139'}

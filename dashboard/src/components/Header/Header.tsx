@@ -5,6 +5,7 @@ import { ConnectionStatus } from '../ConnectionStatus/ConnectionStatus.tsx'
 import { Sparkline } from '../Sparkline/Sparkline.tsx'
 import { NotificationCenter } from '../NotificationCenter/NotificationCenter.tsx'
 import type { HistoryEntry } from '../../hooks/useToast.ts'
+import type { OrchestratorEvent } from '../../hooks/useEvents.ts'
 
 interface HeaderProps {
   activeCount: number
@@ -19,6 +20,7 @@ interface HeaderProps {
   healthIssues: number
   lastUpdated: Date | null
   notificationHistory: HistoryEntry[]
+  orchestratorEvents?: OrchestratorEvent[]
   onClearNotifications: () => void
   onAddClick: () => void
   showingAddForm: boolean
@@ -31,7 +33,7 @@ interface HeaderProps {
   onDiscoverClick: () => void
 }
 
-export function Header({ activeCount, queuedCount, pausedCount, blockedCount, sessionCount, workersActiveCount, zombieCount, activityCount, activitySparkline, healthIssues, lastUpdated, notificationHistory, onClearNotifications, onAddClick, showingAddForm, theme, onThemeToggle, onSettingsClick, onSessionsClick, onActivityFeedClick, onHealthClick, onDiscoverClick }: HeaderProps) {
+export function Header({ activeCount, queuedCount, pausedCount, blockedCount, sessionCount, workersActiveCount, zombieCount, activityCount, activitySparkline, healthIssues, lastUpdated, notificationHistory, orchestratorEvents, onClearNotifications, onAddClick, showingAddForm, theme, onThemeToggle, onSettingsClick, onSessionsClick, onActivityFeedClick, onHealthClick, onDiscoverClick }: HeaderProps) {
   return (
     <header className={styles.Root}>
       <div className={styles.Left}>
@@ -104,7 +106,7 @@ export function Header({ activeCount, queuedCount, pausedCount, blockedCount, se
           </svg>
           {activityCount > 0 && <span className={styles.ActivityBadge}>{activityCount > 9 ? '9+' : activityCount}</span>}
         </button>
-        <NotificationCenter history={notificationHistory} onClear={onClearNotifications} />
+        <NotificationCenter history={notificationHistory} events={orchestratorEvents} onClear={onClearNotifications} />
         <button
           className={classnames(styles.SessionsButton, zombieCount > 0 && styles.SessionsButtonZombie)}
           onClick={onSessionsClick}
