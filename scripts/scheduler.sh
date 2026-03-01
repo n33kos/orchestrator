@@ -104,6 +104,31 @@ else:
 "
 }
 
+function rotate_event_log() {
+    # Rotate events.jsonl when it exceeds 10000 lines
+    local events_file
+    events_file="$(dirname "$QUEUE_FILE")/events.jsonl"
+    [[ -f "$events_file" ]] || return 0
+
+    local line_count
+    line_count="$(wc -l < "$events_file" | tr -d ' ')"
+    if [[ "$line_count" -gt 10000 ]]; then
+        local archive_dir
+        archive_dir="$(dirname "$QUEUE_FILE")/archive"
+        mkdir -p "$archive_dir"
+        local rotated="$archive_dir/events-$(date +%Y-%m-%d-%H%M%S).jsonl"
+        # Keep last 2000 lines, archive the rest
+        head -n "$((line_count - 2000))" "$events_file" > "$rotated"
+        tail -n 2000 "$events_file" > "$events_file.tmp"
+        mv "$events_file.tmp" "$events_file"
+        echo "[cleanup] Rotated event log: archived $((line_count - 2000)) entries to $rotated"
+        # Compress old archives (older than 7 days)
+        find "$archive_dir" -name "events-*.jsonl" -not -name "*.gz" -mtime +7 -exec gzip {} \; 2>/dev/null || true
+        # Delete compressed archives older than 30 days
+        find "$archive_dir" -name "events-*.jsonl.gz" -mtime +30 -delete 2>/dev/null || true
+    fi
+}
+
 function check_merged_prs() {
     # Check active items with PR URLs — if PR is merged, auto-complete
     python3 -c "
@@ -254,6 +279,22 @@ for item in state['ready']:
                 "$SCRIPT_DIR/activate-stream.sh" "$item_id" 2>&1 | sed 's/^/  /' || {
                     echo "[scheduler] ERROR: Failed to activate $item_id" >&2
                     emit_event "scheduler.error" "Failed to activate $item_id" --item-id "$item_id" --severity error
+                    # Rollback: if item was set to active but has no session, revert to queued
+                    python3 -c "
+import json
+with open('$QUEUE_FILE') as f:
+    data = json.load(f)
+for item in data['items']:
+    if item['id'] == '$item_id' and item['status'] == 'active' and not item.get('session_id'):
+        item['status'] = 'queued'
+        item.pop('activated_at', None)
+        item.pop('worktree_path', None)
+        with open('$QUEUE_FILE', 'w') as f:
+            json.dump(data, f, indent=2)
+            f.write('\n')
+        print(f'[scheduler] Rolled back $item_id to queued (no session created)')
+        break
+" 2>/dev/null || true
                 }
             fi
         else
@@ -264,6 +305,7 @@ for item in state['ready']:
 
 if [[ "$CLEANUP" == "true" ]]; then
     cleanup_completed
+    rotate_event_log
     [[ "$ONCE" == "true" ]] && exit 0
 fi
 
@@ -376,6 +418,7 @@ else
         CYCLE=$((CYCLE + 1))
         if [[ $((CYCLE % CLEANUP_EVERY)) -eq 0 ]]; then
             cleanup_completed
+            rotate_event_log
         fi
         echo "[scheduler] Next check in ${POLL_INTERVAL}s..."
         sleep "$POLL_INTERVAL"

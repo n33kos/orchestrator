@@ -27,6 +27,21 @@ DELEGATOR_DEFAULT="$(grep 'enabled_by_default:' "$CONFIG" | sed 's/.*: *//')"
 # shellcheck source=validate-env.sh
 source "$SCRIPT_DIR/validate-env.sh"
 
+# Pre-flight checks
+if [[ ! -x "$VMUX" ]]; then
+    echo "ERROR: vmux not found or not executable at $VMUX" >&2
+    echo "  Install vmux or update config/environment.yml" >&2
+    exit 1
+fi
+if [[ ! -d "$REPO_PATH" ]]; then
+    echo "ERROR: Main repo not found at $REPO_PATH" >&2
+    exit 1
+fi
+if ! "$VMUX" status &>/dev/null; then
+    echo "ERROR: vmux daemon not running — start with: vmux start" >&2
+    exit 1
+fi
+
 # Arguments
 ITEM_ID="${1:?Usage: activate-stream.sh <item-id> [--quick] [--no-delegator]}"
 QUICK_FLAG=""
@@ -131,6 +146,12 @@ import hashlib
 cwd = '$WORKTREE_PATH'
 print(hashlib.sha256(cwd.encode()).hexdigest()[:12])
 ")"
+
+# Verify session spawned (check if tmux session exists)
+if ! tmux has-session -t "claude-$SESSION_ID" 2>/dev/null; then
+    echo "WARNING: Session $SESSION_ID may not have spawned correctly" >&2
+    echo "  Continuing anyway — session may still be initializing" >&2
+fi
 
 # Step 3: Update queue item status
 echo ""

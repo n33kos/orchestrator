@@ -96,6 +96,24 @@ function queueApiPlugin(): Plugin {
           const item = data.items.find((i: { id: string }) => i.id === body.id)
           if (!item) { res.statusCode = 404; res.end('Not found'); return }
 
+          // Validate status transitions
+          if (body.status !== undefined && body.status !== item.status) {
+            const validTransitions: Record<string, string[]> = {
+              queued: ['planning', 'active', 'paused'],
+              planning: ['queued', 'active', 'paused'],
+              active: ['review', 'paused', 'completed'],
+              review: ['active', 'paused', 'completed'],
+              paused: ['queued', 'planning', 'active', 'review'],
+              completed: ['queued'], // Allow re-queuing completed items
+            }
+            const allowed = validTransitions[item.status] || []
+            if (!allowed.includes(body.status)) {
+              res.statusCode = 409
+              res.end(JSON.stringify({ error: `Invalid transition: ${item.status} → ${body.status}` }))
+              return
+            }
+          }
+
           if (body.status !== undefined) item.status = body.status
           if (body.priority !== undefined) item.priority = body.priority
           if (body.title !== undefined) item.title = body.title
@@ -208,6 +226,12 @@ function queueApiPlugin(): Plugin {
         try {
           const body = JSON.parse(await readBody(req))
           const data = readQueue()
+          const item = data.items.find((i: { id: string }) => i.id === body.id)
+          if (item && (item.status === 'active' || item.status === 'review')) {
+            res.statusCode = 409
+            res.end(JSON.stringify({ error: `Cannot delete ${item.status} item — suspend or complete it first` }))
+            return
+          }
           data.items = data.items.filter((i: { id: string }) => i.id !== body.id)
           writeQueue(data)
           res.setHeader('Content-Type', 'application/json')
