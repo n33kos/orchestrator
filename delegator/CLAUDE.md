@@ -10,29 +10,30 @@ After loading context, update your status file (`./status.json`) to `monitoring`
 
 ## CRITICAL: How the Monitoring Loop Works
 
-The monitoring loop is driven by `relay_standby` with a **short timeout**. Here is the exact pattern:
+The monitoring loop is driven by **external triggers from the scheduler**. The scheduler sends you a `vmux send` message every ~2 minutes to wake you up from `relay_standby`. Here is the exact pattern:
 
-1. Run one monitoring cycle (check commits, check worker, update status)
-2. Call `relay_standby` **with `timeout=60`** — this blocks for 60 seconds or until a message arrives:
-   - A voice/user message arrives → handle it, then go to step 1
-   - A `[Standby]` timeout message arrives → go to step 1 (this IS the loop timer)
-   - A `[System]` error arrives → try to recover, then go to step 1
-3. **NEVER sleep or wait** — `relay_standby(timeout=60)` IS your sleep timer
-
-**CRITICAL: You MUST pass `timeout=60` to `relay_standby`.** Without the timeout parameter, standby blocks for 24 hours. The timeout parameter makes it return after 60 seconds with a `[Standby]` message, which triggers your next monitoring cycle.
+1. Run one monitoring cycle (check transcript, check commits, check for stalls, **send worker a message**)
+2. Call `relay_standby` — this blocks until the scheduler sends you a trigger or a user/voice message arrives
+3. When a message arrives:
+   - If it starts with `[Scheduler]` → run your monitoring cycle, then go back to step 2
+   - If it starts with `[Standby]` → go back to step 2 (timeout)
+   - If it starts with `[System]` → try to recover, then go back to step 2
+   - Otherwise it's from a user → handle conversationally via `relay_respond`, then go back to step 2
 
 Here is pseudocode for the entire delegator lifecycle:
 
 ```
 initialize()
 update_status("monitoring")
-send_intro_to_worker()
+send_intro_to_worker()  # ALWAYS send a greeting message to the worker
 
 while true:
-    run_monitoring_cycle()
-    message = relay_standby(timeout=60)  # blocks 60s until timeout or message
+    run_monitoring_cycle()  # MUST include sending a message to the worker
+    message = relay_standby()  # blocks until scheduler trigger or user message
 
-    if message starts with "[Standby]":
+    if message starts with "[Scheduler]":
+        continue  # trigger → run next cycle
+    elif message starts with "[Standby]":
         continue  # timeout → run next cycle
     elif message starts with "[System]":
         handle_error(message)
@@ -42,6 +43,19 @@ while true:
         relay_respond(response)
         continue
 ```
+
+## CRITICAL: Active Communication Required
+
+**Every monitoring cycle MUST include sending at least one message to the worker.** You are an active overseer, not a silent observer. The user needs to see visible communication between you and the worker in the vmux transcript.
+
+Examples of messages to send every cycle:
+- **Progress check**: "How's it going? What step are you on?"
+- **Commit praise**: "Just reviewed your last commit — nice handling of the edge cases."
+- **Nudge if idle**: "I notice you've been in standby for a while. Are you done with the task? If so, please create a PR."
+- **Plan check**: "According to the plan, step 3 is next. Are you working on that?"
+- **Status request**: "Quick status check — what are you currently working on?"
+
+Do NOT skip sending a message. The whole point of a delegator is active oversight and communication.
 
 ## Monitoring Cycle
 
@@ -256,7 +270,7 @@ Both the worker session ID and tmux session name are in your initial-prompt.md a
 - Do NOT run all tests — always target specific test files
 - Do NOT send more than 3 messages per monitoring cycle — the worker may be busy
 - Do NOT use `AskUserQuestion` or `EnterPlanMode` — these block the CLI and freeze the relay
-- Do NOT use `sleep` — use `relay_standby(timeout=60)` as your timer
+- Do NOT use `sleep` — use `relay_standby` and wait for the scheduler trigger
 
 ## Worker Completion Webhook
 

@@ -576,6 +576,32 @@ for item in data['items']:
     done
 }
 
+function trigger_delegator_cycles() {
+    # Send monitoring cycle triggers to active delegators via vmux send.
+    # This wakes up delegators that are blocking in relay_standby.
+    local vmux_path
+    vmux_path="$(grep 'vmux:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
+
+    python3 -c "
+import json, sys
+with open('$QUEUE_FILE') as f:
+    data = json.load(f)
+for item in data['items']:
+    if item['status'] == 'active' and item.get('delegator_id'):
+        print(f'{item[\"id\"]}:{item[\"delegator_id\"]}')
+" | while IFS= read -r line; do
+        local item_id delegator_id
+        item_id="$(echo "$line" | cut -d: -f1)"
+        delegator_id="$(echo "$line" | cut -d: -f2)"
+        # Send monitoring trigger — this wakes up relay_standby
+        if "$vmux_path" send "$delegator_id" "[Scheduler] Run your monitoring cycle now. Check the worker transcript, review new commits, check for stalls, and send the worker a status check or feedback message." 2>/dev/null; then
+            echo "[scheduler] Triggered monitoring cycle for $item_id delegator"
+        else
+            echo "[scheduler] WARNING: Failed to trigger $item_id delegator ($delegator_id)" >&2
+        fi
+    done
+}
+
 function recover_sessions() {
     echo "[health] Checking for zombie sessions..."
     "$SCRIPT_DIR/health-check.sh" --auto-recover 2>&1 | sed 's/^/  /'
@@ -585,6 +611,7 @@ if [[ "$ONCE" == "true" ]]; then
     check_services
     recover_sessions
     recover_delegators
+    trigger_delegator_cycles
     process_worker_completions
     teardown_merged
     generate_plans
@@ -598,6 +625,7 @@ else
         check_services
         recover_sessions
         recover_delegators
+        trigger_delegator_cycles
         process_worker_completions
         teardown_merged
         generate_plans
