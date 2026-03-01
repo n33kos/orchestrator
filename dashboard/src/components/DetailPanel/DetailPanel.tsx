@@ -16,6 +16,7 @@ interface DetailPanelProps {
   onNotesChange?: (id: string, notes: string) => void
   onActivateStream?: (id: string) => void
   onTeardownStream?: (id: string) => void
+  onSendMessage?: (sessionId: string, text: string) => void
 }
 
 function getNextAction(status: WorkItemStatus): { label: string; nextStatus: WorkItemStatus } | null {

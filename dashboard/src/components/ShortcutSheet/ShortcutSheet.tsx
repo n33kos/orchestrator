@@ -13,7 +13,7 @@ const GROUPS = [
       { keys: ['j'], desc: 'Move focus down' },
       { keys: ['k'], desc: 'Move focus up' },
       { keys: ['Enter'], desc: 'Open focused item' },
-      { keys: ['1-4'], desc: 'Switch tabs' },
+      { keys: ['1-5'], desc: 'Switch tabs' },
       { keys: ['/'], desc: 'Focus search' },
       { keys: ['Esc'], desc: 'Close / go back' },
     ],
@@ -26,6 +26,15 @@ const GROUPS = [
       { keys: ['v'], desc: 'Toggle view mode' },
       { keys: ['\u2318', 'k'], desc: 'Command palette' },
       { keys: ['\u2318', 'a'], desc: 'Select all' },
+      { keys: ['\u2318', '\u21E7', 'f'], desc: 'Global search' },
+    ],
+  },
+  {
+    title: 'Zoom',
+    shortcuts: [
+      { keys: ['\u2318', '='], desc: 'Zoom in' },
+      { keys: ['\u2318', '-'], desc: 'Zoom out' },
+      { keys: ['\u2318', '0'], desc: 'Reset zoom' },
     ],
   },
   {

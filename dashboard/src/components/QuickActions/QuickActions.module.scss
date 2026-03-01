@@ -1,0 +1,50 @@
+.Root {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.Action {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  transition: border-color 0.15s, background-color 0.15s;
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-primary);
+    background: var(--color-hover);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.Icon {
+  display: flex;
+  align-items: center;
+  color: var(--color-text-muted);
+}
+
+.Label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.Shortcut {
+  font-size: 9px;
+  padding: 1px 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  color: var(--color-text-muted);
+  font-family: var(--font-family);
+  margin-left: 4px;
+}
