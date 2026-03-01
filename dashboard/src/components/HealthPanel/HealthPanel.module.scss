@@ -221,3 +221,65 @@
     cursor: wait;
   }
 }
+
+/* ── Delegator Section ── */
+.DelegatorSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.DelegatorRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.DelegatorDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--color-text-muted);
+
+  &.deleg_monitoring {
+    background: var(--color-success);
+  }
+  &.deleg_reviewing {
+    background: var(--color-primary);
+    animation: pulse 1.5s infinite;
+  }
+  &.deleg_idle {
+    background: var(--color-text-muted);
+  }
+  &.deleg_error {
+    background: var(--color-error);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.DelegatorId {
+  font-family: var(--font-mono);
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.DelegatorStatus {
+  color: var(--color-text);
+  font-weight: 500;
+  flex: 1;
+}
+
+.DelegatorTime {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  flex-shrink: 0;
+}

@@ -158,6 +158,52 @@ export function App() {
     return () => clearInterval(interval)
   }, [])
 
+  // Auto-scheduler: when auto-activate is enabled, periodically run the scheduler
+  useEffect(() => {
+    if (!settings.autoActivate) return
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/scheduler/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          const output = data.output?.trim() || ''
+          if (output.includes('Activated') || output.includes('activated')) {
+            queue.refresh()
+            refreshSessions()
+            addToast(output.split('\n').pop() || 'Auto-activated work item', 'success')
+          }
+        }
+      } catch { /* ignore */ }
+    }, 30000) // Check every 30 seconds
+    return () => clearInterval(interval)
+  }, [settings.autoActivate, queue, refreshSessions, addToast])
+
+  // PR status polling: auto-complete work items when their PR is merged
+  useEffect(() => {
+    const itemsWithPr = queue.items.filter(i => i.pr_url && i.status === 'active')
+    if (itemsWithPr.length === 0) return
+    const interval = setInterval(async () => {
+      for (const item of itemsWithPr) {
+        try {
+          const url = encodeURIComponent(item.pr_url!)
+          const res = await fetch(`/api/pr-status?url=${url}`)
+          if (res.ok) {
+            const data = await res.json()
+            if (data.state === 'MERGED' && item.status !== 'completed') {
+              queue.updateItem(item.id, { status: 'completed' })
+              addToast(`"${item.title}" auto-completed — PR merged`, 'success')
+            }
+          }
+        } catch { /* ignore */ }
+      }
+    }, 120000) // Check every 2 minutes
+    return () => clearInterval(interval)
+  }, [queue, addToast])
+
   const projectBlockers = queue.projects.filter(i => i.blockers.some(b => !b.resolved)).length
   const qfBlockers = queue.quickFixes.filter(i => i.blockers.some(b => !b.resolved)).length
   const tabs = [

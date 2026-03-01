@@ -9,6 +9,13 @@ interface HealthIssue {
   session_id?: string
 }
 
+interface DelegatorInfo {
+  id: string
+  item_id: string
+  status: string
+  last_check?: string
+}
+
 interface HealthData {
   sessions: {
     total: number
@@ -32,6 +39,7 @@ interface HealthPanelProps {
 
 export function HealthPanel({ onClose, onAutoRecover }: HealthPanelProps) {
   const [health, setHealth] = useState<HealthData | null>(null)
+  const [delegators, setDelegators] = useState<DelegatorInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [recovering, setRecovering] = useState(false)
   const trapRef = useFocusTrap<HTMLDivElement>()
@@ -39,9 +47,16 @@ export function HealthPanel({ onClose, onAutoRecover }: HealthPanelProps) {
   const fetchHealth = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/health')
-      if (res.ok) {
-        setHealth(await res.json())
+      const [healthRes, delegatorRes] = await Promise.all([
+        fetch('/api/health'),
+        fetch('/api/delegators'),
+      ])
+      if (healthRes.ok) {
+        setHealth(await healthRes.json())
+      }
+      if (delegatorRes.ok) {
+        const data = await delegatorRes.json()
+        setDelegators(Array.isArray(data.delegators) ? data.delegators : [])
       }
     } catch {
       // ignore
@@ -141,6 +156,24 @@ export function HealthPanel({ onClose, onAutoRecover }: HealthPanelProps) {
                   <polyline points="22 4 12 14.01 9 11.01" />
                 </svg>
                 All systems healthy
+              </div>
+            )}
+
+            {delegators.length > 0 && (
+              <div className={styles.DelegatorSection}>
+                <h3 className={styles.IssuesTitle}>
+                  Delegators ({delegators.length})
+                </h3>
+                {delegators.map(d => (
+                  <div key={d.id} className={styles.DelegatorRow}>
+                    <span className={`${styles.DelegatorDot} ${styles[`deleg_${d.status}`] || ''}`} />
+                    <span className={styles.DelegatorId}>{d.id.slice(0, 10)}</span>
+                    <span className={styles.DelegatorStatus}>{d.status}</span>
+                    {d.last_check && (
+                      <span className={styles.DelegatorTime}>{new Date(d.last_check).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
 
