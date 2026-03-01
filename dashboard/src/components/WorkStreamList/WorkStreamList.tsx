@@ -32,6 +32,10 @@ interface WorkStreamListProps {
   onUnresolveBlocker: (id: string, blockerId: string) => void
   onDelete: (id: string) => void
   onDuplicate?: (id: string) => void
+  onActivateStream?: (id: string) => void
+  onTeardownStream?: (id: string) => void
+  activatingIds?: Set<string>
+  tearingDownIds?: Set<string>
   onReorder: (dragId: string, dropId: string) => void
   onSendMessage: (sessionId: string, text: string) => void
 }
@@ -47,7 +51,7 @@ function findSession(sessions: SessionInfo[], item: WorkItem): SessionInfo | und
   return undefined
 }
 
-export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab, sortField, sortDirection, sessions, messagesBySession, selectable, selectedIds, onSelect, focusedItemId, onClearFocus, pinnedIds, onTogglePin, onAddClick, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onReorder, onSendMessage }: WorkStreamListProps) {
+export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab, sortField, sortDirection, sessions, messagesBySession, selectable, selectedIds, onSelect, focusedItemId, onClearFocus, pinnedIds, onTogglePin, onAddClick, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onActivateStream, onTeardownStream, activatingIds, tearingDownIds, onReorder, onSendMessage }: WorkStreamListProps) {
   const { dragId, overId, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(onReorder)
   if (loading) {
     return <SkeletonList count={4} />
@@ -217,6 +221,10 @@ export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab
             onUnresolveBlocker={onUnresolveBlocker}
             onDelete={onDelete}
             onDuplicate={onDuplicate}
+            onActivateStream={onActivateStream}
+            onTeardownStream={onTeardownStream}
+            activating={activatingIds?.has(item.id)}
+            tearingDown={tearingDownIds?.has(item.id)}
             onSendMessage={onSendMessage}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}

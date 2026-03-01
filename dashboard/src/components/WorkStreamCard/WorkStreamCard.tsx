@@ -543,39 +543,57 @@ export function WorkStreamCard({ item, position, totalCount, isDragging, isDragO
 
             <div className={styles.StatusActions}>
               {(item.status === 'queued' || item.status === 'planning') && (
-                <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'active')}>
-                  Activate
+                <button
+                  className={classnames(styles.ActionButtonText, onActivateStream && styles.ActionPrimary)}
+                  onClick={() => onActivateStream ? onActivateStream(item.id) : onStatusChange(item.id, 'active')}
+                  disabled={isBusy}
+                >
+                  {activating ? 'Activating...' : onActivateStream ? 'Activate Stream' : 'Activate'}
                 </button>
               )}
               {item.status === 'active' && (
                 <>
-                  <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'review')}>
+                  <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'review')} disabled={isBusy}>
                     Move to Review
                   </button>
-                  <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'paused')}>
+                  <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'paused')} disabled={isBusy}>
                     Pause
                   </button>
                 </>
               )}
               {item.status === 'review' && (
                 <>
-                  <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'completed')}>
+                  <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'completed')} disabled={isBusy}>
                     Complete
                   </button>
-                  <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'active')}>
+                  <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'active')} disabled={isBusy}>
                     Back to Active
                   </button>
                 </>
               )}
               {item.status === 'paused' && (
-                <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'active')}>
-                  Resume
+                <button
+                  className={classnames(styles.ActionButtonText, onActivateStream && styles.ActionPrimary)}
+                  onClick={() => onActivateStream ? onActivateStream(item.id) : onStatusChange(item.id, 'active')}
+                  disabled={isBusy}
+                >
+                  {activating ? 'Activating...' : 'Resume'}
+                </button>
+              )}
+              {onTeardownStream && (item.status === 'active' || item.status === 'review') && (item.worktree_path || item.session_id) && (
+                <button
+                  className={classnames(styles.ActionButtonText, styles.ActionDanger)}
+                  onClick={() => onTeardownStream(item.id)}
+                  disabled={isBusy}
+                >
+                  {tearingDown ? 'Tearing down...' : 'Tear Down'}
                 </button>
               )}
               {onDuplicate && (
                 <button
                   className={styles.ActionButtonText}
                   onClick={() => onDuplicate(item.id)}
+                  disabled={isBusy}
                 >
                   Duplicate
                 </button>
@@ -583,6 +601,7 @@ export function WorkStreamCard({ item, position, totalCount, isDragging, isDragO
               <button
                 className={classnames(styles.ActionButtonText, styles.ActionDanger)}
                 onClick={() => onDelete(item.id)}
+                disabled={isBusy}
               >
                 Remove
               </button>

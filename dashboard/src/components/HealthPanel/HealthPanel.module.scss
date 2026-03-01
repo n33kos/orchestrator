@@ -1,0 +1,223 @@
+.Overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.Panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 480px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.Header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.Title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text-strong);
+  margin: 0;
+}
+
+.CloseButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+  }
+}
+
+.Loading,
+.Error {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+.Content {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.StatusGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.StatusCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-md);
+}
+
+.StatusValue {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-text-strong);
+  font-variant-numeric: tabular-nums;
+
+  &.StatusGood {
+    color: var(--color-success);
+  }
+
+  &.StatusBad {
+    color: var(--color-error);
+  }
+}
+
+.StatusLabel {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.IssuesList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.IssuesTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-warning);
+  margin: 0;
+}
+
+.Issue {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.IssueType {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: var(--color-warning);
+  color: white;
+
+  &.issue_zombie {
+    background: var(--color-error);
+  }
+
+  &.issue_stalled {
+    background: var(--color-warning);
+  }
+
+  &.issue_blocked {
+    background: var(--color-primary);
+  }
+
+  &.issue_concurrency {
+    background: var(--color-error);
+  }
+}
+
+.IssueMessage {
+  color: var(--color-text);
+  line-height: 1.4;
+}
+
+.AllClear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  color: var(--color-success);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.Actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.RefreshButton,
+.RecoverButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+  }
+}
+
+.RecoverButton {
+  background: var(--color-warning);
+  color: white;
+  border-color: var(--color-warning);
+
+  &:hover {
+    opacity: 0.9;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+}

@@ -19,11 +19,13 @@ import { ActivityFeed } from './components/ActivityFeed/ActivityFeed.tsx'
 import { ScrollToTop } from './components/ScrollToTop/ScrollToTop.tsx'
 import { LoadingBar } from './components/LoadingBar/LoadingBar.tsx'
 import { CompactList } from './components/CompactList/CompactList.tsx'
+import { GroupedList } from './components/GroupedList/GroupedList.tsx'
 import { DetailPanel } from './components/DetailPanel/DetailPanel.tsx'
 import { FilterChips } from './components/FilterChips/FilterChips.tsx'
 import { Breadcrumb } from './components/Breadcrumb/Breadcrumb.tsx'
 import { KeyboardHints } from './components/KeyboardHints/KeyboardHints.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary.tsx'
+import { HealthPanel } from './components/HealthPanel/HealthPanel.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import { useQueue } from './hooks/useQueue.ts'
 import { useTheme } from './hooks/useTheme.ts'
@@ -102,7 +104,7 @@ export function App() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null)
   const [detailItemId, setDetailItemId] = useState<string | null>(null)
-  const [viewMode, setViewMode] = usePersistedState<'cards' | 'compact'>('viewMode', 'cards')
+  const [viewMode, setViewMode] = usePersistedState<'cards' | 'compact' | 'grouped'>('viewMode', 'cards')
   const [sortField, setSortField] = usePersistedState<SortField>('sortField', 'priority')
   const [sortDirection, setSortDirection] = usePersistedState<SortDirection>('sortDirection', 'asc')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -115,6 +117,26 @@ export function App() {
     danger?: boolean
     onConfirm: () => void
   } | null>(null)
+  const [activatingIds, setActivatingIds] = useState<Set<string>>(new Set())
+  const [tearingDownIds, setTearingDownIds] = useState<Set<string>>(new Set())
+  const [healthIssues, setHealthIssues] = useState(0)
+  const [showHealthPanel, setShowHealthPanel] = useState(false)
+
+  // Periodic health check for issue count
+  useEffect(() => {
+    async function checkHealth() {
+      try {
+        const res = await fetch('/api/health')
+        if (res.ok) {
+          const data = await res.json()
+          setHealthIssues(data.issues?.length ?? 0)
+        }
+      } catch { /* ignore */ }
+    }
+    checkHealth()
+    const interval = setInterval(checkHealth, 60000)
+    return () => clearInterval(interval)
+  }, [])
 
   const projectBlockers = queue.projects.filter(i => i.blockers.some(b => !b.resolved)).length
   const qfBlockers = queue.quickFixes.filter(i => i.blockers.some(b => !b.resolved)).length
@@ -162,6 +184,7 @@ export function App() {
     onFocusSearch: useCallback(() => searchRef.current?.focus(), []),
     onEscape: useCallback(() => {
       if (showCommandPalette) { setShowCommandPalette(false); return }
+      if (showHealthPanel) { setShowHealthPanel(false); return }
       if (detailItemId) { setDetailItemId(null); return }
       if (showActivityFeed) { setShowActivityFeed(false); return }
       if (showSessions) { setShowSessions(false); return }
@@ -170,7 +193,7 @@ export function App() {
       if (selectionMode) { setSelectedIds(new Set()); setSelectionMode(false); return }
       if (showAddForm) { setShowAddForm(false); return }
       if (searchQuery) { setSearchQuery(''); return }
-    }, [showCommandPalette, detailItemId, showActivityFeed, showSessions, settingsOpen, confirmAction, selectionMode, showAddForm, searchQuery, setSettingsOpen]),
+    }, [showCommandPalette, showHealthPanel, detailItemId, showActivityFeed, showSessions, settingsOpen, confirmAction, selectionMode, showAddForm, searchQuery, setSettingsOpen]),
     onRefresh: useCallback(() => {
       queue.refresh()
       addToast('Queue refreshed', 'info')
@@ -489,6 +512,103 @@ export function App() {
     })
   }
 
+  async function handleActivateStream(id: string) {
+    const item = queue.items.find(i => i.id === id)
+    if (!item) return
+    setActivatingIds(prev => new Set(prev).add(id))
+    addToast(`Activating "${item.title}" — creating worktree and session...`, 'info')
+    try {
+      const res = await fetch('/api/stream/activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId: id }),
+      })
+      if (res.ok) {
+        addToast(`"${item.title}" activated — worktree and session ready`, 'success')
+        queue.refresh()
+        refreshSessions()
+      } else {
+        const data = await res.json()
+        addToast(`Activation failed: ${data.error || 'Unknown error'}`, 'error')
+      }
+    } catch {
+      addToast('Failed to activate stream', 'error')
+    } finally {
+      setActivatingIds(prev => { const next = new Set(prev); next.delete(id); return next })
+    }
+  }
+
+  function handleTeardownStream(id: string) {
+    const item = queue.items.find(i => i.id === id)
+    if (!item) return
+    setConfirmAction({
+      title: 'Tear Down Work Stream',
+      message: `This will kill the session, remove the worktree, and mark "${item.title}" as completed. The git branch will be preserved.`,
+      confirmLabel: 'Tear Down',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmAction(null)
+        setTearingDownIds(prev => new Set(prev).add(id))
+        addToast(`Tearing down "${item.title}"...`, 'info')
+        try {
+          const res = await fetch('/api/stream/teardown', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemId: id }),
+          })
+          if (res.ok) {
+            addToast(`"${item.title}" torn down`, 'success')
+            queue.refresh()
+            refreshSessions()
+          } else {
+            const data = await res.json()
+            addToast(`Teardown failed: ${data.error || 'Unknown error'}`, 'error')
+          }
+        } catch {
+          addToast('Failed to tear down stream', 'error')
+        } finally {
+          setTearingDownIds(prev => { const next = new Set(prev); next.delete(id); return next })
+        }
+      },
+    })
+  }
+
+  async function handleDiscoverWork() {
+    addToast('Discovering work items...', 'info')
+    try {
+      const res = await fetch('/api/discover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        queue.refresh()
+        addToast(data.output?.trim() ? `Discovery: ${data.output.trim().split('\n').pop()}` : 'Work discovery complete', 'success')
+      } else {
+        addToast('Work discovery failed', 'error')
+      }
+    } catch {
+      addToast('Failed to discover work', 'error')
+    }
+  }
+
+  async function handleAutoRecover() {
+    const zombies = sessions.filter(s => s.state === 'zombie')
+    if (zombies.length === 0) return
+    addToast(`Recovering ${zombies.length} zombie session${zombies.length !== 1 ? 's' : ''}...`, 'info')
+    for (const z of zombies) {
+      try {
+        await fetch('/api/sessions/reconnect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cwd: z.cwd }),
+        })
+      } catch { /* continue */ }
+    }
+    setTimeout(() => { refreshSessions(); queue.refresh() }, 3000)
+  }
+
   return (
     <div className={styles.Root}>
       <LoadingBar active={queue.loading} />
@@ -500,6 +620,7 @@ export function App() {
         sessionCount={sessions.length}
         activityCount={history.length}
         activitySparkline={activitySparkline}
+        healthIssues={healthIssues}
         lastUpdated={queue.lastUpdated}
         onAddClick={() => setShowAddForm(!showAddForm)}
         showingAddForm={showAddForm}
@@ -508,6 +629,8 @@ export function App() {
         onSettingsClick={() => setSettingsOpen(true)}
         onSessionsClick={() => setShowSessions(true)}
         onActivityFeedClick={() => setShowActivityFeed(true)}
+        onHealthClick={() => setShowHealthPanel(true)}
+        onDiscoverClick={handleDiscoverWork}
       />
       <main ref={mainRef} className={styles.Main}>
         <ErrorBoundary fallbackLabel="The main content area crashed. Try refreshing the page.">
@@ -608,8 +731,8 @@ export function App() {
               )}
               <button
                 className={styles.ViewModeToggle}
-                onClick={() => setViewMode(viewMode === 'cards' ? 'compact' : 'cards')}
-                title={viewMode === 'cards' ? 'Switch to compact view' : 'Switch to card view'}
+                onClick={() => setViewMode(viewMode === 'cards' ? 'compact' : viewMode === 'compact' ? 'grouped' : 'cards')}
+                title={viewMode === 'cards' ? 'Compact view' : viewMode === 'compact' ? 'Grouped view' : 'Card view'}
               >
                 {viewMode === 'cards' ? (
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -619,6 +742,12 @@ export function App() {
                     <line x1="3" y1="6" x2="3.01" y2="6" />
                     <line x1="3" y1="12" x2="3.01" y2="12" />
                     <line x1="3" y1="18" x2="3.01" y2="18" />
+                  </svg>
+                ) : viewMode === 'compact' ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="3" width="18" height="4" rx="1" />
+                    <rect x="3" y="10" width="18" height="4" rx="1" />
+                    <rect x="3" y="17" width="18" height="4" rx="1" />
                   </svg>
                 ) : (
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -643,6 +772,8 @@ export function App() {
                 selectedIds={selectedIds}
                 onSelect={handleToggleSelect}
                 onStatusChange={handleStatusChange}
+                onActivateStream={handleActivateStream}
+                activatingIds={activatingIds}
                 onNavigate={id => setDetailItemId(id)}
                 onReorder={handleReorder}
                 onEdit={handleEdit}
@@ -678,6 +809,10 @@ export function App() {
               onUnresolveBlocker={handleUnresolveBlocker}
               onDelete={handleDelete}
               onDuplicate={handleDuplicate}
+              onActivateStream={handleActivateStream}
+              onTeardownStream={handleTeardownStream}
+              activatingIds={activatingIds}
+              tearingDownIds={tearingDownIds}
               onReorder={handleReorder}
               onSendMessage={handleSendMessage}
             />
@@ -763,6 +898,15 @@ export function App() {
           }}
           onGoToSessions={() => setActiveTab('sessions')}
           onToggleViewMode={() => setViewMode(prev => prev === 'cards' ? 'compact' : 'cards')}
+          onDiscoverWork={handleDiscoverWork}
+          onHealthCheck={() => setShowHealthPanel(true)}
+          onActivateStream={handleActivateStream}
+        />
+      )}
+      {showHealthPanel && (
+        <HealthPanel
+          onClose={() => setShowHealthPanel(false)}
+          onAutoRecover={handleAutoRecover}
         />
       )}
     </div>

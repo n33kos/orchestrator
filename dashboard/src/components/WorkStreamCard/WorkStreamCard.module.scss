@@ -494,6 +494,17 @@
   @media (max-width: 600px) {
     opacity: 1;
   }
+
+  &.QuickActionBusy {
+    opacity: 1;
+    cursor: wait;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
 }
 
 /* ── Expanded Details ── */
@@ -819,5 +830,22 @@
       color: var(--color-error);
       border-color: var(--color-error);
     }
+  }
+
+  &.ActionPrimary {
+    background: var(--color-primary-muted);
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+    font-weight: 600;
+
+    &:hover {
+      background: var(--color-primary);
+      color: white;
+    }
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: wait;
   }
 }

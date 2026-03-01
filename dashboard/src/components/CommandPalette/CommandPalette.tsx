@@ -8,7 +8,7 @@ interface Command {
   id: string
   label: string
   description?: string
-  icon: 'search' | 'add' | 'settings' | 'refresh' | 'status' | 'theme' | 'message' | 'monitor' | 'view'
+  icon: 'search' | 'add' | 'settings' | 'refresh' | 'status' | 'theme' | 'message' | 'monitor' | 'view' | 'health' | 'discover'
   action: () => void
 }
 
@@ -31,6 +31,9 @@ interface CommandPaletteProps {
   onMessageSession: (sessionId: string) => void
   onGoToSessions?: () => void
   onToggleViewMode?: () => void
+  onDiscoverWork?: () => void
+  onHealthCheck?: () => void
+  onActivateStream?: (id: string) => void
 }
 
 const ICONS: Record<string, React.JSX.Element> = {
@@ -87,9 +90,22 @@ const ICONS: Record<string, React.JSX.Element> = {
       <line x1="3" y1="18" x2="3.01" y2="18" />
     </svg>
   ),
+  health: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+    </svg>
+  ),
+  discover: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      <line x1="11" y1="8" x2="11" y2="14" />
+      <line x1="8" y1="11" x2="14" y2="11" />
+    </svg>
+  ),
 }
 
-export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateToItem, onStatusChange, onAddItem, onOpenSettings, onRefresh, onToggleTheme, onMessageSession, onGoToSessions, onToggleViewMode }: CommandPaletteProps) {
+export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateToItem, onStatusChange, onAddItem, onOpenSettings, onRefresh, onToggleTheme, onMessageSession, onGoToSessions, onToggleViewMode, onDiscoverWork, onHealthCheck, onActivateStream }: CommandPaletteProps) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -113,8 +129,14 @@ export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateTo
     if (onToggleViewMode) {
       cmds.push({ id: 'cmd-view', label: 'Toggle view mode', description: 'Switch between card and compact table view', icon: 'view', action: () => { onClose(); onToggleViewMode() } })
     }
+    if (onDiscoverWork) {
+      cmds.push({ id: 'cmd-discover', label: 'Discover work', description: 'Scan configured sources for new work items', icon: 'discover', action: () => { onClose(); onDiscoverWork() } })
+    }
+    if (onHealthCheck) {
+      cmds.push({ id: 'cmd-health', label: 'Health check', description: 'Check for zombies, stalled streams, and issues', icon: 'health', action: () => { onClose(); onHealthCheck() } })
+    }
     return cmds
-  }, [onClose, onAddItem, onOpenSettings, onRefresh, onToggleTheme, onGoToSessions, onToggleViewMode])
+  }, [onClose, onAddItem, onOpenSettings, onRefresh, onToggleTheme, onGoToSessions, onToggleViewMode, onDiscoverWork, onHealthCheck])
 
   const itemCommands: Command[] = useMemo(() => {
     return items.map(item => ({
@@ -130,7 +152,11 @@ export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateTo
     const cmds: Command[] = []
     for (const item of items) {
       if (item.status === 'queued') {
-        cmds.push({ id: `activate-${item.id}`, label: `Activate: ${item.title}`, icon: 'status', action: () => { onClose(); onStatusChange(item.id, 'active') } })
+        if (onActivateStream) {
+          cmds.push({ id: `activate-${item.id}`, label: `Activate stream: ${item.title}`, description: 'Create worktree + spawn session', icon: 'status', action: () => { onClose(); onActivateStream(item.id) } })
+        } else {
+          cmds.push({ id: `activate-${item.id}`, label: `Activate: ${item.title}`, icon: 'status', action: () => { onClose(); onStatusChange(item.id, 'active') } })
+        }
       }
       if (item.status === 'active') {
         cmds.push({ id: `pause-${item.id}`, label: `Pause: ${item.title}`, icon: 'status', action: () => { onClose(); onStatusChange(item.id, 'paused') } })
@@ -141,7 +167,7 @@ export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateTo
       }
     }
     return cmds
-  }, [items, onClose, onStatusChange])
+  }, [items, onClose, onStatusChange, onActivateStream])
 
   const messageCommands: Command[] = useMemo(() => {
     return sessionsWithItems.map(ref => ({

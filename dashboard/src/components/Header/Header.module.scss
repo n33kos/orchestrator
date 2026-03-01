@@ -6,7 +6,6 @@
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border-subtle);
   flex-shrink: 0;
-  padding-top: env(safe-area-inset-top, 12px);
 }
 
 .Left {
@@ -89,6 +88,72 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.DiscoverButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+  }
+}
+
+.HealthButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+  }
+
+  &.HealthButtonAlert {
+    color: var(--color-warning);
+    border-color: var(--color-warning);
+
+    &:hover {
+      background: var(--color-warning);
+      color: white;
+    }
+  }
+}
+
+.HealthBadge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  background: var(--color-warning);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
 }
 
 .ActivityButton {

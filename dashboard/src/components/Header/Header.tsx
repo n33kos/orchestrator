@@ -12,6 +12,7 @@ interface HeaderProps {
   sessionCount: number
   activityCount: number
   activitySparkline: number[]
+  healthIssues: number
   lastUpdated: Date | null
   onAddClick: () => void
   showingAddForm: boolean
@@ -20,9 +21,11 @@ interface HeaderProps {
   onSettingsClick: () => void
   onSessionsClick: () => void
   onActivityFeedClick: () => void
+  onHealthClick: () => void
+  onDiscoverClick: () => void
 }
 
-export function Header({ activeCount, queuedCount, pausedCount, blockedCount, sessionCount, activityCount, activitySparkline, lastUpdated, onAddClick, showingAddForm, theme, onThemeToggle, onSettingsClick, onSessionsClick, onActivityFeedClick }: HeaderProps) {
+export function Header({ activeCount, queuedCount, pausedCount, blockedCount, sessionCount, activityCount, activitySparkline, healthIssues, lastUpdated, onAddClick, showingAddForm, theme, onThemeToggle, onSettingsClick, onSessionsClick, onActivityFeedClick, onHealthClick, onDiscoverClick }: HeaderProps) {
   return (
     <header className={styles.Root}>
       <div className={styles.Left}>
@@ -62,6 +65,28 @@ export function Header({ activeCount, queuedCount, pausedCount, blockedCount, se
       </div>
       <div className={styles.Actions}>
         <ThemeToggle theme={theme} onToggle={onThemeToggle} />
+        <button
+          className={styles.DiscoverButton}
+          onClick={onDiscoverClick}
+          title="Discover work"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            <line x1="11" y1="8" x2="11" y2="14" />
+            <line x1="8" y1="11" x2="14" y2="11" />
+          </svg>
+        </button>
+        <button
+          className={classnames(styles.HealthButton, healthIssues > 0 && styles.HealthButtonAlert)}
+          onClick={onHealthClick}
+          title={healthIssues > 0 ? `${healthIssues} health issue${healthIssues !== 1 ? 's' : ''}` : 'Health check'}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+          </svg>
+          {healthIssues > 0 && <span className={styles.HealthBadge}>{healthIssues > 9 ? '9+' : healthIssues}</span>}
+        </button>
         <button
           className={styles.ActivityButton}
           onClick={onActivityFeedClick}
