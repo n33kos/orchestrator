@@ -229,6 +229,21 @@
   }
 }
 
+.MetaLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.TimeAgo {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .MetaItem {
   display: flex;
   align-items: center;

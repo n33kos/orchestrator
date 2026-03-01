@@ -6,6 +6,7 @@ import { BlockerManager } from '../BlockerManager/BlockerManager.tsx'
 import { InlineEdit } from '../InlineEdit/InlineEdit.tsx'
 import { ActivityLog } from '../ActivityLog/ActivityLog.tsx'
 import { MessageComposer } from '../MessageComposer/MessageComposer.tsx'
+import { timeAgo, formatDate } from '../../utils/time.ts'
 import type { WorkItem, WorkItemStatus, SessionInfo, MessageEntry } from '../../types.ts'
 
 interface WorkStreamCardProps {
@@ -30,12 +31,6 @@ interface WorkStreamCardProps {
   onDragOver?: (id: string) => void
   onDrop?: (id: string) => void
   onDragEnd?: () => void
-}
-
-function formatDate(iso: string | null): string {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 export function WorkStreamCard({ item, isDragging, isDragOver, selectable, selected, onSelect, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
@@ -160,10 +155,15 @@ export function WorkStreamCard({ item, isDragging, isDragOver, selectable, selec
 
       {!expanded && (
         <div className={styles.Meta}>
-          <span className={styles.MetaItem}>
-            <span className={styles.MetaLabel}>Branch</span>
-            <code className={styles.MetaValue}>{item.branch}</code>
-          </span>
+          <div className={styles.MetaLeft}>
+            <span className={styles.MetaItem}>
+              <span className={styles.MetaLabel}>Branch</span>
+              <code className={styles.MetaValue}>{item.branch}</code>
+            </span>
+            <span className={styles.TimeAgo} title={formatDate(item.activated_at || item.created_at)}>
+              {item.activated_at ? `Active ${timeAgo(item.activated_at)}` : `Created ${timeAgo(item.created_at)}`}
+            </span>
+          </div>
           <div className={styles.Indicators}>
             {item.pr_url && (
               <a
