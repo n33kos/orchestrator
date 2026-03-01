@@ -286,7 +286,9 @@ function queueApiPlugin(): Plugin {
         try {
           const body = JSON.parse(await readBody(req))
           const scriptPath = join(__dirname, '..', 'scripts', 'suspend-stream.sh')
-          execFile('bash', [scriptPath, body.itemId], { timeout: 30000, env: { ...process.env, HOME: homedir() } }, (err, stdout, stderr) => {
+          const args = [scriptPath, body.itemId]
+          if (body.targetStatus) args.push('--status', body.targetStatus)
+          execFile('bash', args, { timeout: 30000, env: { ...process.env, HOME: homedir() } }, (err, stdout, stderr) => {
             res.setHeader('Content-Type', 'application/json')
             if (err) {
               res.statusCode = 500

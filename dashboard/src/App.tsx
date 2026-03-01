@@ -384,17 +384,13 @@ export function App() {
     if ((status === 'review' || status === 'paused') && previousStatus === 'active' && hasSession) {
       const label = status === 'review' ? 'review' : 'paused'
       addToast(`Suspending session (${label})...`, 'info')
-      // Use suspend script to kill session + delegator, then update status
+      // Suspend script kills session + delegator and sets the target status atomically
       fetch('/api/stream/suspend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemId: id }),
+        body: JSON.stringify({ itemId: id, targetStatus: status }),
       }).then(res => {
         if (res.ok) {
-          // suspend-stream.sh sets status to 'review', but we may want 'paused'
-          if (status === 'paused') {
-            queue.updateItem(id, { status: 'paused' })
-          }
           queue.refresh()
           addToast(`${status === 'review' ? 'Moved to review' : 'Paused'} — session suspended`, 'success')
         } else {

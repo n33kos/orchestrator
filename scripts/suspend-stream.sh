@@ -3,7 +3,7 @@
 # Used when moving a project to "review" — stops token burn while user reviews.
 #
 # Usage:
-#   ./scripts/suspend-stream.sh <item-id>
+#   ./scripts/suspend-stream.sh <item-id> [--status <review|paused>]
 
 set -euo pipefail
 
@@ -17,7 +17,15 @@ CONFIG="$PROJECT_ROOT/config/environment.yml"
 QUEUE_FILE="$(grep 'queue_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
 VMUX="$(grep 'vmux:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
 
-ITEM_ID="${1:?Usage: suspend-stream.sh <item-id>}"
+ITEM_ID="${1:?Usage: suspend-stream.sh <item-id> [--status <review|paused>]}"
+shift
+TARGET_STATUS="review"
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --status) TARGET_STATUS="$2"; shift 2 ;;
+        *) shift ;;
+    esac
+done
 
 # Read item
 ITEM_JSON="$(python3 -c "
@@ -56,7 +64,7 @@ with open('$QUEUE_FILE') as f:
     data = json.load(f)
 for item in data['items']:
     if item['id'] == '$ITEM_ID':
-        item['status'] = 'review'
+        item['status'] = '$TARGET_STATUS'
         item['session_id'] = None
         item['delegator_id'] = None
         # worktree_path is preserved so we can resume later
@@ -66,5 +74,5 @@ with open('$QUEUE_FILE', 'w') as f:
     f.write('\n')
 "
 
-echo "  Status: review (session + delegator killed, worktree preserved)"
-emit_event "stream.suspended" "Suspended for review: $ITEM_TITLE" --item-id "$ITEM_ID"
+echo "  Status: $TARGET_STATUS (session + delegator killed, worktree preserved)"
+emit_event "stream.suspended" "Suspended ($TARGET_STATUS): $ITEM_TITLE" --item-id "$ITEM_ID"
