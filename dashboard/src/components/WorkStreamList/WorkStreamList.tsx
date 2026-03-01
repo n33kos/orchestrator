@@ -17,6 +17,8 @@ interface WorkStreamListProps {
   selectable?: boolean
   selectedIds?: Set<string>
   onSelect?: (id: string) => void
+  focusedItemId?: string | null
+  onClearFocus?: () => void
   onAddClick?: () => void
   onStatusChange: (id: string, status: WorkItemStatus) => void
   onPriorityChange: (id: string, priority: number) => void
@@ -41,7 +43,7 @@ function findSession(sessions: SessionInfo[], item: WorkItem): SessionInfo | und
   return undefined
 }
 
-export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab, sortField, sortDirection, sessions, messagesBySession, selectable, selectedIds, onSelect, onAddClick, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onReorder, onSendMessage }: WorkStreamListProps) {
+export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab, sortField, sortDirection, sessions, messagesBySession, selectable, selectedIds, onSelect, focusedItemId, onClearFocus, onAddClick, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onReorder, onSendMessage }: WorkStreamListProps) {
   const { dragId, overId, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(onReorder)
   if (loading) {
     return (
@@ -196,6 +198,8 @@ export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab
             selectable={selectable}
             selected={selectedIds?.has(item.id)}
             onSelect={onSelect}
+            focused={focusedItemId === item.id}
+            onClearFocus={onClearFocus}
             sessionInfo={session}
             messages={session ? messagesBySession[session.id] ?? [] : []}
             onStatusChange={onStatusChange}

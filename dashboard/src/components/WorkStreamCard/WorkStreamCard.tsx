@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import classnames from 'classnames'
 import styles from './WorkStreamCard.module.scss'
 import { StatusBadge } from '../StatusBadge/StatusBadge.tsx'
@@ -16,6 +16,8 @@ interface WorkStreamCardProps {
   selectable?: boolean
   selected?: boolean
   onSelect?: (id: string) => void
+  focused?: boolean
+  onClearFocus?: () => void
   sessionInfo?: SessionInfo
   messages?: MessageEntry[]
   onStatusChange: (id: string, status: WorkItemStatus) => void
@@ -33,8 +35,21 @@ interface WorkStreamCardProps {
   onDragEnd?: () => void
 }
 
-export function WorkStreamCard({ item, isDragging, isDragOver, selectable, selected, onSelect, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
+export function WorkStreamCard({ item, isDragging, isDragOver, selectable, selected, onSelect, focused, onClearFocus, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
   const [expanded, setExpanded] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (focused) {
+      setExpanded(true)
+      requestAnimationFrame(() => {
+        cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      })
+      // Clear focus after a short delay so re-navigation works
+      const timer = setTimeout(() => onClearFocus?.(), 1500)
+      return () => clearTimeout(timer)
+    }
+  }, [focused, onClearFocus])
   const hasLiveSession = !!sessionInfo
   const hasSession = !!item.session_id
   const hasDelegator = !!item.delegator_id
@@ -66,11 +81,13 @@ export function WorkStreamCard({ item, isDragging, isDragOver, selectable, selec
 
   return (
     <div
+      ref={cardRef}
       className={classnames(
         styles.Root,
         styles[item.status],
         expanded && styles.expanded,
         selected && styles.selected,
+        focused && styles.focused,
         isDragging && styles.dragging,
         isDragOver && styles.dragOver,
       )}

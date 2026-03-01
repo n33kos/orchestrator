@@ -51,6 +51,7 @@ export function App() {
   const [showSessions, setShowSessions] = useState(false)
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [focusedItemId, setFocusedItemId] = useState<string | null>(null)
   const [sortField, setSortField] = useState<SortField>('priority')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -331,6 +332,23 @@ export function App() {
     }
   }
 
+  function handleNavigateToItem(id: string) {
+    const item = queue.items.find(i => i.id === id)
+    if (!item) return
+    // Switch to the right tab so the item is visible
+    if (item.type === 'project') {
+      setActiveTab('projects')
+    } else if (item.type === 'quick_fix') {
+      setActiveTab('quick_fixes')
+    } else {
+      setActiveTab('all')
+    }
+    // Clear search so the item isn't filtered out
+    setSearchQuery('')
+    setStatusFilter('all')
+    setFocusedItemId(id)
+  }
+
   function handleDelete(id: string) {
     const item = queue.items.find(i => i.id === id)
     setConfirmAction({
@@ -448,6 +466,8 @@ export function App() {
               selectable={selectionMode}
               selectedIds={selectedIds}
               onSelect={handleToggleSelect}
+              focusedItemId={focusedItemId}
+              onClearFocus={() => setFocusedItemId(null)}
               emptyLabel={
                 activeTab === 'quick_fixes' ? 'No quick fixes' :
                 activeTab === 'projects' ? 'No projects' : undefined
@@ -509,7 +529,7 @@ export function App() {
           items={queue.items}
           sessionsWithItems={sessionsWithItems}
           onClose={() => setShowCommandPalette(false)}
-          onNavigateToItem={() => {}}
+          onNavigateToItem={handleNavigateToItem}
           onStatusChange={handleStatusChange}
           onAddItem={() => setShowAddForm(true)}
           onOpenSettings={() => setSettingsOpen(true)}
