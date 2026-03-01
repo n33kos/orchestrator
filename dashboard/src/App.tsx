@@ -31,6 +31,7 @@ import { useSessions } from './hooks/useSessions.ts'
 import { useDocumentTitle } from './hooks/useDocumentTitle.ts'
 import { useFaviconBadge } from './hooks/useFaviconBadge.ts'
 import { usePersistedState } from './hooks/usePersistedState.ts'
+import { useDebounce } from './hooks/useDebounce.ts'
 import { useActivitySparkline } from './hooks/useActivitySparkline.ts'
 import type { WorkItemStatus, MessageEntry } from './types.ts'
 
@@ -53,6 +54,7 @@ export function App() {
   const [activeTab, setActiveTab] = usePersistedState('activeTab', 'projects')
   const [showAddForm, setShowAddForm] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const debouncedSearch = useDebounce(searchQuery, 200)
   const [showCompleted, setShowCompleted] = useState(false)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [showSessions, setShowSessions] = useState(false)
@@ -102,8 +104,8 @@ export function App() {
       }
     }
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.toLowerCase()
       pool = pool.filter(item =>
         item.title.toLowerCase().includes(q) ||
         item.description.toLowerCase().includes(q) ||
@@ -113,7 +115,7 @@ export function App() {
     }
 
     return pool
-  }, [activeTab, queue.projects, queue.quickFixes, queue.items, searchQuery, showCompleted, statusFilter])
+  }, [activeTab, queue.projects, queue.quickFixes, queue.items, debouncedSearch, showCompleted, statusFilter])
 
   useKeyboard({
     onNewItem: useCallback(() => setShowAddForm(true), []),
@@ -447,7 +449,7 @@ export function App() {
           />
         ) : (
           <>
-            <SearchBar ref={searchRef} value={searchQuery} onChange={setSearchQuery} resultCount={searchQuery.trim() ? filteredItems.length : undefined} />
+            <SearchBar ref={searchRef} value={searchQuery} onChange={setSearchQuery} resultCount={debouncedSearch.trim() ? filteredItems.length : undefined} />
             <StatsBar
               totalItems={queue.items.length}
               activeCount={queue.activeItems.length}
