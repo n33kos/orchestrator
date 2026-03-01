@@ -107,6 +107,39 @@ with open('$QUEUE_FILE', 'w') as f:
 "
 echo "  Status: completed"
 
+# Step 5: Auto-train profile from the session transcript
+echo ""
+echo "Step 5: Training profile from session..."
+TRAINING_MODE="$(grep 'training_mode:' "$CONFIG" | sed 's/.*: *//')"
+if [[ "$TRAINING_MODE" == "true" && -n "$SESSION_ID" ]]; then
+    # Find the most recent JSONL transcript matching this session's cwd
+    TRANSCRIPT="$(python3 -c "
+import os, sys
+from pathlib import Path
+projects_dir = Path.home() / '.claude' / 'projects'
+best = None
+best_mtime = 0
+for d in projects_dir.iterdir():
+    if not d.is_dir():
+        continue
+    for f in d.iterdir():
+        if f.suffix == '.jsonl' and f.stat().st_size > 10000:
+            mt = f.stat().st_mtime
+            if mt > best_mtime:
+                best_mtime = mt
+                best = str(f)
+if best:
+    print(best)
+" 2>/dev/null)" || true
+    if [[ -n "$TRANSCRIPT" ]]; then
+        python3 "$SCRIPT_DIR/train-profile.py" "$TRANSCRIPT" --last-n 50 2>&1 | sed 's/^/  /' || echo "  Training skipped (error)"
+    else
+        echo "  No session transcript found"
+    fi
+else
+    echo "  Training disabled or no session to train from"
+fi
+
 echo ""
 echo "Teardown complete!"
 echo "  Session killed, worktree removed, queue updated."
