@@ -1,20 +1,63 @@
 import styles from './WorkStreamList.module.scss'
+import { WorkStreamCard } from '../WorkStreamCard/WorkStreamCard.tsx'
+import type { WorkItem } from '../../types.ts'
 
-export function WorkStreamList() {
+interface WorkStreamListProps {
+  items: WorkItem[]
+  loading: boolean
+}
+
+export function WorkStreamList({ items, loading }: WorkStreamListProps) {
+  if (loading) {
+    return (
+      <div className={styles.Root}>
+        <div className={styles.Empty}>
+          <p className={styles.EmptyText}>Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (items.length === 0) {
+    return (
+      <div className={styles.Root}>
+        <div className={styles.Empty}>
+          <div className={styles.EmptyIcon}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+              <rect x="9" y="3" width="6" height="4" rx="1" />
+            </svg>
+          </div>
+          <p className={styles.EmptyText}>No work streams</p>
+          <p className={styles.EmptySubtext}>
+            Add work items manually or configure sources to discover them automatically.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Group by status for display ordering: active first, then queued, paused, review, completed
+  const statusOrder: Record<string, number> = {
+    active: 0,
+    review: 1,
+    queued: 2,
+    planning: 3,
+    paused: 4,
+    completed: 5,
+  }
+
+  const sorted = [...items].sort((a, b) => {
+    const statusDiff = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99)
+    if (statusDiff !== 0) return statusDiff
+    return a.priority - b.priority
+  })
+
   return (
     <div className={styles.Root}>
-      <div className={styles.Empty}>
-        <div className={styles.EmptyIcon}>
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
-            <rect x="9" y="3" width="6" height="4" rx="1" />
-          </svg>
-        </div>
-        <p className={styles.EmptyText}>No work streams</p>
-        <p className={styles.EmptySubtext}>
-          Add work items manually or configure sources to discover them automatically.
-        </p>
-      </div>
+      {sorted.map(item => (
+        <WorkStreamCard key={item.id} item={item} />
+      ))}
     </div>
   )
 }

@@ -41,4 +41,8 @@
   &[data-status="queued"] {
     background: var(--color-warning);
   }
+
+  &[data-status="paused"] {
+    background: var(--color-error);
+  }
 }
