@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import classnames from 'classnames'
 import styles from './CompactList.module.scss'
 import { StatusBadge } from '../StatusBadge/StatusBadge.tsx'
@@ -7,6 +7,11 @@ import { timeAgo } from '../../utils/time.ts'
 import { useDragReorder } from '../../hooks/useDragReorder.ts'
 import { useTimeRefresh } from '../../hooks/useTimeRefresh.ts'
 import type { WorkItem, WorkItemStatus } from '../../types.ts'
+
+type SortCol = 'priority' | 'title' | 'status' | 'branch' | 'time'
+type SortDir = 'asc' | 'desc'
+
+const STATUS_ORDER: Record<string, number> = { active: 0, review: 1, planning: 2, queued: 3, paused: 4, completed: 5 }
 
 interface CompactListProps {
   items: WorkItem[]
@@ -66,7 +71,41 @@ function InlineEditTitle({ value, onSave, onCancel }: { value: string; onSave: (
 export function CompactList({ items, selectable, selectedIds, onSelect, onStatusChange, onActivateStream, activatingIds, onNavigate, onReorder, onEdit }: CompactListProps) {
   const { dragId, overId, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(onReorder ?? (() => {}))
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [sortCol, setSortCol] = useState<SortCol | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
   useTimeRefresh(60_000) // force re-render every minute to keep relative times fresh
+
+  function handleHeaderClick(col: SortCol) {
+    if (sortCol === col) {
+      if (sortDir === 'asc') setSortDir('desc')
+      else { setSortCol(null); setSortDir('asc') } // third click clears sort
+    } else {
+      setSortCol(col)
+      setSortDir('asc')
+    }
+  }
+
+  const sortedItems = useMemo(() => {
+    if (!sortCol) return items
+    const sorted = [...items]
+    sorted.sort((a, b) => {
+      let cmp = 0
+      switch (sortCol) {
+        case 'priority': cmp = a.priority - b.priority; break
+        case 'title': cmp = a.title.localeCompare(b.title); break
+        case 'status': cmp = (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99); break
+        case 'branch': cmp = (a.branch || '').localeCompare(b.branch || ''); break
+        case 'time': cmp = new Date(a.activated_at || a.created_at).getTime() - new Date(b.activated_at || b.created_at).getTime(); break
+      }
+      return sortDir === 'desc' ? -cmp : cmp
+    })
+    return sorted
+  }, [items, sortCol, sortDir])
+
+  function sortIndicator(col: SortCol) {
+    if (sortCol !== col) return null
+    return <span className={styles.SortArrow}>{sortDir === 'asc' ? '\u2191' : '\u2193'}</span>
+  }
 
   if (items.length === 0) {
     return (
@@ -80,14 +119,14 @@ export function CompactList({ items, selectable, selectedIds, onSelect, onStatus
     <div className={styles.Root}>
       <div className={styles.HeaderRow}>
         {selectable && <span className={styles.ColCheck} />}
-        <span className={classnames(styles.ColHeader, styles.ColPriority)}>#</span>
-        <span className={classnames(styles.ColHeader, styles.ColTitle)}>Title</span>
-        <span className={classnames(styles.ColHeader, styles.ColStatus)}>Status</span>
-        <span className={classnames(styles.ColHeader, styles.ColBranch)}>Branch</span>
-        <span className={classnames(styles.ColHeader, styles.ColTime)}>Updated</span>
+        <span className={classnames(styles.ColHeader, styles.ColPriority, sortCol === 'priority' && styles.ColHeaderActive)} onClick={() => handleHeaderClick('priority')}># {sortIndicator('priority')}</span>
+        <span className={classnames(styles.ColHeader, styles.ColTitle, sortCol === 'title' && styles.ColHeaderActive)} onClick={() => handleHeaderClick('title')}>Title {sortIndicator('title')}</span>
+        <span className={classnames(styles.ColHeader, styles.ColStatus, sortCol === 'status' && styles.ColHeaderActive)} onClick={() => handleHeaderClick('status')}>Status {sortIndicator('status')}</span>
+        <span className={classnames(styles.ColHeader, styles.ColBranch, sortCol === 'branch' && styles.ColHeaderActive)} onClick={() => handleHeaderClick('branch')}>Branch {sortIndicator('branch')}</span>
+        <span className={classnames(styles.ColHeader, styles.ColTime, sortCol === 'time' && styles.ColHeaderActive)} onClick={() => handleHeaderClick('time')}>Updated {sortIndicator('time')}</span>
         <span className={classnames(styles.ColHeader, styles.ColAction)} />
       </div>
-      {items.map(item => {
+      {sortedItems.map(item => {
         const action = getQuickAction(item.status)
         const unresolvedBlockers = item.blockers.filter(b => !b.resolved)
         return (

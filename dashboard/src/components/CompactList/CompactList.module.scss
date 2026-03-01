@@ -32,6 +32,25 @@
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.1s ease;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+
+  &:hover {
+    color: var(--color-text);
+  }
+
+  &.ColHeaderActive {
+    color: var(--color-primary);
+  }
+}
+
+.SortArrow {
+  font-size: 10px;
+  line-height: 1;
 }
 
 .Row {

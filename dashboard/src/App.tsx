@@ -222,6 +222,25 @@ export function App() {
     onToggleViewMode: useCallback(() => {
       setViewMode(prev => prev === 'cards' ? 'compact' : prev === 'compact' ? 'grouped' : 'cards')
     }, [setViewMode]),
+    onNavigateDown: useCallback(() => {
+      if (filteredItems.length === 0) return
+      setFocusedItemId(prev => {
+        if (!prev) return filteredItems[0].id
+        const idx = filteredItems.findIndex(i => i.id === prev)
+        return filteredItems[Math.min(idx + 1, filteredItems.length - 1)].id
+      })
+    }, [filteredItems]),
+    onNavigateUp: useCallback(() => {
+      if (filteredItems.length === 0) return
+      setFocusedItemId(prev => {
+        if (!prev) return filteredItems[filteredItems.length - 1].id
+        const idx = filteredItems.findIndex(i => i.id === prev)
+        return filteredItems[Math.max(idx - 1, 0)].id
+      })
+    }, [filteredItems]),
+    onOpenFocused: useCallback(() => {
+      if (focusedItemId) setDetailItemId(focusedItemId)
+    }, [focusedItemId]),
   })
 
   async function handleDuplicate(id: string) {
@@ -923,6 +942,18 @@ export function App() {
           onClose={() => setShowHealthPanel(false)}
           onAutoRecover={handleAutoRecover}
         />
+      )}
+      {isDraggingOver && (
+        <div className={styles.DropOverlay}>
+          <div className={styles.DropZone}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            <span className={styles.DropLabel}>Drop .json file to import work items</span>
+          </div>
+        </div>
       )}
     </div>
   )

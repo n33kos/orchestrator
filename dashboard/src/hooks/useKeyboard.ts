@@ -9,9 +9,12 @@ interface KeyboardActions {
   onTabSwitch?: (index: number) => void
   onSelectAll?: () => void
   onToggleViewMode?: () => void
+  onNavigateDown?: () => void
+  onNavigateUp?: () => void
+  onOpenFocused?: () => void
 }
 
-export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode }: KeyboardActions) {
+export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode, onNavigateDown, onNavigateUp, onOpenFocused }: KeyboardActions) {
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement
@@ -64,9 +67,26 @@ export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onC
         e.preventDefault()
         onToggleViewMode?.()
       }
+
+      // J/K for vim-style navigation
+      if (e.key === 'j' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        onNavigateDown?.()
+      }
+
+      if (e.key === 'k' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        onNavigateUp?.()
+      }
+
+      // Enter to open focused item
+      if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        onOpenFocused?.()
+      }
     }
 
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode])
+  }, [onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode, onNavigateDown, onNavigateUp, onOpenFocused])
 }
