@@ -41,6 +41,26 @@ When activating a work item or when the user asks to spin up a new environment:
 
 4. **Confirm to the user** with the session ID, branch name, and delegator status
 
+## Suspending a Stream for Review
+
+When a work item moves to `review`, the worker session and delegator are killed to stop burning tokens. The worktree is preserved so it can be resumed later.
+
+```bash
+./scripts/suspend-stream.sh <item-id>
+```
+
+This is called automatically by the dashboard when moving active -> review.
+
+## Resuming a Suspended Stream
+
+When a work item moves from `review` or `paused` back to `active`, the session and delegator are respawned in the existing worktree.
+
+```bash
+./scripts/resume-stream.sh <item-id> [--no-delegator]
+```
+
+This is called automatically by the dashboard when moving review -> active.
+
 ## Tearing Down a Worktree + Session
 
 When a work item completes or when the user asks to tear down an environment:

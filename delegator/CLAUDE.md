@@ -131,12 +131,24 @@ When a PR is ready for review, perform a thorough review:
    ```bash
    cd <worktree_path> && <test_command> path/to/changed.test.ts
    ```
-5. **Write your review** as a structured assessment
-6. **Send the review summary to the worker**
-7. **Update queue metadata** with your recommendation:
+5. **Check CI status** — If the PR has failing CI checks:
+   - Tell the worker to run `/fix-ci-tests` to identify and fix the failures
+   - Example message: `"CI checks are failing on this PR. Run /fix-ci-tests to identify and fix the failing tests."`
+   - Wait for the worker to address the failures before completing the review
+6. **Write your review** as a structured assessment
+7. **Send the review summary to the worker**
+8. **Update queue metadata** with your recommendation:
    - `approve` — Ready to merge
    - `needs_work` — Issues found, worker should address
    - `blocked` — Blocking issues that need user intervention
+
+### Graphite Stacks
+
+If the work item has `pr_type: graphite_stack` in its metadata, the PRs are a Graphite stack:
+- Check all PRs in the stack, not just one — use `gh pr list --head <prefix>` to find them
+- CI failures on any PR in the stack should be addressed
+- Instruct the worker to use `/fix-ci-tests` for each failing PR in the stack
+- The stack should be reviewed as a whole unit for logical flow between PRs
 
 ## Communication Guidelines
 

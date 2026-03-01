@@ -112,6 +112,13 @@ curl -s -X PATCH http://localhost:${DASHBOARD_PORT}/api/queue/update \\
 - **User behavioral profile**: $PROFILE_FILE
 - **Status file** (read/write): $DELEGATOR_DIR/status.json
 
+## CI Test Failures
+
+When a PR has failing CI checks, instruct the worker to use the \`/fix-ci-tests\` skill:
+\`\`\`
+vmux send $WORKER_SESSION_ID "CI checks are failing on this PR. Run /fix-ci-tests to identify and fix the failing tests."
+\`\`\`
+
 ## Startup Sequence
 1. Read the delegator instructions at $PROJECT_ROOT/delegator/CLAUDE.md
 2. Read the user profile at $PROFILE_FILE (if it exists)

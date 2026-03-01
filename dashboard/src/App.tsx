@@ -370,13 +370,60 @@ export function App() {
   function handleStatusChange(id: string, status: WorkItemStatus) {
     const item = queue.items.find(i => i.id === id)
     const previousStatus = item?.status
+    const hasSession = !!item?.session_id
     const labels: Record<string, string> = {
       active: 'activated',
       paused: 'paused',
       completed: 'completed',
       queued: 'queued',
       review: 'moved to review',
+      planning: 'moved to planning',
     }
+
+    // Suspend session when moving active -> review (stop burning tokens)
+    if (status === 'review' && previousStatus === 'active' && hasSession) {
+      addToast('Suspending session for review...', 'info')
+      fetch('/api/stream/suspend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId: id }),
+      }).then(res => {
+        if (res.ok) {
+          queue.refresh()
+          addToast('Moved to review — session suspended', 'success')
+        } else {
+          // Fallback: just update status without killing session
+          queue.updateItem(id, { status })
+          addToast('Moved to review (session suspend failed)', 'warning')
+        }
+      }).catch(() => {
+        queue.updateItem(id, { status })
+      })
+      return
+    }
+
+    // Resume session when moving review -> active (respawn session + delegator)
+    if (status === 'active' && (previousStatus === 'review' || previousStatus === 'paused') && item?.worktree_path && !hasSession) {
+      addToast('Resuming session...', 'info')
+      fetch('/api/stream/resume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId: id }),
+      }).then(res => {
+        if (res.ok) {
+          queue.refresh()
+          addToast('Resumed — session respawned', 'success')
+        } else {
+          queue.updateItem(id, { status })
+          addToast('Resumed (session respawn failed)', 'warning')
+        }
+      }).catch(() => {
+        queue.updateItem(id, { status })
+      })
+      return
+    }
+
+    // Default: just update the status
     queue.updateItem(id, { status })
     addToast(
       `Work item ${labels[status] || status}`,

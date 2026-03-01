@@ -55,3 +55,58 @@ export function usePrStatus(prUrl: string | null) {
 
   return { status, loading, refresh: fetchStatus }
 }
+
+export interface StackPr {
+  number: number
+  title: string
+  state: 'OPEN' | 'CLOSED' | 'MERGED'
+  reviewDecision: string | null
+  additions: number
+  deletions: number
+  changedFiles: number
+  branch: string
+  checksPass: boolean
+  checksFail: boolean
+  url: string
+}
+
+export interface PrStackStatus {
+  prs: StackPr[]
+  graphiteStackUrl: string | null
+  prefix: string
+}
+
+const stackCache = new Map<string, { data: PrStackStatus; fetchedAt: number }>()
+
+export function usePrStack(prUrl: string | null, isStack: boolean) {
+  const [stack, setStack] = useState<PrStackStatus | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  const fetchStack = useCallback(async () => {
+    if (!prUrl || !isStack) { setStack(null); return }
+
+    const cached = stackCache.get(prUrl)
+    if (cached && Date.now() - cached.fetchedAt < CACHE_TTL) {
+      setStack(cached.data)
+      return
+    }
+
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/pr-stack?url=${encodeURIComponent(prUrl)}`)
+      if (res.ok) {
+        const data: PrStackStatus = await res.json()
+        stackCache.set(prUrl, { data, fetchedAt: Date.now() })
+        setStack(data)
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false)
+    }
+  }, [prUrl, isStack])
+
+  useEffect(() => { fetchStack() }, [fetchStack])
+
+  return { stack, loading, refresh: fetchStack }
+}

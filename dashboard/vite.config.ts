@@ -276,6 +276,50 @@ function queueApiPlugin(): Plugin {
         }
       })
 
+      // POST /api/stream/suspend — suspend a stream for review (kill session + delegator, keep worktree)
+      server.middlewares.use('/api/stream/suspend', async (req, res) => {
+        if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
+        try {
+          const body = JSON.parse(await readBody(req))
+          const scriptPath = join(__dirname, '..', 'scripts', 'suspend-stream.sh')
+          execFile('bash', [scriptPath, body.itemId], { timeout: 30000, env: { ...process.env, HOME: homedir() } }, (err, stdout, stderr) => {
+            res.setHeader('Content-Type', 'application/json')
+            if (err) {
+              res.statusCode = 500
+              res.end(JSON.stringify({ error: stderr || String(err), output: stdout }))
+              return
+            }
+            res.end(JSON.stringify({ ok: true, output: stdout }))
+          })
+        } catch (err) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: String(err) }))
+        }
+      })
+
+      // POST /api/stream/resume — resume a suspended stream (respawn session + delegator)
+      server.middlewares.use('/api/stream/resume', async (req, res) => {
+        if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
+        try {
+          const body = JSON.parse(await readBody(req))
+          const scriptPath = join(__dirname, '..', 'scripts', 'resume-stream.sh')
+          const args = [body.itemId]
+          if (body.noDelegator) args.push('--no-delegator')
+          execFile('bash', [scriptPath, ...args], { timeout: 120000, env: { ...process.env, HOME: homedir() } }, (err, stdout, stderr) => {
+            res.setHeader('Content-Type', 'application/json')
+            if (err) {
+              res.statusCode = 500
+              res.end(JSON.stringify({ error: stderr || String(err), output: stdout }))
+              return
+            }
+            res.end(JSON.stringify({ ok: true, output: stdout }))
+          })
+        } catch (err) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: String(err) }))
+        }
+      })
+
       // POST /api/stream/teardown — tear down an active work stream
       server.middlewares.use('/api/stream/teardown', async (req, res) => {
         if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
@@ -556,6 +600,71 @@ function queueApiPlugin(): Plugin {
           } catch {
             res.end(JSON.stringify({ state: 'unknown', url: prUrl }))
           }
+        })
+      })
+
+      // GET /api/pr-stack — fetch status for all PRs in a Graphite stack
+      server.middlewares.use('/api/pr-stack', (req, res) => {
+        const url = new URL(req.url || '', 'http://localhost')
+        const prUrl = url.searchParams.get('url')
+        const basePr = url.searchParams.get('base')
+        if (!prUrl && !basePr) { res.statusCode = 400; res.end(JSON.stringify({ error: 'Missing url or base param' })); return }
+
+        // Extract owner/repo from URL, or use base PR number
+        let owner = 'myproject', repo = 'web', baseNumber = basePr || ''
+        if (prUrl) {
+          const match = prUrl.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/)
+          if (match) {
+            owner = match[1]; repo = match[2]; baseNumber = match[3]
+          }
+        }
+
+        // Use gh to find PRs from the same author whose branch starts with the same prefix
+        execFile('gh', ['pr', 'view', baseNumber, '--repo', `${owner}/${repo}`, '--json', 'headRefName,author'], { timeout: 10000 }, (err, stdout) => {
+          res.setHeader('Content-Type', 'application/json')
+          if (err) { res.end(JSON.stringify({ prs: [], error: 'Failed to fetch base PR' })); return }
+
+          try {
+            const basePrData = JSON.parse(stdout)
+            const branch = basePrData.headRefName || ''
+            const author = basePrData.author?.login || ''
+            // Extract the branch prefix (e.g., "me/react-18/bootstrap-elimination" from "me/react-18/bootstrap-elimination/1/modal-replacement")
+            const parts = branch.split('/')
+            const prefix = parts.length > 3 ? parts.slice(0, 3).join('/') : branch
+
+            execFile('gh', ['pr', 'list', '--repo', `${owner}/${repo}`, '--author', author, '--search', `is:pr head:${prefix}`, '--json', 'number,title,state,reviewDecision,statusCheckRollup,additions,deletions,changedFiles,headRefName', '--limit', '20'], { timeout: 15000 }, (err2, stdout2) => {
+              if (err2) { res.end(JSON.stringify({ prs: [], error: 'Failed to list stack PRs' })); return }
+
+              try {
+                const prs = JSON.parse(stdout2)
+                  .sort((a: { number: number }, b: { number: number }) => a.number - b.number)
+                  .map((pr: Record<string, unknown>) => {
+                    const checks = ((pr.statusCheckRollup || []) as { conclusion: string; status: string }[])
+                    const checksPass = checks.length > 0 && checks.every(c => c.conclusion === 'SUCCESS' || c.conclusion === 'NEUTRAL' || c.conclusion === 'SKIPPED')
+                    const checksFail = checks.some(c => c.conclusion === 'FAILURE')
+                    return {
+                      number: pr.number,
+                      title: pr.title,
+                      state: pr.state,
+                      reviewDecision: pr.reviewDecision || null,
+                      additions: pr.additions,
+                      deletions: pr.deletions,
+                      changedFiles: pr.changedFiles,
+                      branch: pr.headRefName,
+                      checksPass,
+                      checksFail,
+                      url: `https://github.com/${owner}/${repo}/pull/${pr.number}`,
+                    }
+                  })
+
+                const graphiteStackUrl = prs.length > 0
+                  ? `https://app.graphite.dev/github/pr/${owner}/${repo}/${prs[0].number}`
+                  : null
+
+                res.end(JSON.stringify({ prs, graphiteStackUrl, prefix }))
+              } catch { res.end(JSON.stringify({ prs: [] })) }
+            })
+          } catch { res.end(JSON.stringify({ prs: [] })) }
         })
       })
 

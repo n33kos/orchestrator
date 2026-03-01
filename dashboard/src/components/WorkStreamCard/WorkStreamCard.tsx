@@ -13,7 +13,8 @@ import { useTimeRefresh } from '../../hooks/useTimeRefresh.ts'
 import { ProgressBar } from '../ProgressBar/ProgressBar.tsx'
 import { PlanEditor } from '../PlanEditor/PlanEditor.tsx'
 import type { Plan } from '../PlanEditor/PlanEditor.tsx'
-import { usePrStatus } from '../../hooks/usePrStatus.ts'
+import { usePrStatus, usePrStack } from '../../hooks/usePrStatus.ts'
+import type { StackPr } from '../../hooks/usePrStatus.ts'
 import type { WorkItem, WorkItemStatus, SessionInfo, MessageEntry } from '../../types.ts'
 
 interface WorkStreamCardProps {
@@ -78,6 +79,8 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
   const implementationNotes = item.metadata.implementation_notes as string[] | undefined
   const notes = item.metadata.notes as string | undefined
   const { status: prStatus, loading: prLoading } = usePrStatus(expanded ? item.pr_url : null)
+  const isStack = item.metadata?.pr_type === 'graphite_stack'
+  const { stack: prStack, loading: stackLoading } = usePrStack(expanded ? item.pr_url : null, isStack)
   const delegatorAssessment = item.metadata.delegator_assessment as string | undefined
   const itemPlan = item.metadata.plan as Plan | undefined
 
@@ -329,18 +332,18 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
             {item.pr_url && (
               <a
                 className={styles.PrLink}
-                href={item.pr_url}
+                href={isStack && prStack?.graphiteStackUrl ? prStack.graphiteStackUrl : item.pr_url}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={e => e.stopPropagation()}
-                title="Open PR"
+                title={isStack ? 'Open Graphite stack' : 'Open PR'}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="18" cy="18" r="3" />
                   <circle cx="6" cy="6" r="3" />
                   <path d="M6 21V9a9 9 0 009 9" />
                 </svg>
-                PR
+                {isStack ? `Stack (${prStack?.prs.length ?? '...'})` : 'PR'}
               </a>
             )}
             <span
@@ -472,60 +475,122 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
                 <circle cx="6" cy="6" r="3" />
                 <path d="M6 21V9a9 9 0 009 9" />
               </svg>
-              Pull Request
+              {isStack ? 'PR Stack (Graphite)' : 'Pull Request'}
             </h4>
             {item.pr_url ? (
               <div className={styles.PrSection} onClick={e => e.stopPropagation()}>
-                <div className={styles.PrHeader}>
-                  <a
-                    className={styles.PrLink}
-                    href={item.pr_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {item.pr_url.replace(/^https?:\/\/github\.com\//, '')}
-                  </a>
-                  {prLoading && <span className={styles.PrLoading}>Loading...</span>}
-                </div>
-                {prStatus && prStatus.state !== 'unknown' && (
-                  <div className={styles.PrStatusGrid}>
-                    <span className={classnames(styles.PrBadge, styles[`pr_${prStatus.state.toLowerCase()}`])}>
-                      {prStatus.state}
-                    </span>
-                    {prStatus.reviewDecision && (
-                      <span className={classnames(styles.PrBadge, styles[`pr_review_${prStatus.reviewDecision.toLowerCase()}`])}>
-                        {prStatus.reviewDecision === 'APPROVED' ? 'Approved' :
-                         prStatus.reviewDecision === 'CHANGES_REQUESTED' ? 'Changes Requested' :
-                         'Review Required'}
-                      </span>
+                {/* Graphite stack view */}
+                {isStack && prStack ? (
+                  <>
+                    {prStack.graphiteStackUrl && (
+                      <a
+                        className={styles.PrLink}
+                        href={prStack.graphiteStackUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        View full stack on Graphite
+                      </a>
                     )}
-                    {prStatus.checksTotal > 0 && (
-                      <span className={classnames(
-                        styles.PrBadge,
-                        prStatus.checksPass && styles.pr_checks_pass,
-                        prStatus.checksFail && styles.pr_checks_fail,
-                        prStatus.checksPending && styles.pr_checks_pending,
-                      )}>
-                        Checks: {prStatus.checksPass ? 'Pass' : prStatus.checksFail ? 'Fail' : 'Pending'}
-                      </span>
+                    <div className={styles.StackList}>
+                      {prStack.prs.map((pr: StackPr) => (
+                        <div key={pr.number} className={styles.StackItem}>
+                          <div className={styles.StackItemHeader}>
+                            <a
+                              className={styles.StackPrLink}
+                              href={pr.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              #{pr.number}
+                            </a>
+                            <span className={styles.StackPrTitle}>{pr.title}</span>
+                            <span className={classnames(styles.PrBadge, styles[`pr_${pr.state.toLowerCase()}`])}>
+                              {pr.state}
+                            </span>
+                          </div>
+                          <div className={styles.StackItemMeta}>
+                            {pr.reviewDecision && (
+                              <span className={classnames(styles.PrBadge, styles[`pr_review_${pr.reviewDecision.toLowerCase()}`])}>
+                                {pr.reviewDecision === 'APPROVED' ? 'Approved' :
+                                 pr.reviewDecision === 'CHANGES_REQUESTED' ? 'Changes Req.' :
+                                 'Review Req.'}
+                              </span>
+                            )}
+                            <span className={classnames(
+                              styles.PrBadge,
+                              pr.checksPass && styles.pr_checks_pass,
+                              pr.checksFail && styles.pr_checks_fail,
+                              !pr.checksPass && !pr.checksFail && styles.pr_checks_pending,
+                            )}>
+                              {pr.checksPass ? 'Checks Pass' : pr.checksFail ? 'Checks Fail' : 'Pending'}
+                            </span>
+                            <span className={styles.PrStats}>
+                              <span className={styles.PrAdditions}>+{pr.additions}</span>
+                              <span className={styles.PrDeletions}>-{pr.deletions}</span>
+                              <span className={styles.PrFiles}>{pr.changedFiles}f</span>
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {stackLoading && <span className={styles.PrLoading}>Loading stack...</span>}
+                  </>
+                ) : (
+                  /* Single PR view */
+                  <>
+                    <div className={styles.PrHeader}>
+                      <a
+                        className={styles.PrLink}
+                        href={item.pr_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {item.pr_url.replace(/^https?:\/\/github\.com\//, '')}
+                      </a>
+                      {prLoading && <span className={styles.PrLoading}>Loading...</span>}
+                    </div>
+                    {prStatus && prStatus.state !== 'unknown' && (
+                      <div className={styles.PrStatusGrid}>
+                        <span className={classnames(styles.PrBadge, styles[`pr_${prStatus.state.toLowerCase()}`])}>
+                          {prStatus.state}
+                        </span>
+                        {prStatus.reviewDecision && (
+                          <span className={classnames(styles.PrBadge, styles[`pr_review_${prStatus.reviewDecision.toLowerCase()}`])}>
+                            {prStatus.reviewDecision === 'APPROVED' ? 'Approved' :
+                             prStatus.reviewDecision === 'CHANGES_REQUESTED' ? 'Changes Requested' :
+                             'Review Required'}
+                          </span>
+                        )}
+                        {prStatus.checksTotal > 0 && (
+                          <span className={classnames(
+                            styles.PrBadge,
+                            prStatus.checksPass && styles.pr_checks_pass,
+                            prStatus.checksFail && styles.pr_checks_fail,
+                            prStatus.checksPending && styles.pr_checks_pending,
+                          )}>
+                            Checks: {prStatus.checksPass ? 'Pass' : prStatus.checksFail ? 'Fail' : 'Pending'}
+                          </span>
+                        )}
+                        <span className={styles.PrStats}>
+                          <span className={styles.PrAdditions}>+{prStatus.additions}</span>
+                          <span className={styles.PrDeletions}>-{prStatus.deletions}</span>
+                          <span className={styles.PrFiles}>{prStatus.changedFiles} file{prStatus.changedFiles !== 1 ? 's' : ''}</span>
+                        </span>
+                      </div>
                     )}
-                    <span className={styles.PrStats}>
-                      <span className={styles.PrAdditions}>+{prStatus.additions}</span>
-                      <span className={styles.PrDeletions}>-{prStatus.deletions}</span>
-                      <span className={styles.PrFiles}>{prStatus.changedFiles} file{prStatus.changedFiles !== 1 ? 's' : ''}</span>
-                    </span>
-                  </div>
-                )}
-                {prStatus?.reviews && prStatus.reviews.length > 0 && (
-                  <div className={styles.PrReviewers}>
-                    {prStatus.reviews.map((r, i) => (
-                      <span key={i} className={classnames(styles.PrReviewer, styles[`pr_reviewer_${r.state.toLowerCase()}`])}>
-                        {r.author}
-                        {r.state === 'APPROVED' && ' ✓'}
-                        {r.state === 'CHANGES_REQUESTED' && ' ✗'}
-                      </span>
-                    ))}
-                  </div>
+                    {prStatus?.reviews && prStatus.reviews.length > 0 && (
+                      <div className={styles.PrReviewers}>
+                        {prStatus.reviews.map((r, i) => (
+                          <span key={i} className={classnames(styles.PrReviewer, styles[`pr_reviewer_${r.state.toLowerCase()}`])}>
+                            {r.author}
+                            {r.state === 'APPROVED' && ' ✓'}
+                            {r.state === 'CHANGES_REQUESTED' && ' ✗'}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             ) : onPrUrlChange ? (
