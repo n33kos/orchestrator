@@ -32,6 +32,7 @@ import { WelcomeGuide } from './components/WelcomeGuide/WelcomeGuide.tsx'
 import { KanbanBoard } from './components/KanbanBoard/KanbanBoard.tsx'
 import { OfflineIndicator } from './components/OfflineIndicator/OfflineIndicator.tsx'
 import { FloatingActionButton } from './components/FloatingActionButton/FloatingActionButton.tsx'
+import { GlobalSearch } from './components/GlobalSearch/GlobalSearch.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import { useQueue } from './hooks/useQueue.ts'
 import { useTheme } from './hooks/useTheme.ts'
@@ -53,6 +54,7 @@ import { useSearchHistory } from './hooks/useSearchHistory.ts'
 import { useZoom } from './hooks/useZoom.ts'
 import { useScrollRestore } from './hooks/useScrollRestore.ts'
 import { usePageVisibility } from './hooks/usePageVisibility.ts'
+import { useBeforeUnload } from './hooks/useBeforeUnload.ts'
 import { playNotificationSound } from './utils/sound.ts'
 import { exportWorkItemsCsv, downloadCsv } from './utils/csv.ts'
 import type { Plan } from './components/PlanEditor/PlanEditor.tsx'
@@ -100,6 +102,7 @@ export function App() {
     zombieCount,
   })
   useFaviconBadge(queue.blockedItems.length > 0 || zombieCount > 0)
+  useBeforeUnload(queue.activeItems.length > 0 || sessions.filter(s => s.state === 'thinking' || s.state === 'responding').length > 0)
   const [messagesBySession, setMessagesBySession] = useState<Record<string, MessageEntry[]>>({})
   const [activeTab, setActiveTab] = useHashParam('tab', 'projects')
   const [showAddForm, setShowAddForm] = useState(false)
@@ -140,6 +143,7 @@ export function App() {
   const [healthIssues, setHealthIssues] = useState(0)
   const [showHealthPanel, setShowHealthPanel] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false)
   const [welcomeDismissed, setWelcomeDismissed] = usePersistedState('welcomeDismissed', false)
 
   // Periodic health check for issue count
