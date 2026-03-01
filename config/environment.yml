@@ -37,7 +37,7 @@ autonomy:
 
 # Plans
 plans:
-  directory: ~/Desktop/plans
+  plans_directory: ~/Desktop/plans
 
 # Delegator
 delegator:

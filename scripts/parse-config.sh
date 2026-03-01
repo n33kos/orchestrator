@@ -101,7 +101,7 @@ emit('CONFIG_REQUIRE_APPROVED_PLAN', values.get('autonomy.require_approved_plan'
 emit('CONFIG_ASK_BEFORE_TEARDOWN', values.get('autonomy.ask_before_teardown', 'true'))
 
 # Plans
-emit('CONFIG_PLANS_DIR', expand(values.get('plans.directory', '~/Desktop/plans')))
+emit('CONFIG_PLANS_DIR', expand(values.get('plans.plans_directory', '~/Desktop/plans')))
 
 # Delegator
 emit('CONFIG_DELEGATOR_ENABLED', values.get('delegator.enabled_by_default', 'true'))

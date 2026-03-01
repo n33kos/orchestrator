@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync, unlinkSync } from 'fs'
+import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync, unlinkSync, readdirSync } from 'fs'
 import { execFile } from 'child_process'
 import { join } from 'path'
 import { homedir } from 'os'
@@ -1050,7 +1050,6 @@ function queueApiPlugin(): Plugin {
             const vmuxPath = join(homedir(), '.local/bin/vmux')
             const delegatorDir = join(homedir(), '.claude/orchestrator/delegators')
             if (existsSync(delegatorDir)) {
-              const { readdirSync } = require('fs')
               const delegatorDirs = readdirSync(delegatorDir)
               for (const dir of delegatorDirs) {
                 const pidFile = join(delegatorDir, dir, 'session_id')
@@ -1118,7 +1117,7 @@ function queueApiPlugin(): Plugin {
                 format: (v) => `$1${v}`,
               },
               plansDirectory: {
-                pattern: /^(\s*directory:\s*).+$/m,
+                pattern: /^(\s*plans_directory:\s*).+$/m,
                 format: (v) => `$1${v}`,
               },
               delegatorCycleInterval: {
@@ -1170,7 +1169,7 @@ function queueApiPlugin(): Plugin {
             maxConcurrentQuickFixes: parseInt(getVal('quick_fix_limit') || '4', 10),
             autoActivate: getVal('auto_activate') === 'true',
             requireApprovedPlan: getVal('require_approved_plan') === 'true',
-            plansDirectory: getVal('directory') || '~/Desktop/plans',
+            plansDirectory: getVal('plans_directory') || '~/Desktop/plans',
             defaultDelegatorEnabled: getVal('enabled_by_default') === 'true',
             stallThresholdMinutes: parseInt(getVal('threshold_minutes') || '30', 10),
             archiveAfterDays: parseInt(getVal('archive_after_days') || '7', 10),
