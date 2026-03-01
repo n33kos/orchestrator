@@ -7,22 +7,23 @@ sources:
     path: ~/Desktop/Plans/react-18-upgrade-plan.md
     polling: manual
 
-  # Example Jira source (uncomment and configure):
+  github-issues:
+    type: github
+    repo: owner/repo
+    assignee: "@me"
+    labels: agent/claude-code
+    state: open
+    limit: 20
+
+  # Additional GitHub repos can be added:
+  # design-system-issues:
+  #   type: github
+  #   repo: owner/design-system
+  #   assignee: "@me"
+  #   state: open
+
+  # Jira source (requires jira CLI or API token):
   # team-board:
   #   type: jira
   #   board: CONSUMER
   #   filter: "assignee = currentUser() AND status != Done"
-  #   priority_mapping:
-  #     Highest: 1
-  #     High: 2
-  #     Medium: 3
-  #     Low: 4
-
-  # Example GitHub source (uncomment and configure):
-  # github-issues:
-  #   type: github
-  #   repo: owner/repo
-  #   labels: ["agent/claude-code"]
-  #   priority_mapping:
-  #     P0: 1
-  #     P1: 2

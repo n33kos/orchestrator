@@ -98,6 +98,25 @@ a {
   border-radius: 3px;
 }
 
+/* ── Skip to content ── */
+.skip-to-content {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--color-primary);
+  color: white;
+  padding: 8px 16px;
+  z-index: 10000;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 0 0 var(--radius-md) 0;
+  transition: top 0.15s ease;
+
+  &:focus {
+    top: 0;
+  }
+}
+
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -105,5 +124,48 @@ a {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* ── Print styles ── */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Hide interactive elements */
+  header, footer,
+  button, input, select,
+  [class*="Toast"],
+  [class*="CommandPalette"],
+  [class*="ScrollToTop"],
+  [class*="KeyboardHints"],
+  [class*="BatchActionBar"],
+  [class*="ConfirmDialog"],
+  [class*="Overlay"] {
+    display: none !important;
+  }
+
+  /* Reset surfaces for print */
+  [class*="Root"],
+  [class*="Main"],
+  [class*="Card"],
+  [class*="Surface"] {
+    background: white !important;
+    box-shadow: none !important;
+    border-color: #ccc !important;
+  }
+
+  /* Force text visibility */
+  * {
+    color: black !important;
+  }
+
+  /* Break cards across pages */
+  [class*="WorkStreamCard"] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 8px;
   }
 }

@@ -1,0 +1,30 @@
+.Root {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.Cat_fresh {
+  background: var(--color-success-muted);
+  color: var(--color-success);
+}
+
+.Cat_normal {
+  background: var(--color-primary-muted);
+  color: var(--color-primary);
+}
+
+.Cat_aging {
+  background: var(--color-warning-muted);
+  color: var(--color-warning);
+}
+
+.Cat_stale {
+  background: var(--color-error-muted);
+  color: var(--color-error);
+}

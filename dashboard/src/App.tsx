@@ -669,6 +669,7 @@ export function App() {
 
   return (
     <div className={styles.Root}>
+      <a className="skip-to-content" href="#main-content">Skip to content</a>
       <LoadingBar active={queue.loading} />
       <Header
         activeCount={queue.activeItems.length}
@@ -690,7 +691,7 @@ export function App() {
         onHealthClick={() => setShowHealthPanel(true)}
         onDiscoverClick={handleDiscoverWork}
       />
-      <main ref={mainRef} className={styles.Main}>
+      <main ref={mainRef} id="main-content" className={styles.Main}>
         <ErrorBoundary fallbackLabel="The main content area crashed. Try refreshing the page.">
         <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
         {activeTab === 'sessions' ? (

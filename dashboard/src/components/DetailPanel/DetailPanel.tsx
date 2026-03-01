@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import styles from './DetailPanel.module.scss'
 import { StatusBadge } from '../StatusBadge/StatusBadge.tsx'
 import { PriorityBadge } from '../PriorityBadge/PriorityBadge.tsx'
@@ -21,8 +21,26 @@ function getNextAction(status: WorkItemStatus): { label: string; nextStatus: Wor
   return null
 }
 
+function formatItemSummary(item: WorkItem): string {
+  const lines = [
+    `# ${item.title}`,
+    `ID: ${item.id}`,
+    `Status: ${item.status}`,
+    `Priority: ${item.priority}`,
+    `Type: ${item.type}`,
+    item.branch ? `Branch: ${item.branch}` : '',
+    item.pr_url ? `PR: ${item.pr_url}` : '',
+    item.description ? `\nDescription:\n${item.description}` : '',
+    item.blockers.length > 0
+      ? `\nBlockers:\n${item.blockers.map(b => `- [${b.resolved ? 'x' : ' '}] ${b.description}`).join('\n')}`
+      : '',
+  ]
+  return lines.filter(Boolean).join('\n')
+}
+
 export function DetailPanel({ item, onClose, onStatusChange, onDelete, onDuplicate }: DetailPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -158,6 +176,16 @@ export function DetailPanel({ item, onClose, onStatusChange, onDelete, onDuplica
               {nextAction.label}
             </button>
           )}
+          <button
+            className={styles.FooterButton}
+            onClick={() => {
+              navigator.clipboard.writeText(formatItemSummary(item))
+              setCopied(true)
+              setTimeout(() => setCopied(false), 2000)
+            }}
+          >
+            {copied ? 'Copied!' : 'Copy Summary'}
+          </button>
           {onDuplicate && (
             <button className={styles.FooterButton} onClick={() => onDuplicate(item.id)}>
               Duplicate

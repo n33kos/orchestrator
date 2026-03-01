@@ -185,6 +185,117 @@ def generate_id(existing_items: list[dict]) -> str:
     return f"ws-{str(max_id + 1).padStart(3, '0')}" if hasattr(str, 'padStart') else f"ws-{max_id + 1:03d}"
 
 
+def poll_github_issues(source_name: str, config: dict) -> list[dict]:
+    """Poll GitHub Issues using the gh CLI.
+
+    Config keys:
+        repo: owner/repo (required)
+        labels: comma-separated labels to filter by
+        assignee: filter by assignee (default: @me)
+        state: issue state (default: open)
+        limit: max issues to fetch (default: 20)
+    """
+    import subprocess
+
+    repo = config.get("repo", "")
+    if not repo:
+        print("  Error: github source missing 'repo'", file=sys.stderr)
+        return []
+
+    cmd = [
+        "gh", "issue", "list",
+        "--repo", repo,
+        "--state", config.get("state", "open"),
+        "--limit", config.get("limit", "20"),
+        "--json", "number,title,body,labels,assignees,createdAt,url",
+    ]
+
+    assignee = config.get("assignee", "@me")
+    if assignee:
+        cmd.extend(["--assignee", assignee])
+
+    labels = config.get("labels", "")
+    if labels:
+        # Handle both "label1,label2" and "['label1', 'label2']" formats
+        cleaned = labels.strip("[]\"' ")
+        for label in cleaned.split(","):
+            label = label.strip("\"' ")
+            if label:
+                cmd.extend(["--label", label])
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode != 0:
+            print(f"  gh CLI error: {result.stderr.strip()}", file=sys.stderr)
+            return []
+
+        issues = json.loads(result.stdout)
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError) as e:
+        print(f"  Error polling GitHub: {e}", file=sys.stderr)
+        return []
+
+    # Map priority from labels
+    priority_mapping = {}
+    for key, val in config.items():
+        if key.startswith("priority_mapping"):
+            # Simple key:value pairs under priority_mapping aren't parsed well
+            # by our minimal YAML parser, so also check label names
+            pass
+
+    priority_labels = {"p0": 1, "p1": 2, "p2": 3, "p3": 4, "critical": 1, "urgent": 1, "high": 2, "low": 4}
+
+    items = []
+    for issue in issues:
+        title = issue.get("title", "")
+        body = issue.get("body", "") or ""
+        labels_list = [l.get("name", "") for l in issue.get("labels", [])]
+        issue_number = issue.get("number", 0)
+        issue_url = issue.get("url", "")
+
+        # Determine priority from labels
+        priority = 3  # default medium
+        for label in labels_list:
+            label_lower = label.lower().strip()
+            if label_lower in priority_labels:
+                priority = min(priority, priority_labels[label_lower])
+
+        # Determine type from labels
+        work_type = infer_work_type(title)
+        for label in labels_list:
+            ll = label.lower()
+            if "bug" in ll or "fix" in ll or "quick" in ll:
+                work_type = "quick_fix"
+                break
+            if "feature" in ll or "epic" in ll or "project" in ll:
+                work_type = "project"
+                break
+
+        # Truncate body for description
+        description = body[:500].strip()
+        if len(body) > 500:
+            description += "..."
+
+        items.append({
+            "title": f"#{issue_number}: {title}",
+            "description": description,
+            "source": source_name,
+            "source_ref": issue_url,
+            "type": work_type,
+            "priority": priority,
+        })
+
+    return items
+
+
+def poll_jira_issues(source_name: str, config: dict) -> list[dict]:
+    """Poll Jira issues. Requires jira CLI or API token.
+
+    This is a placeholder that will work when a Jira MCP or CLI is available.
+    """
+    print(f"  Jira adapter not yet fully implemented")
+    return []
+
+
 def main():
     import argparse
 
@@ -223,10 +334,14 @@ def main():
             print(f"  Found {len(items)} items")
 
         elif source_type == "jira":
-            print(f"  Jira adapter not yet implemented")
+            items = poll_jira_issues(name, config)
+            all_new.extend(items)
+            print(f"  Found {len(items)} items")
 
         elif source_type == "github":
-            print(f"  GitHub adapter not yet implemented")
+            items = poll_github_issues(name, config)
+            all_new.extend(items)
+            print(f"  Found {len(items)} items")
 
         else:
             print(f"  Unknown source type: {source_type}")
