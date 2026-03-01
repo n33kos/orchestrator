@@ -1,19 +1,50 @@
-import { useState } from 'react'
+import { useState, useMemo, useRef, useCallback } from 'react'
 import styles from './App.module.scss'
 import { Header } from './components/Header/Header.tsx'
 import { TabBar } from './components/TabBar/TabBar.tsx'
+import { SearchBar } from './components/SearchBar/SearchBar.tsx'
+import { StatsBar } from './components/StatsBar/StatsBar.tsx'
 import { WorkStreamList } from './components/WorkStreamList/WorkStreamList.tsx'
 import { AddWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
+import { ConfirmDialog } from './components/ConfirmDialog/ConfirmDialog.tsx'
+import { ToastContainer } from './components/Toast/Toast.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import { useQueue } from './hooks/useQueue.ts'
 import { useTheme } from './hooks/useTheme.ts'
+import { useToast } from './hooks/useToast.ts'
+import { useKeyboard } from './hooks/useKeyboard.ts'
 import type { WorkItemStatus } from './types.ts'
 
 export function App() {
   const queue = useQueue()
   const { theme, toggle: toggleTheme } = useTheme()
+  const { toasts, addToast, dismissToast } = useToast()
   const [activeTab, setActiveTab] = useState('projects')
   const [showAddForm, setShowAddForm] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showCompleted, setShowCompleted] = useState(false)
+  const searchRef = useRef<HTMLInputElement>(null)
+  const [confirmAction, setConfirmAction] = useState<{
+    title: string
+    message: string
+    confirmLabel: string
+    danger?: boolean
+    onConfirm: () => void
+  } | null>(null)
+
+  useKeyboard({
+    onNewItem: useCallback(() => setShowAddForm(true), []),
+    onFocusSearch: useCallback(() => searchRef.current?.focus(), []),
+    onEscape: useCallback(() => {
+      if (confirmAction) { setConfirmAction(null); return }
+      if (showAddForm) { setShowAddForm(false); return }
+      if (searchQuery) { setSearchQuery(''); return }
+    }, [confirmAction, showAddForm, searchQuery]),
+    onRefresh: useCallback(() => {
+      queue.refresh()
+      addToast('Queue refreshed', 'info')
+    }, [queue, addToast]),
+  })
 
   const tabs = [
     { id: 'projects', label: 'Projects', count: queue.projects.length },
@@ -21,11 +52,27 @@ export function App() {
     { id: 'all', label: 'All', count: queue.items.length },
   ]
 
-  const displayItems = activeTab === 'projects'
-    ? queue.projects
-    : activeTab === 'quick_fixes'
-      ? queue.quickFixes
-      : queue.items
+  const filteredItems = useMemo(() => {
+    let pool = activeTab === 'projects'
+      ? queue.projects
+      : activeTab === 'quick_fixes'
+        ? queue.quickFixes
+        : queue.items
+
+    if (!showCompleted) {
+      pool = pool.filter(i => i.status !== 'completed')
+    }
+
+    if (!searchQuery.trim()) return pool
+
+    const q = searchQuery.toLowerCase()
+    return pool.filter(item =>
+      item.title.toLowerCase().includes(q) ||
+      item.description.toLowerCase().includes(q) ||
+      item.branch.toLowerCase().includes(q) ||
+      item.id.toLowerCase().includes(q)
+    )
+  }, [activeTab, queue.projects, queue.quickFixes, queue.items, searchQuery, showCompleted])
 
   async function handleAddItem(item: NewWorkItem) {
     try {
@@ -36,21 +83,46 @@ export function App() {
       })
       setShowAddForm(false)
       queue.refresh()
+      addToast('Work item added', 'success')
     } catch {
-      // TODO: error handling
+      addToast('Failed to add work item', 'error')
     }
   }
 
   function handleStatusChange(id: string, status: WorkItemStatus) {
+    const labels: Record<string, string> = {
+      active: 'activated',
+      paused: 'paused',
+      completed: 'completed',
+      queued: 'queued',
+      review: 'moved to review',
+    }
     queue.updateItem(id, { status })
+    addToast(`Work item ${labels[status] || status}`, 'success')
   }
 
   function handlePriorityChange(id: string, priority: number) {
     queue.updateItem(id, { priority })
   }
 
+  function handleDelegatorToggle(id: string, enabled: boolean) {
+    queue.updateItem(id, { delegator_enabled: enabled })
+    addToast(`Delegator ${enabled ? 'enabled' : 'disabled'}`, 'info')
+  }
+
   function handleDelete(id: string) {
-    queue.deleteItem(id)
+    const item = queue.items.find(i => i.id === id)
+    setConfirmAction({
+      title: 'Remove Work Item',
+      message: `Are you sure you want to remove "${item?.title || id}"? This cannot be undone.`,
+      confirmLabel: 'Remove',
+      danger: true,
+      onConfirm: () => {
+        queue.deleteItem(id)
+        setConfirmAction(null)
+        addToast('Work item removed', 'success')
+      },
+    })
   }
 
   return (
@@ -60,6 +132,7 @@ export function App() {
         queuedCount={queue.queuedItems.length}
         pausedCount={queue.pausedItems.length}
         blockedCount={queue.blockedItems.length}
+        lastUpdated={queue.lastUpdated}
         onAddClick={() => setShowAddForm(!showAddForm)}
         showingAddForm={showAddForm}
         theme={theme}
@@ -67,6 +140,16 @@ export function App() {
       />
       <main className={styles.Main}>
         <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+        <SearchBar ref={searchRef} value={searchQuery} onChange={setSearchQuery} />
+        <StatsBar
+          totalItems={queue.items.length}
+          activeCount={queue.activeItems.length}
+          queuedCount={queue.queuedItems.length}
+          completedCount={queue.completedItems.length}
+          blockedCount={queue.blockedItems.length}
+          showCompleted={showCompleted}
+          onToggleCompleted={() => setShowCompleted(!showCompleted)}
+        />
         {showAddForm && (
           <AddWorkItem
             onAdd={handleAddItem}
@@ -74,13 +157,25 @@ export function App() {
           />
         )}
         <WorkStreamList
-          items={displayItems}
+          items={filteredItems}
           loading={queue.loading}
           onStatusChange={handleStatusChange}
           onPriorityChange={handlePriorityChange}
+          onDelegatorToggle={handleDelegatorToggle}
           onDelete={handleDelete}
         />
       </main>
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      {confirmAction && (
+        <ConfirmDialog
+          title={confirmAction.title}
+          message={confirmAction.message}
+          confirmLabel={confirmAction.confirmLabel}
+          danger={confirmAction.danger}
+          onConfirm={confirmAction.onConfirm}
+          onCancel={() => setConfirmAction(null)}
+        />
+      )}
     </div>
   )
 }

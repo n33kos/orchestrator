@@ -1,23 +1,28 @@
 import classnames from 'classnames'
 import styles from './Header.module.scss'
 import { ThemeToggle } from '../ThemeToggle/ThemeToggle.tsx'
+import { ConnectionStatus } from '../ConnectionStatus/ConnectionStatus.tsx'
 
 interface HeaderProps {
   activeCount: number
   queuedCount: number
   pausedCount: number
   blockedCount: number
+  lastUpdated: Date | null
   onAddClick: () => void
   showingAddForm: boolean
   theme: 'dark' | 'light'
   onThemeToggle: () => void
 }
 
-export function Header({ activeCount, queuedCount, pausedCount, blockedCount, onAddClick, showingAddForm, theme, onThemeToggle }: HeaderProps) {
+export function Header({ activeCount, queuedCount, pausedCount, blockedCount, lastUpdated, onAddClick, showingAddForm, theme, onThemeToggle }: HeaderProps) {
   return (
     <header className={styles.Root}>
       <div className={styles.Left}>
-        <div className={styles.Title}>Orchestrator</div>
+        <div className={styles.TitleGroup}>
+          <div className={styles.Title}>Orchestrator</div>
+          <ConnectionStatus lastUpdated={lastUpdated} />
+        </div>
         <div className={styles.Stats}>
           <span className={styles.Stat}>
             <span className={styles.StatDot} data-status="active" />

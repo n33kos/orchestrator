@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { WorkItem, QueueData, WorkItemStatus } from '../types.ts'
+
+const POLL_INTERVAL = 5000
 
 function normalizeItem(raw: Record<string, unknown>): WorkItem {
   return {
@@ -11,6 +13,8 @@ function normalizeItem(raw: Record<string, unknown>): WorkItem {
 export function useQueue() {
   const [items, setItems] = useState<WorkItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchQueue = useCallback(async () => {
     try {
@@ -18,6 +22,7 @@ export function useQueue() {
       if (res.ok) {
         const data: QueueData = await res.json()
         setItems(data.items.map(i => normalizeItem(i as unknown as Record<string, unknown>)))
+        setLastUpdated(new Date())
       }
     } catch {
       // API not available — use empty state
@@ -28,9 +33,13 @@ export function useQueue() {
 
   useEffect(() => {
     fetchQueue()
+    pollRef.current = setInterval(fetchQueue, POLL_INTERVAL)
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current)
+    }
   }, [fetchQueue])
 
-  const updateItem = useCallback(async (id: string, updates: { status?: WorkItemStatus; priority?: number }) => {
+  const updateItem = useCallback(async (id: string, updates: { status?: WorkItemStatus; priority?: number; delegator_enabled?: boolean }) => {
     await fetch('/api/queue/update', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -68,6 +77,7 @@ export function useQueue() {
     completedItems,
     blockedItems,
     loading,
+    lastUpdated,
     refresh: fetchQueue,
     updateItem,
     deleteItem,

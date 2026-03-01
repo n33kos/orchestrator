@@ -1,0 +1,23 @@
+.Root {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.Dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-success);
+  flex-shrink: 0;
+}
+
+.Stale .Dot {
+  background: var(--color-warning);
+}
+
+.Text {
+  white-space: nowrap;
+}

@@ -8,6 +8,7 @@ interface WorkStreamCardProps {
   item: WorkItem
   onStatusChange: (id: string, status: WorkItemStatus) => void
   onPriorityChange: (id: string, priority: number) => void
+  onDelegatorToggle: (id: string, enabled: boolean) => void
   onDelete: (id: string) => void
 }
 
@@ -17,7 +18,7 @@ function formatDate(iso: string | null): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-export function WorkStreamCard({ item, onStatusChange, onPriorityChange, onDelete }: WorkStreamCardProps) {
+export function WorkStreamCard({ item, onStatusChange, onPriorityChange, onDelegatorToggle, onDelete }: WorkStreamCardProps) {
   const [expanded, setExpanded] = useState(false)
   const hasSession = !!item.session_id
   const hasDelegator = !!item.delegator_id
@@ -181,12 +182,26 @@ export function WorkStreamCard({ item, onStatusChange, onPriorityChange, onDelet
               </svg>
               Worker: {hasSession ? item.session_id : 'Not running'}
             </span>
-            <span className={classnames(styles.StatusItem, hasDelegator && styles.StatusActive)}>
+            <label
+              className={classnames(styles.StatusItem, styles.DelegatorToggle)}
+              onClick={e => e.stopPropagation()}
+            >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
-              Delegator: {hasDelegator ? 'Active' : item.delegator_enabled ? 'Enabled (not running)' : 'Disabled'}
-            </span>
+              Delegator
+              <button
+                className={classnames(styles.Toggle, item.delegator_enabled && styles.ToggleOn)}
+                onClick={() => onDelegatorToggle(item.id, !item.delegator_enabled)}
+                role="switch"
+                aria-checked={item.delegator_enabled}
+              >
+                <span className={styles.ToggleKnob} />
+              </button>
+              <span className={styles.ToggleLabel}>
+                {hasDelegator ? 'Active' : item.delegator_enabled ? 'Enabled' : 'Off'}
+              </span>
+            </label>
           </div>
 
           {/* Actions */}

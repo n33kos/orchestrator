@@ -13,6 +13,19 @@
   display: flex;
   align-items: center;
   gap: 16px;
+  min-width: 0;
+
+  @media (max-width: 480px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}
+
+.TitleGroup {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
 }
 
 .Title {
@@ -20,6 +33,7 @@
   font-weight: 700;
   color: var(--color-text-strong);
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .Stats {

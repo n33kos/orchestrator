@@ -7,10 +7,11 @@ interface WorkStreamListProps {
   loading: boolean
   onStatusChange: (id: string, status: WorkItemStatus) => void
   onPriorityChange: (id: string, priority: number) => void
+  onDelegatorToggle: (id: string, enabled: boolean) => void
   onDelete: (id: string) => void
 }
 
-export function WorkStreamList({ items, loading, onStatusChange, onPriorityChange, onDelete }: WorkStreamListProps) {
+export function WorkStreamList({ items, loading, onStatusChange, onPriorityChange, onDelegatorToggle, onDelete }: WorkStreamListProps) {
   if (loading) {
     return (
       <div className={styles.Root}>
@@ -63,6 +64,7 @@ export function WorkStreamList({ items, loading, onStatusChange, onPriorityChang
           item={item}
           onStatusChange={onStatusChange}
           onPriorityChange={onPriorityChange}
+          onDelegatorToggle={onDelegatorToggle}
           onDelete={onDelete}
         />
       ))}

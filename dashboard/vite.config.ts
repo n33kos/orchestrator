@@ -80,6 +80,7 @@ function queueApiPlugin(): Plugin {
           if (body.priority !== undefined) item.priority = body.priority
           if (body.title !== undefined) item.title = body.title
           if (body.description !== undefined) item.description = body.description
+          if (body.delegator_enabled !== undefined) item.delegator_enabled = body.delegator_enabled
 
           writeQueue(data)
           res.setHeader('Content-Type', 'application/json')
