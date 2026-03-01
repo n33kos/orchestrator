@@ -1,0 +1,164 @@
+.Root {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.Empty {
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.EmptyText {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.Group {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.GroupHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--color-surface-secondary);
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-family);
+  text-align: left;
+  transition: background 0.1s ease;
+
+  &:hover {
+    background: var(--color-surface-hover);
+  }
+}
+
+.GroupChevron {
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  transition: transform 0.15s ease;
+
+  &.GroupChevronOpen {
+    transform: rotate(90deg);
+  }
+}
+
+.GroupLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.GroupCount {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: auto;
+}
+
+.GroupItems {
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.Row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  border-bottom: 1px solid var(--color-border-subtle);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background: var(--color-surface-hover);
+  }
+}
+
+.ColPriority {
+  width: 28px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.ColTitle {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ColBranch {
+  width: 120px;
+  flex-shrink: 0;
+  overflow: hidden;
+
+  code {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+  }
+
+  @media (max-width: 640px) {
+    display: none;
+  }
+}
+
+.ColTime {
+  width: 60px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+
+  @media (max-width: 480px) {
+    display: none;
+  }
+}
+
+.ColAction {
+  width: 64px;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.QuickAction {
+  padding: 3px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+}

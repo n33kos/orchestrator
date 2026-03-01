@@ -217,7 +217,7 @@ export function App() {
       })
     }, [selectionMode, filteredItems]),
     onToggleViewMode: useCallback(() => {
-      setViewMode(prev => prev === 'cards' ? 'compact' : 'cards')
+      setViewMode(prev => prev === 'cards' ? 'compact' : prev === 'compact' ? 'grouped' : 'cards')
     }, [setViewMode]),
   })
 
@@ -778,6 +778,12 @@ export function App() {
                 onReorder={handleReorder}
                 onEdit={handleEdit}
               />
+            ) : viewMode === 'grouped' ? (
+              <GroupedList
+                items={filteredItems}
+                onStatusChange={handleStatusChange}
+                onNavigate={id => setDetailItemId(id)}
+              />
             ) : (
             <WorkStreamList
               items={filteredItems}
@@ -897,7 +903,7 @@ export function App() {
             if (text) handleSendMessage(sessionId, text)
           }}
           onGoToSessions={() => setActiveTab('sessions')}
-          onToggleViewMode={() => setViewMode(prev => prev === 'cards' ? 'compact' : 'cards')}
+          onToggleViewMode={() => setViewMode(prev => prev === 'cards' ? 'compact' : prev === 'compact' ? 'grouped' : 'cards')}
           onDiscoverWork={handleDiscoverWork}
           onHealthCheck={() => setShowHealthPanel(true)}
           onActivateStream={handleActivateStream}
