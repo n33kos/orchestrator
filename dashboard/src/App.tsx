@@ -31,6 +31,7 @@ import { StatusFooter } from './components/StatusFooter/StatusFooter.tsx'
 import { WelcomeGuide } from './components/WelcomeGuide/WelcomeGuide.tsx'
 import { KanbanBoard } from './components/KanbanBoard/KanbanBoard.tsx'
 import { OfflineIndicator } from './components/OfflineIndicator/OfflineIndicator.tsx'
+import { FloatingActionButton } from './components/FloatingActionButton/FloatingActionButton.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import { useQueue } from './hooks/useQueue.ts'
 import { useTheme } from './hooks/useTheme.ts'
@@ -931,6 +932,25 @@ export function App() {
         />
       )}
       <KeyboardHints />
+      <FloatingActionButton
+        actions={[
+          {
+            icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>,
+            label: 'Add Item',
+            onClick: () => setShowAddForm(true),
+          },
+          {
+            icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>,
+            label: 'Search',
+            onClick: () => searchRef.current?.focus(),
+          },
+          {
+            icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" /></svg>,
+            label: 'Refresh',
+            onClick: () => { queue.refresh(); addToast('Queue refreshed', 'info') },
+          },
+        ]}
+      />
       <ScrollToTop scrollContainer={mainRef.current} />
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
       {confirmAction && (
