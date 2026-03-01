@@ -1,5 +1,6 @@
 import styles from './WorkStreamList.module.scss'
 import { WorkStreamCard } from '../WorkStreamCard/WorkStreamCard.tsx'
+import { SkeletonList } from '../Skeleton/Skeleton.tsx'
 import { useDragReorder } from '../../hooks/useDragReorder.ts'
 import type { WorkItem, WorkItemStatus, SessionInfo, MessageEntry } from '../../types.ts'
 import type { SortField, SortDirection } from '../SortControls/SortControls.tsx'
@@ -47,14 +48,7 @@ function findSession(sessions: SessionInfo[], item: WorkItem): SessionInfo | und
 export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab, sortField, sortDirection, sessions, messagesBySession, selectable, selectedIds, onSelect, focusedItemId, onClearFocus, onAddClick, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onReorder, onSendMessage }: WorkStreamListProps) {
   const { dragId, overId, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(onReorder)
   if (loading) {
-    return (
-      <div className={styles.Root}>
-        <div className={styles.Empty}>
-          <div className={styles.Spinner} />
-          <p className={styles.EmptyText}>Loading work streams...</p>
-        </div>
-      </div>
-    )
+    return <SkeletonList count={4} />
   }
 
   if (items.length === 0) {
