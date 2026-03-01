@@ -154,6 +154,8 @@ export function App() {
   }
 
   function handleStatusChange(id: string, status: WorkItemStatus) {
+    const item = queue.items.find(i => i.id === id)
+    const previousStatus = item?.status
     const labels: Record<string, string> = {
       active: 'activated',
       paused: 'paused',
@@ -162,7 +164,17 @@ export function App() {
       review: 'moved to review',
     }
     queue.updateItem(id, { status })
-    addToast(`Work item ${labels[status] || status}`, 'success')
+    addToast(
+      `Work item ${labels[status] || status}`,
+      'success',
+      previousStatus ? {
+        label: 'Undo',
+        onClick: () => {
+          queue.updateItem(id, { status: previousStatus })
+          addToast('Status change reverted', 'info')
+        },
+      } : undefined,
+    )
   }
 
   function handlePriorityChange(id: string, priority: number) {
