@@ -37,17 +37,27 @@ emit_event() {
 
     mkdir -p "$(dirname "$EVENTS_FILE")"
 
+    EVT_TIMESTAMP="$timestamp" \
+    EVT_TYPE="$event_type" \
+    EVT_MESSAGE="$message" \
+    EVT_SEVERITY="$severity" \
+    EVT_ITEM_ID="$item_id" \
+    EVT_SESSION_ID="$session_id" \
+    EVT_EXTRA="$extra" \
     python3 -c "
-import json, sys
+import json, os
 event = {
-    'timestamp': '$timestamp',
-    'type': '$event_type',
-    'message': '''$message''',
-    'severity': '$severity',
+    'timestamp': os.environ['EVT_TIMESTAMP'],
+    'type': os.environ['EVT_TYPE'],
+    'message': os.environ['EVT_MESSAGE'],
+    'severity': os.environ['EVT_SEVERITY'],
 }
-if '$item_id': event['item_id'] = '$item_id'
-if '$session_id': event['session_id'] = '$session_id'
-if '''$extra''': event['extra'] = '''$extra'''
+if os.environ.get('EVT_ITEM_ID'):
+    event['item_id'] = os.environ['EVT_ITEM_ID']
+if os.environ.get('EVT_SESSION_ID'):
+    event['session_id'] = os.environ['EVT_SESSION_ID']
+if os.environ.get('EVT_EXTRA'):
+    event['extra'] = os.environ['EVT_EXTRA']
 print(json.dumps(event))
 " >> "$EVENTS_FILE"
 }
