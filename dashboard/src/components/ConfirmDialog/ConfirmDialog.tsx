@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import classnames from 'classnames'
 import styles from './ConfirmDialog.module.scss'
+import { useFocusTrap } from '../../hooks/useFocusTrap.ts'
 
 interface ConfirmDialogProps {
   title: string
@@ -12,6 +13,8 @@ interface ConfirmDialogProps {
 }
 
 export function ConfirmDialog({ title, message, confirmLabel = 'Confirm', danger, onConfirm, onCancel }: ConfirmDialogProps) {
+  const trapRef = useFocusTrap<HTMLDivElement>()
+
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onCancel()
@@ -23,7 +26,7 @@ export function ConfirmDialog({ title, message, confirmLabel = 'Confirm', danger
 
   return (
     <div className={styles.Overlay} onClick={onCancel}>
-      <div className={styles.Dialog} onClick={e => e.stopPropagation()}>
+      <div className={styles.Dialog} ref={trapRef} onClick={e => e.stopPropagation()}>
         <h3 className={styles.Title}>{title}</h3>
         <p className={styles.Message}>{message}</p>
         <div className={styles.Actions}>

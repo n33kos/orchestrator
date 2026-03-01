@@ -1,0 +1,60 @@
+.Root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  gap: 10px;
+}
+
+.Icon {
+  color: var(--color-error);
+  opacity: 0.6;
+  margin-bottom: 4px;
+}
+
+.Title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text-strong);
+}
+
+.Label {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  max-width: 360px;
+  line-height: 1.4;
+}
+
+.ErrorMessage {
+  font-size: 11px;
+  color: var(--color-error);
+  background: var(--color-error-muted);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+
+.RetryButton {
+  padding: 6px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  margin-top: 4px;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+    border-color: var(--color-primary);
+  }
+}

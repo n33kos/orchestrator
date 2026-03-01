@@ -21,6 +21,7 @@ import { CompactList } from './components/CompactList/CompactList.tsx'
 import { DetailPanel } from './components/DetailPanel/DetailPanel.tsx'
 import { FilterChips } from './components/FilterChips/FilterChips.tsx'
 import { KeyboardHints } from './components/KeyboardHints/KeyboardHints.tsx'
+import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import { useQueue } from './hooks/useQueue.ts'
 import { useTheme } from './hooks/useTheme.ts'
@@ -471,6 +472,7 @@ export function App() {
         onActivityFeedClick={() => setShowActivityFeed(true)}
       />
       <main ref={mainRef} className={styles.Main}>
+        <ErrorBoundary fallbackLabel="The main content area crashed. Try refreshing the page.">
         <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
         {activeTab === 'sessions' ? (
           <SessionsView
@@ -626,6 +628,7 @@ export function App() {
             )}
           </>
         )}
+        </ErrorBoundary>
       </main>
       {selectionMode && selectedIds.size > 0 && (
         <BatchActionBar

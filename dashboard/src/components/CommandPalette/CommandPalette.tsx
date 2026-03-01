@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import classnames from 'classnames'
 import styles from './CommandPalette.module.scss'
+import { useFocusTrap } from '../../hooks/useFocusTrap.ts'
 import type { WorkItem, WorkItemStatus } from '../../types.ts'
 
 interface Command {
@@ -93,6 +94,7 @@ export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateTo
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const trapRef = useFocusTrap<HTMLDivElement>()
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -184,7 +186,7 @@ export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateTo
 
   return (
     <div className={styles.Overlay} onClick={onClose}>
-      <div className={styles.Palette} onClick={e => e.stopPropagation()}>
+      <div className={styles.Palette} ref={trapRef} onClick={e => e.stopPropagation()}>
         <div className={styles.InputRow}>
           <svg className={styles.SearchIcon} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
