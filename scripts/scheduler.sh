@@ -266,10 +266,8 @@ for i in data['items']:
     # Check for unresolved blockers
     if any(not b.get('resolved') for b in i.get('blockers', [])):
         continue
-    # Projects need approved plan (or no plan required for quick fixes)
-    plan = i.get('metadata', {}).get('plan')
-    if i['type'] == 'project' and plan and not plan.get('approved'):
-        continue
+    # Plans are informational — they don't gate activation
+    # Projects and quick fixes can both activate with or without approved plans
     ready.append(i)
 
 # Sort by priority

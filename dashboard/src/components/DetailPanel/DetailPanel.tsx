@@ -3,6 +3,8 @@ import styles from './DetailPanel.module.scss'
 import { StatusBadge } from '../StatusBadge/StatusBadge.tsx'
 import { PriorityBadge } from '../PriorityBadge/PriorityBadge.tsx'
 import { ItemNotes } from '../ItemNotes/ItemNotes.tsx'
+import { PlanEditor } from '../PlanEditor/PlanEditor.tsx'
+import type { Plan } from '../PlanEditor/PlanEditor.tsx'
 import { timeAgo, formatDate } from '../../utils/time.ts'
 import { useFocusTrap } from '../../hooks/useFocusTrap.ts'
 import { usePrStack } from '../../hooks/usePrStatus.ts'
@@ -23,6 +25,9 @@ interface DetailPanelProps {
   onActivateStream?: (id: string) => void
   onTeardownStream?: (id: string) => void
   onSendMessage?: (sessionId: string, text: string) => void
+  onDelegatorToggle?: (id: string, enabled: boolean) => void
+  onPlanChange?: (id: string, plan: Plan) => void
+  onGeneratePlan?: (id: string) => void
 }
 
 function getNextAction(status: WorkItemStatus): { label: string; nextStatus: WorkItemStatus } | null {
@@ -50,7 +55,7 @@ function formatItemSummary(item: WorkItem): string {
   return lines.filter(Boolean).join('\n')
 }
 
-export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange, onUpdate, onDelete, onDuplicate, onNotesChange, onActivateStream, onTeardownStream, onSendMessage }: DetailPanelProps) {
+export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange, onUpdate, onDelete, onDuplicate, onNotesChange, onActivateStream, onTeardownStream, onSendMessage, onDelegatorToggle, onPlanChange, onGeneratePlan }: DetailPanelProps) {
   const panelRef = useFocusTrap<HTMLDivElement>()
   const [copied, setCopied] = useState(false)
   const [editingNotes, setEditingNotes] = useState(false)
@@ -219,11 +224,23 @@ export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange
             )}
             <div className={styles.MetaItem}>
               <span className={styles.MetaLabel}>Delegator</span>
-              <span className={styles.MetaValue}>
-                {delegator
-                  ? `${delegator.status} (${delegator.commits_reviewed} commits, ${delegator.issues_found.length} issues)`
-                  : item.delegator_enabled ? 'Enabled' : 'Disabled'}
-              </span>
+              <div className={styles.DelegatorRow}>
+                {onDelegatorToggle ? (
+                  <button
+                    className={`${styles.DelegatorToggle} ${item.delegator_enabled ? styles.DelegatorToggleOn : ''}`}
+                    onClick={() => onDelegatorToggle(item.id, !item.delegator_enabled)}
+                    role="switch"
+                    aria-checked={item.delegator_enabled}
+                  >
+                    <span className={styles.DelegatorToggleKnob} />
+                  </button>
+                ) : null}
+                <span className={styles.MetaValue}>
+                  {delegator
+                    ? `${delegator.status} (${delegator.commits_reviewed} commits, ${delegator.issues_found.length} issues)`
+                    : item.delegator_enabled ? 'Enabled' : 'Off'}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -417,27 +434,48 @@ export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange
             </div>
           )}
 
-          {/* Plan Overview */}
-          {plan && (
+          {/* Implementation Plan */}
+          {(plan || onPlanChange) && (item.status === 'planning' || item.status === 'queued' || plan) && (
             <div className={styles.Section}>
-              <span className={styles.SectionLabel}>
-                Plan {plan.approved ? '(Approved)' : '(Draft)'}
-              </span>
-              <div className={styles.PlanCard}>
-                {plan.title && <div className={styles.PlanTitle}>{plan.title}</div>}
-                {plan.steps && plan.steps.length > 0 && (
-                  <div className={styles.PlanSteps}>
-                    {plan.steps.map((step, i) => (
-                      <div key={i} className={styles.PlanStep}>
-                        <span className={`${styles.PlanCheck} ${step.done ? styles.PlanCheckDone : ''}`}>
-                          {step.done ? '\u2713' : (i + 1)}
-                        </span>
-                        <span className={step.done ? styles.PlanStepDone : ''}>{step.text}</span>
-                      </div>
-                    ))}
-                  </div>
+              <div className={styles.SectionHeader}>
+                <span className={styles.SectionLabel}>
+                  Implementation Plan
+                  {plan ? (plan.approved ? ' (Approved)' : ' (Draft)') : ''}
+                </span>
+                {onGeneratePlan && !plan && (
+                  <button className={styles.EditNotesButton} onClick={() => onGeneratePlan(item.id)}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                      <path d="M2 17l10 5 10-5" />
+                      <path d="M2 12l10 5 10-5" />
+                    </svg>
+                    Auto-Generate
+                  </button>
                 )}
               </div>
+              {onPlanChange ? (
+                <PlanEditor
+                  plan={(plan as Plan) ?? null}
+                  onSave={p => onPlanChange(item.id, p)}
+                  readOnly={item.status === 'completed'}
+                />
+              ) : plan ? (
+                <div className={styles.PlanCard}>
+                  {(plan as any).summary && <div className={styles.PlanTitle}>{(plan as any).summary}</div>}
+                  {plan.steps && plan.steps.length > 0 && (
+                    <div className={styles.PlanSteps}>
+                      {plan.steps.map((step, i) => (
+                        <div key={i} className={styles.PlanStep}>
+                          <span className={`${styles.PlanCheck} ${step.done ? styles.PlanCheckDone : ''}`}>
+                            {step.done ? '\u2713' : (i + 1)}
+                          </span>
+                          <span className={step.done ? styles.PlanStepDone : ''}>{step.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </div>
           )}
 

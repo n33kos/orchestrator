@@ -1278,6 +1278,9 @@ export function App() {
             onActivateStream={handleActivateStream}
             onTeardownStream={handleTeardownStream}
             onSendMessage={handleSendMessage}
+            onDelegatorToggle={handleDelegatorToggle}
+            onPlanChange={handlePlanChange}
+            onGeneratePlan={handleGeneratePlan}
           />
         )
       })()}

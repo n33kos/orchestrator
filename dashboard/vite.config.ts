@@ -1068,11 +1068,10 @@ function queueApiPlugin(): Plugin {
             item.completed_at = new Date().toISOString()
           }
           if (body.prUrl) item.pr_url = body.prUrl
+          if (!item.metadata) item.metadata = {}
           if (body.message) {
-            if (!item.metadata) item.metadata = {}
             item.metadata.completion_message = body.message
           }
-          if (!item.metadata) item.metadata = {}
           item.metadata.last_activity = new Date().toISOString()
 
           writeQueue(data)
