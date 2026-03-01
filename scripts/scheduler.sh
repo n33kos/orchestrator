@@ -395,6 +395,51 @@ for item in data['items']:
     done
 }
 
+function check_planning_timeouts() {
+    # Revert items stuck in "planning" for more than 10 minutes back to "queued"
+    python3 -c "
+import json, sys
+from datetime import datetime, timezone, timedelta
+
+with open('$QUEUE_FILE') as f:
+    data = json.load(f)
+
+now = datetime.now(timezone.utc)
+timeout = timedelta(minutes=10)
+changed = False
+
+for item in data['items']:
+    if item['status'] != 'planning':
+        continue
+    plan = item.get('metadata', {}).get('plan', {})
+    created = plan.get('created_at')
+    if not created:
+        continue
+    try:
+        created_dt = datetime.fromisoformat(created.replace('Z', '+00:00'))
+        if now - created_dt > timeout and not plan.get('approved'):
+            print(f'TIMEOUT:{item[\"id\"]}:{item[\"title\"]}')
+            item['status'] = 'queued'
+            item['metadata']['plan'] = None
+            changed = True
+    except (ValueError, TypeError):
+        continue
+
+if changed:
+    with open('$QUEUE_FILE', 'w') as f:
+        json.dump(data, f, indent=2)
+        f.write('\n')
+" | while IFS= read -r line; do
+        if [[ "$line" == TIMEOUT:* ]]; then
+            local item_id item_title
+            item_id="$(echo "$line" | cut -d: -f2)"
+            item_title="$(echo "$line" | cut -d: -f3-)"
+            echo "[scheduler] Planning timeout: $item_id ($item_title) — reverting to queued"
+            emit_event "scheduler.planning_timeout" "Plan timed out for $item_title" --item-id "$item_id" --severity warn
+        fi
+    done
+}
+
 function process_worker_completions() {
     # Find items marked completed by workers that still have active sessions/worktrees
     python3 -c "
@@ -613,6 +658,7 @@ if [[ "$ONCE" == "true" ]]; then
     trigger_delegator_cycles
     process_worker_completions
     teardown_merged
+    check_planning_timeouts
     generate_plans
     check_and_activate
 else
@@ -632,6 +678,7 @@ else
         fi
         process_worker_completions
         teardown_merged
+        check_planning_timeouts
         generate_plans
         check_and_activate
         # Run cleanup every N cycles
