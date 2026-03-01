@@ -15,6 +15,7 @@ import { CommandPalette } from './components/CommandPalette/CommandPalette.tsx'
 import { ToastContainer } from './components/Toast/Toast.tsx'
 import { BatchActionBar } from './components/BatchActionBar/BatchActionBar.tsx'
 import { SessionsView } from './components/SessionsView/SessionsView.tsx'
+import { ActivityFeed } from './components/ActivityFeed/ActivityFeed.tsx'
 import { KeyboardHints } from './components/KeyboardHints/KeyboardHints.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import { useQueue } from './hooks/useQueue.ts'
@@ -32,7 +33,7 @@ export function App() {
   const { settings, update: updateSetting, reset: resetSettings, open: settingsOpen, setOpen: setSettingsOpen } = useSettings()
   const queue = useQueue(settings.pollIntervalMs)
   const { theme, toggle: toggleTheme } = useTheme()
-  const { toasts, addToast, dismissToast } = useToast()
+  const { toasts, history, addToast, dismissToast, clearHistory } = useToast()
   useNotifications(queue.items, settings.notificationsEnabled)
   const { sessions, sendMessage, refresh: refreshSessions } = useSessions()
   const zombieCount = sessions.filter(s => s.state === 'zombie').length
@@ -49,6 +50,7 @@ export function App() {
   const [showCompleted, setShowCompleted] = useState(false)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [showSessions, setShowSessions] = useState(false)
+  const [showActivityFeed, setShowActivityFeed] = useState(false)
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null)
@@ -108,13 +110,14 @@ export function App() {
     onFocusSearch: useCallback(() => searchRef.current?.focus(), []),
     onEscape: useCallback(() => {
       if (showCommandPalette) { setShowCommandPalette(false); return }
+      if (showActivityFeed) { setShowActivityFeed(false); return }
       if (showSessions) { setShowSessions(false); return }
       if (settingsOpen) { setSettingsOpen(false); return }
       if (confirmAction) { setConfirmAction(null); return }
       if (selectionMode) { setSelectedIds(new Set()); setSelectionMode(false); return }
       if (showAddForm) { setShowAddForm(false); return }
       if (searchQuery) { setSearchQuery(''); return }
-    }, [showCommandPalette, showSessions, settingsOpen, confirmAction, selectionMode, showAddForm, searchQuery, setSettingsOpen]),
+    }, [showCommandPalette, showActivityFeed, showSessions, settingsOpen, confirmAction, selectionMode, showAddForm, searchQuery, setSettingsOpen]),
     onRefresh: useCallback(() => {
       queue.refresh()
       addToast('Queue refreshed', 'info')
@@ -372,6 +375,7 @@ export function App() {
         pausedCount={queue.pausedItems.length}
         blockedCount={queue.blockedItems.length}
         sessionCount={sessions.length}
+        activityCount={history.length}
         lastUpdated={queue.lastUpdated}
         onAddClick={() => setShowAddForm(!showAddForm)}
         showingAddForm={showAddForm}
@@ -379,6 +383,7 @@ export function App() {
         onThemeToggle={toggleTheme}
         onSettingsClick={() => setSettingsOpen(true)}
         onSessionsClick={() => setShowSessions(true)}
+        onActivityFeedClick={() => setShowActivityFeed(true)}
       />
       <main className={styles.Main}>
         <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
@@ -514,6 +519,13 @@ export function App() {
           onUpdate={updateSetting}
           onReset={resetSettings}
           onClose={() => setSettingsOpen(false)}
+        />
+      )}
+      {showActivityFeed && (
+        <ActivityFeed
+          history={history}
+          onClear={clearHistory}
+          onClose={() => setShowActivityFeed(false)}
         />
       )}
       {showSessions && (

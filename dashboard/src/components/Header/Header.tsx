@@ -8,15 +8,19 @@ interface HeaderProps {
   queuedCount: number
   pausedCount: number
   blockedCount: number
+  sessionCount: number
+  activityCount: number
   lastUpdated: Date | null
   onAddClick: () => void
   showingAddForm: boolean
   theme: 'dark' | 'light'
   onThemeToggle: () => void
   onSettingsClick: () => void
+  onSessionsClick: () => void
+  onActivityFeedClick: () => void
 }
 
-export function Header({ activeCount, queuedCount, pausedCount, blockedCount, lastUpdated, onAddClick, showingAddForm, theme, onThemeToggle, onSettingsClick }: HeaderProps) {
+export function Header({ activeCount, queuedCount, pausedCount, blockedCount, sessionCount, activityCount, lastUpdated, onAddClick, showingAddForm, theme, onThemeToggle, onSettingsClick, onSessionsClick, onActivityFeedClick }: HeaderProps) {
   return (
     <header className={styles.Root}>
       <div className={styles.Left}>
@@ -51,6 +55,29 @@ export function Header({ activeCount, queuedCount, pausedCount, blockedCount, la
       </div>
       <div className={styles.Actions}>
         <ThemeToggle theme={theme} onToggle={onThemeToggle} />
+        <button
+          className={styles.ActivityButton}
+          onClick={onActivityFeedClick}
+          title="Activity feed"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+          {activityCount > 0 && <span className={styles.ActivityBadge}>{activityCount > 9 ? '9+' : activityCount}</span>}
+        </button>
+        <button
+          className={styles.SessionsButton}
+          onClick={onSessionsClick}
+          title="Sessions"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="2" y="3" width="20" height="14" rx="2" />
+            <line x1="8" y1="21" x2="16" y2="21" />
+            <line x1="12" y1="17" x2="12" y2="21" />
+          </svg>
+          {sessionCount > 0 && <span className={styles.SessionsBadge}>{sessionCount}</span>}
+        </button>
         <button
           className={styles.SettingsButton}
           onClick={onSettingsClick}
