@@ -191,9 +191,31 @@ When you receive a message during the monitoring loop, handle it immediately, th
 - Do NOT run all tests — always target specific test files
 - Do NOT send more than 3 messages without receiving a response — the worker may be busy
 
+## Worker Completion Webhook
+
+When the worker signals completion, report via the webhook:
+
+```bash
+curl -X POST http://localhost:3201/api/worker/complete \
+  -H 'Content-Type: application/json' \
+  -d '{"itemId": "<item_id>", "status": "review", "message": "Worker done — delegator review pending"}'
+```
+
+Or for a completed quick fix (no further review needed):
+```bash
+curl -X POST http://localhost:3201/api/worker/complete \
+  -H 'Content-Type: application/json' \
+  -d '{"itemId": "<item_id>", "status": "completed", "message": "Quick fix complete", "teardown": true}'
+```
+
+Workers can also call this directly:
+```bash
+bash ~/orchestrator/scripts/worker-complete.sh <item-id> --status review --message "PR ready for review"
+```
+
 ## Lifecycle Signals
 
-- **Worker says "done" or PR is created**: Trigger comprehensive PR review
+- **Worker says "done" or PR is created**: Trigger comprehensive PR review, then report via completion webhook with status `review`
 - **Worker session dies**: Report to orchestrator, stop monitoring
 - **User toggles delegator off**: Stop gracefully, write final status
 - **Blocking issue found**: Report immediately, don't wait for next cycle
