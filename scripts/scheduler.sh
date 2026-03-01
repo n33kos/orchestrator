@@ -88,6 +88,67 @@ else:
 "
 }
 
+function check_merged_prs() {
+    # Check active items with PR URLs — if PR is merged, auto-complete
+    python3 -c "
+import json, subprocess, sys
+
+with open('$QUEUE_FILE') as f:
+    data = json.load(f)
+
+active_with_pr = [
+    i for i in data['items']
+    if i['status'] == 'active' and i.get('pr_url')
+]
+
+if not active_with_pr:
+    print('[pr-check] No active items with PR URLs')
+    sys.exit(0)
+
+for item in active_with_pr:
+    pr_url = item['pr_url']
+    # Extract owner/repo/number
+    import re
+    match = re.search(r'github\.com/([^/]+)/([^/]+)/pull/(\d+)', pr_url)
+    if not match:
+        continue
+    owner, repo, number = match.groups()
+    try:
+        result = subprocess.run(
+            ['gh', 'pr', 'view', number, '--repo', f'{owner}/{repo}', '--json', 'state'],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode != 0:
+            continue
+        state = json.loads(result.stdout).get('state', '')
+        if state == 'MERGED':
+            print(f'MERGED:{item[\"id\"]}:{item[\"title\"]}')
+    except Exception:
+        continue
+"
+}
+
+function teardown_merged() {
+    check_merged_prs | while IFS= read -r line; do
+        if [[ "$line" == MERGED:* ]]; then
+            local item_id item_title
+            item_id="$(echo "$line" | cut -d: -f2)"
+            item_title="$(echo "$line" | cut -d: -f3-)"
+
+            if [[ "$DRY_RUN" == "true" ]]; then
+                echo "[scheduler] Would auto-complete (PR merged): $item_id — $item_title"
+            else
+                echo "[scheduler] PR merged — auto-completing: $item_id — $item_title"
+                "$SCRIPT_DIR/teardown-stream.sh" "$item_id" 2>&1 | sed 's/^/  /' || {
+                    echo "[scheduler] ERROR: Failed to teardown $item_id" >&2
+                }
+            fi
+        else
+            echo "$line"
+        fi
+    done
+}
+
 function check_and_activate() {
     # Check auto_activate setting
     if [[ "$AUTO_ACTIVATE" != "true" ]]; then
@@ -187,6 +248,7 @@ if [[ "$CLEANUP" == "true" ]]; then
 fi
 
 if [[ "$ONCE" == "true" ]]; then
+    teardown_merged
     check_and_activate
 else
     echo "[scheduler] Starting continuous scheduler (Ctrl+C to stop)"
@@ -194,6 +256,7 @@ else
     echo ""
     CYCLE=0
     while true; do
+        teardown_merged
         check_and_activate
         # Run cleanup every 10 cycles (every ~20 minutes)
         CYCLE=$((CYCLE + 1))
