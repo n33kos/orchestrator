@@ -328,6 +328,9 @@ export function App() {
     onZoomOut: zoomOut,
     onZoomReset: resetZoom,
     onGlobalSearch: useCallback(() => setShowGlobalSearch(prev => !prev), []),
+    onDiscoverPanel: useCallback(() => setShowDiscoverPanel(prev => !prev), []),
+    onHealthPanel: useCallback(() => setShowHealthPanel(prev => !prev), []),
+    onSettingsPanel: useCallback(() => setSettingsOpen(prev => !prev), [setSettingsOpen]),
   })
 
   async function handleDuplicate(id: string) {

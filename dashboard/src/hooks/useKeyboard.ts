@@ -17,9 +17,12 @@ interface KeyboardActions {
   onZoomOut?: () => void
   onZoomReset?: () => void
   onGlobalSearch?: () => void
+  onDiscoverPanel?: () => void
+  onHealthPanel?: () => void
+  onSettingsPanel?: () => void
 }
 
-export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode, onNavigateDown, onNavigateUp, onOpenFocused, onShowShortcuts, onZoomIn, onZoomOut, onZoomReset, onGlobalSearch }: KeyboardActions) {
+export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode, onNavigateDown, onNavigateUp, onOpenFocused, onShowShortcuts, onZoomIn, onZoomOut, onZoomReset, onGlobalSearch, onDiscoverPanel, onHealthPanel, onSettingsPanel }: KeyboardActions) {
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement
@@ -119,9 +122,27 @@ export function useKeyboard({ onNewItem, onFocusSearch, onEscape, onRefresh, onC
         e.preventDefault()
         onShowShortcuts?.()
       }
+
+      // D for discover panel
+      if (e.key === 'd' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        onDiscoverPanel?.()
+      }
+
+      // H for health panel
+      if (e.key === 'h' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        onHealthPanel?.()
+      }
+
+      // , (comma) for settings
+      if (e.key === ',' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        onSettingsPanel?.()
+      }
     }
 
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode, onNavigateDown, onNavigateUp, onOpenFocused, onShowShortcuts, onZoomIn, onZoomOut, onZoomReset, onGlobalSearch])
+  }, [onNewItem, onFocusSearch, onEscape, onRefresh, onCommandPalette, onTabSwitch, onSelectAll, onToggleViewMode, onNavigateDown, onNavigateUp, onOpenFocused, onShowShortcuts, onZoomIn, onZoomOut, onZoomReset, onGlobalSearch, onDiscoverPanel, onHealthPanel, onSettingsPanel])
 }

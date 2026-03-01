@@ -131,8 +131,9 @@ function rotate_event_log() {
 
 function check_merged_prs() {
     # Check active items with PR URLs — if PR is merged, auto-complete
+    # Supports both single PRs and Graphite stacks
     python3 -c "
-import json, subprocess, sys
+import json, subprocess, sys, re
 
 with open('$QUEUE_FILE') as f:
     data = json.load(f)
@@ -146,13 +147,10 @@ if not active_with_pr:
     print('[pr-check] No active items with PR URLs')
     sys.exit(0)
 
-for item in active_with_pr:
-    pr_url = item['pr_url']
-    # Extract owner/repo/number
-    import re
+def check_pr_state(pr_url):
     match = re.search(r'github\.com/([^/]+)/([^/]+)/pull/(\d+)', pr_url)
     if not match:
-        continue
+        return None
     owner, repo, number = match.groups()
     try:
         result = subprocess.run(
@@ -160,12 +158,57 @@ for item in active_with_pr:
             capture_output=True, text=True, timeout=10
         )
         if result.returncode != 0:
+            return None
+        return json.loads(result.stdout).get('state', '')
+    except Exception:
+        return None
+
+for item in active_with_pr:
+    pr_url = item['pr_url']
+    is_stack = item.get('metadata', {}).get('pr_type') == 'graphite_stack'
+
+    if is_stack:
+        # For Graphite stacks, check all PRs in the stack
+        # Find all PRs for this branch prefix
+        match = re.search(r'github\.com/([^/]+)/([^/]+)/pull/(\d+)', pr_url)
+        if not match:
             continue
-        state = json.loads(result.stdout).get('state', '')
+        owner, repo, _ = match.groups()
+        branch = item.get('branch', '')
+        if not branch:
+            continue
+        try:
+            # List PRs with matching head branch prefix
+            result = subprocess.run(
+                ['gh', 'pr', 'list', '--repo', f'{owner}/{repo}',
+                 '--json', 'number,state,headRefName', '--limit', '20'],
+                capture_output=True, text=True, timeout=15
+            )
+            if result.returncode != 0:
+                continue
+            all_prs = json.loads(result.stdout)
+            # Find PRs in this stack (branches starting with same prefix)
+            branch_prefix = '/'.join(branch.split('/')[:3])  # e.g. me/project/name
+            stack_prs = [p for p in all_prs if p['headRefName'].startswith(branch_prefix)]
+            if not stack_prs:
+                # Fallback to single PR check
+                state = check_pr_state(pr_url)
+                if state == 'MERGED':
+                    print(f'MERGED:{item[\"id\"]}:{item[\"title\"]}')
+                continue
+            all_merged = all(p['state'] == 'MERGED' for p in stack_prs)
+            merged_count = sum(1 for p in stack_prs if p['state'] == 'MERGED')
+            total = len(stack_prs)
+            if all_merged:
+                print(f'MERGED:{item[\"id\"]}:{item[\"title\"]}')
+            else:
+                print(f'[pr-check] Stack {item[\"id\"]}: {merged_count}/{total} PRs merged')
+        except Exception:
+            continue
+    else:
+        state = check_pr_state(pr_url)
         if state == 'MERGED':
             print(f'MERGED:{item[\"id\"]}:{item[\"title\"]}')
-    except Exception:
-        continue
 "
 }
 
