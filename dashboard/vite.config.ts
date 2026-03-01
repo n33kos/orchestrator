@@ -246,6 +246,132 @@ function queueApiPlugin(): Plugin {
         }
       })
 
+      // POST /api/stream/activate — activate a queued work item
+      server.middlewares.use('/api/stream/activate', async (req, res) => {
+        if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
+        try {
+          const body = JSON.parse(await readBody(req))
+          const scriptPath = join(__dirname, '..', 'scripts', 'activate-stream.sh')
+          const args = [body.itemId]
+          if (body.quick) args.push('--quick')
+          if (body.noDelegator) args.push('--no-delegator')
+          execFile('bash', [scriptPath, ...args], { timeout: 120000, env: { ...process.env, HOME: homedir() } }, (err, stdout, stderr) => {
+            res.setHeader('Content-Type', 'application/json')
+            if (err) {
+              res.statusCode = 500
+              res.end(JSON.stringify({ error: stderr || String(err), output: stdout }))
+              return
+            }
+            res.end(JSON.stringify({ ok: true, output: stdout }))
+          })
+        } catch (err) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: String(err) }))
+        }
+      })
+
+      // POST /api/stream/teardown — tear down an active work stream
+      server.middlewares.use('/api/stream/teardown', async (req, res) => {
+        if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
+        try {
+          const body = JSON.parse(await readBody(req))
+          const scriptPath = join(__dirname, '..', 'scripts', 'teardown-stream.sh')
+          const args = [body.itemId]
+          if (body.force) args.push('--force')
+          execFile('bash', [scriptPath, ...args], { timeout: 60000, env: { ...process.env, HOME: homedir() } }, (err, stdout, stderr) => {
+            res.setHeader('Content-Type', 'application/json')
+            if (err) {
+              res.statusCode = 500
+              res.end(JSON.stringify({ error: stderr || String(err), output: stdout }))
+              return
+            }
+            res.end(JSON.stringify({ ok: true, output: stdout }))
+          })
+        } catch (err) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: String(err) }))
+        }
+      })
+
+      // GET /api/health — orchestrator health check
+      server.middlewares.use('/api/health', (_req, res) => {
+        const scriptPath = join(__dirname, '..', 'scripts', 'health-check.sh')
+        execFile('bash', [scriptPath, '--json'], { timeout: 15000, env: { ...process.env, HOME: homedir() } }, (err, stdout) => {
+          res.setHeader('Content-Type', 'application/json')
+          if (err) {
+            res.end(JSON.stringify({ error: 'Health check failed', sessions: { total: 0, healthy: 0, zombie: 0 }, queue: { active_count: 0 } }))
+            return
+          }
+          res.end(stdout)
+        })
+      })
+
+      // POST /api/discover — trigger work discovery
+      server.middlewares.use('/api/discover', async (req, res) => {
+        if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
+        try {
+          const body = req.method === 'POST' ? JSON.parse(await readBody(req)) : {}
+          const scriptPath = join(__dirname, '..', 'scripts', 'discover-work.py')
+          const args = ['python3', scriptPath]
+          if (body.dryRun) args.push('--dry-run')
+          if (body.source) args.push('--source', body.source)
+          execFile(args[0], args.slice(1), { timeout: 30000, env: { ...process.env, HOME: homedir() } }, (err, stdout, stderr) => {
+            res.setHeader('Content-Type', 'application/json')
+            if (err) {
+              res.statusCode = 500
+              res.end(JSON.stringify({ error: stderr || String(err), output: stdout }))
+              return
+            }
+            res.end(JSON.stringify({ ok: true, output: stdout }))
+          })
+        } catch (err) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: String(err) }))
+        }
+      })
+
+      // POST /api/sessions/kill — kill a vmux session
+      server.middlewares.use('/api/sessions/kill', async (req, res) => {
+        if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
+        try {
+          const body = JSON.parse(await readBody(req))
+          const vmuxPath = join(homedir(), '.local/bin/vmux')
+          execFile(vmuxPath, ['kill', body.sessionId], { timeout: 10000 }, (err, stdout, stderr) => {
+            res.setHeader('Content-Type', 'application/json')
+            if (err) {
+              res.statusCode = 500
+              res.end(JSON.stringify({ error: stderr || String(err) }))
+              return
+            }
+            res.end(JSON.stringify({ ok: true, output: stdout.trim() }))
+          })
+        } catch (err) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: String(err) }))
+        }
+      })
+
+      // POST /api/sessions/reconnect — reconnect a zombie session
+      server.middlewares.use('/api/sessions/reconnect', async (req, res) => {
+        if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
+        try {
+          const body = JSON.parse(await readBody(req))
+          const vmuxPath = join(homedir(), '.local/bin/vmux')
+          execFile(vmuxPath, ['reconnect', body.cwd], { timeout: 15000 }, (err, stdout, stderr) => {
+            res.setHeader('Content-Type', 'application/json')
+            if (err) {
+              res.statusCode = 500
+              res.end(JSON.stringify({ error: stderr || String(err) }))
+              return
+            }
+            res.end(JSON.stringify({ ok: true, output: stdout.trim() }))
+          })
+        } catch (err) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: String(err) }))
+        }
+      })
+
       // GET /api/queue — read the queue
       server.middlewares.use('/api/queue', (_req, res) => {
         try {
