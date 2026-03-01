@@ -126,6 +126,12 @@ function queueApiPlugin(): Plugin {
             Object.assign(item.metadata, body.metadata)
           }
 
+          // Auto-update last_activity for stall detection
+          if (body.status || body.metadata || body.pr_url) {
+            if (!item.metadata) item.metadata = {}
+            item.metadata.last_activity = new Date().toISOString()
+          }
+
           writeQueue(data)
           res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify(item))
@@ -1066,6 +1072,8 @@ function queueApiPlugin(): Plugin {
             if (!item.metadata) item.metadata = {}
             item.metadata.completion_message = body.message
           }
+          if (!item.metadata) item.metadata = {}
+          item.metadata.last_activity = new Date().toISOString()
 
           writeQueue(data)
 

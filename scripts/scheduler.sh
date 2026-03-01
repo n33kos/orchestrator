@@ -292,7 +292,9 @@ print(json.dumps(result))
     local ready_count
     ready_count="$(echo "$state" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['ready']))")"
 
-    echo "[scheduler] Active projects: $(echo "$state" | python3 -c "import json,sys; print(json.load(sys.stdin)['active_projects'])")/$MAX_ACTIVE | Ready: $ready_count | Slots: $slots_available"
+    local active_qf
+    active_qf="$(echo "$state" | python3 -c "import json,sys; print(json.load(sys.stdin)['active_qf'])")"
+    echo "[scheduler] Projects: $(echo "$state" | python3 -c "import json,sys; print(json.load(sys.stdin)['active_projects'])")/$MAX_ACTIVE | Quick fixes: $active_qf/$MAX_QUICK_FIXES | Ready: $ready_count | Slots: $slots_available"
 
     if [[ "$ready_count" -eq 0 ]]; then
         echo "[scheduler] No items ready for activation"
