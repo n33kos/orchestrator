@@ -14,6 +14,13 @@ export interface OrchestratorSettings {
 
 const STORAGE_KEY = 'orchestrator-settings-config'
 
+// Keys that are synced to environment.yml via the config API
+const CONFIG_SYNCED_KEYS = new Set<keyof OrchestratorSettings>([
+  'maxConcurrentProjects',
+  'autoActivate',
+  'defaultDelegatorEnabled',
+])
+
 const DEFAULTS: OrchestratorSettings = {
   maxConcurrentProjects: 2,
   maxConcurrentQuickFixes: 4,
@@ -37,16 +44,46 @@ export function useSettings() {
 
   const [open, setOpen] = useState(false)
 
+  // On mount, fetch config-synced values from the API
+  useEffect(() => {
+    fetch('/api/config')
+      .then(r => r.json())
+      .then(config => {
+        setSettings(prev => ({ ...prev, ...config }))
+      })
+      .catch(() => { /* use local values */ })
+  }, [])
+
+  // Persist to localStorage on every change
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
   }, [settings])
 
   const update = useCallback(<K extends keyof OrchestratorSettings>(key: K, value: OrchestratorSettings[K]) => {
     setSettings(prev => ({ ...prev, [key]: value }))
+
+    // Sync config-backed settings to environment.yml
+    if (CONFIG_SYNCED_KEYS.has(key)) {
+      fetch('/api/config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [key]: value }),
+      }).catch(() => { /* best effort */ })
+    }
   }, [])
 
   const reset = useCallback(() => {
     setSettings(DEFAULTS)
+    // Sync all config-backed defaults
+    const configDefaults: Record<string, unknown> = {}
+    for (const key of CONFIG_SYNCED_KEYS) {
+      configDefaults[key] = DEFAULTS[key]
+    }
+    fetch('/api/config', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(configDefaults),
+    }).catch(() => { /* best effort */ })
   }, [])
 
   return { settings, update, reset, open, setOpen }

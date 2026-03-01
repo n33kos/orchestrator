@@ -604,6 +604,69 @@ function queueApiPlugin(): Plugin {
         }
       })
 
+      // GET /api/config — read environment.yml as structured settings
+      server.middlewares.use('/api/config', async (req, res) => {
+        if (req.method === 'PATCH') {
+          try {
+            const body = JSON.parse(await readBody(req))
+            const configPath = join(__dirname, '..', 'config', 'environment.yml')
+            let content = readFileSync(configPath, 'utf-8')
+
+            // Map setting keys to YAML paths
+            const mappings: Record<string, { pattern: RegExp; format: (v: unknown) => string }> = {
+              maxConcurrentProjects: {
+                pattern: /^(\s*max_active_projects:\s*).+$/m,
+                format: (v) => `$1${v}`,
+              },
+              autoActivate: {
+                pattern: /^(\s*auto_activate:\s*).+$/m,
+                format: (v) => `$1${v}`,
+              },
+              defaultDelegatorEnabled: {
+                pattern: /^(\s*enabled_by_default:\s*).+$/m,
+                format: (v) => `$1${v}`,
+              },
+            }
+
+            for (const [key, value] of Object.entries(body)) {
+              const mapping = mappings[key]
+              if (mapping) {
+                content = content.replace(mapping.pattern, mapping.format(value))
+              }
+            }
+
+            writeFileSync(configPath, content)
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ ok: true }))
+          } catch (err) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: String(err) }))
+          }
+          return
+        }
+
+        // GET — read config values
+        try {
+          const configPath = join(__dirname, '..', 'config', 'environment.yml')
+          const content = readFileSync(configPath, 'utf-8')
+
+          const getVal = (key: string) => {
+            const match = content.match(new RegExp(`^\\s*${key}:\\s*(.+)$`, 'm'))
+            return match ? match[1].trim() : null
+          }
+
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({
+            maxConcurrentProjects: parseInt(getVal('max_active_projects') || '2', 10),
+            autoActivate: getVal('auto_activate') === 'true',
+            defaultDelegatorEnabled: getVal('enabled_by_default') === 'true',
+          }))
+        } catch (err) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: String(err) }))
+        }
+      })
+
       // GET /api/queue — read the queue
       server.middlewares.use('/api/queue', (_req, res) => {
         try {
