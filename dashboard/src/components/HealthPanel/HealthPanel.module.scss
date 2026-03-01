@@ -222,6 +222,49 @@
   }
 }
 
+/* ── Warning Sections (Stalled/Blocked) ── */
+.WarningSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--color-warning) 8%, transparent);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--color-warning);
+}
+
+.WarnTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-warning);
+  margin: 0;
+}
+
+.WarnList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.WarnItem {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--color-text);
+  padding: 4px 8px;
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+}
+
+.WarnHint {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin: 4px 0 0;
+  font-style: italic;
+}
+
 /* ── Delegator Section ── */
 .DelegatorSection {
   display: flex;

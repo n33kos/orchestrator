@@ -85,6 +85,8 @@ export function HealthPanel({ onClose, onAutoRecover }: HealthPanelProps) {
 
   const issueCount = health?.issues?.length ?? 0
   const hasZombies = (health?.sessions?.zombie ?? 0) > 0
+  const stalledCount = health?.queue?.stalled?.length ?? 0
+  const blockedCount = health?.queue?.blocked?.length ?? 0
 
   return (
     <div className={styles.Overlay} onClick={onClose}>
@@ -135,6 +137,42 @@ export function HealthPanel({ onClose, onAutoRecover }: HealthPanelProps) {
               </div>
             </div>
 
+            {stalledCount > 0 && (
+              <div className={styles.WarningSection}>
+                <h3 className={styles.WarnTitle}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                  {stalledCount} Stalled Stream{stalledCount !== 1 ? 's' : ''}
+                </h3>
+                <div className={styles.WarnList}>
+                  {health!.queue.stalled!.map((id, i) => (
+                    <div key={i} className={styles.WarnItem}>{id}</div>
+                  ))}
+                </div>
+                <p className={styles.WarnHint}>No commit activity detected. Workers may need intervention.</p>
+              </div>
+            )}
+
+            {blockedCount > 0 && (
+              <div className={styles.WarningSection}>
+                <h3 className={styles.WarnTitle}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0110 0v4" />
+                  </svg>
+                  {blockedCount} Blocked Item{blockedCount !== 1 ? 's' : ''}
+                </h3>
+                <div className={styles.WarnList}>
+                  {health!.queue.blocked!.map((id, i) => (
+                    <div key={i} className={styles.WarnItem}>{id}</div>
+                  ))}
+                </div>
+                <p className={styles.WarnHint}>Items have unresolved blockers preventing progress.</p>
+              </div>
+            )}
+
             {issueCount > 0 ? (
               <div className={styles.IssuesList}>
                 <h3 className={styles.IssuesTitle}>
@@ -165,9 +203,9 @@ export function HealthPanel({ onClose, onAutoRecover }: HealthPanelProps) {
                   Delegators ({delegators.length})
                 </h3>
                 {delegators.map(d => (
-                  <div key={d.id} className={styles.DelegatorRow}>
+                  <div key={d.item_id} className={styles.DelegatorRow}>
                     <span className={`${styles.DelegatorDot} ${styles[`deleg_${d.status}`] || ''}`} />
-                    <span className={styles.DelegatorId}>{d.id.slice(0, 10)}</span>
+                    <span className={styles.DelegatorId}>{d.item_id}</span>
                     <span className={styles.DelegatorStatus}>{d.status}</span>
                     {d.last_check && (
                       <span className={styles.DelegatorTime}>{new Date(d.last_check).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
