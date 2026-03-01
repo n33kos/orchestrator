@@ -1,0 +1,170 @@
+.Root {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.HeaderRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.ColHeader {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.Row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  border-bottom: 1px solid var(--color-border-subtle);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background: var(--color-surface-hover);
+  }
+
+  &.RowSelected {
+    background: color-mix(in srgb, var(--color-primary-muted) 30%, var(--color-surface));
+  }
+}
+
+.ColCheck {
+  width: 20px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  input {
+    accent-color: var(--color-primary);
+    cursor: pointer;
+    margin: 0;
+  }
+}
+
+.ColPriority {
+  width: 28px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.ColTitle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.TitleText {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.BlockerCount {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-error);
+  background: var(--color-error-muted);
+  padding: 0 5px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.TypeTag {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  background: var(--color-surface-hover);
+  padding: 1px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.ColStatus {
+  width: 80px;
+  flex-shrink: 0;
+}
+
+.ColBranch {
+  width: 140px;
+  flex-shrink: 0;
+  overflow: hidden;
+
+  @media (max-width: 640px) {
+    display: none;
+  }
+}
+
+.BranchCode {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+.ColTime {
+  width: 70px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+
+  @media (max-width: 480px) {
+    display: none;
+  }
+}
+
+.ColAction {
+  width: 64px;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.QuickAction {
+  padding: 3px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+}

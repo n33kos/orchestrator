@@ -16,6 +16,7 @@ import { ToastContainer } from './components/Toast/Toast.tsx'
 import { BatchActionBar } from './components/BatchActionBar/BatchActionBar.tsx'
 import { SessionsView } from './components/SessionsView/SessionsView.tsx'
 import { ActivityFeed } from './components/ActivityFeed/ActivityFeed.tsx'
+import { CompactList } from './components/CompactList/CompactList.tsx'
 import { KeyboardHints } from './components/KeyboardHints/KeyboardHints.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import { useQueue } from './hooks/useQueue.ts'
@@ -54,6 +55,7 @@ export function App() {
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'cards' | 'compact'>('cards')
   const [sortField, setSortField] = useState<SortField>('priority')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -453,6 +455,29 @@ export function App() {
                   </span>
                 </label>
               )}
+              <button
+                className={styles.ViewModeToggle}
+                onClick={() => setViewMode(viewMode === 'cards' ? 'compact' : 'cards')}
+                title={viewMode === 'cards' ? 'Switch to compact view' : 'Switch to card view'}
+              >
+                {viewMode === 'cards' ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="8" y1="6" x2="21" y2="6" />
+                    <line x1="8" y1="12" x2="21" y2="12" />
+                    <line x1="8" y1="18" x2="21" y2="18" />
+                    <line x1="3" y1="6" x2="3.01" y2="6" />
+                    <line x1="3" y1="12" x2="3.01" y2="12" />
+                    <line x1="3" y1="18" x2="3.01" y2="18" />
+                  </svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="3" width="7" height="7" />
+                    <rect x="14" y="3" width="7" height="7" />
+                    <rect x="14" y="14" width="7" height="7" />
+                    <rect x="3" y="14" width="7" height="7" />
+                  </svg>
+                )}
+              </button>
             </div>
             {showAddForm && (
               <AddWorkItem
@@ -460,6 +485,16 @@ export function App() {
                 onCancel={() => setShowAddForm(false)}
               />
             )}
+            {viewMode === 'compact' ? (
+              <CompactList
+                items={filteredItems}
+                selectable={selectionMode}
+                selectedIds={selectedIds}
+                onSelect={handleToggleSelect}
+                onStatusChange={handleStatusChange}
+                onNavigate={handleNavigateToItem}
+              />
+            ) : (
             <WorkStreamList
               items={filteredItems}
               loading={queue.loading}
@@ -490,6 +525,7 @@ export function App() {
               onReorder={handleReorder}
               onSendMessage={handleSendMessage}
             />
+            )}
           </>
         )}
       </main>
