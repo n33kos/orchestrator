@@ -236,7 +236,7 @@ export function App() {
         ? queue.quickFixes
         : queue.items
 
-    if (!showCompleted && statusFilter !== 'completed') {
+    if (!showCompleted && statusFilter !== 'completed' && activeTab !== 'all') {
       pool = pool.filter(i => i.status !== 'completed')
     }
 
