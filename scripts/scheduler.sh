@@ -24,6 +24,8 @@ POLL_INTERVAL="$(grep 'poll_interval:' "$CONFIG" | sed 's/.*: *//')"
 POLL_INTERVAL="${POLL_INTERVAL:-120}"
 CLEANUP_EVERY="$(grep 'cleanup_every:' "$CONFIG" | sed 's/[^0-9]//g')"
 CLEANUP_EVERY="${CLEANUP_EVERY:-10}"
+ARCHIVE_AFTER_DAYS="$(grep 'archive_after_days:' "$CONFIG" | sed 's/[^0-9]//g')"
+ARCHIVE_AFTER_DAYS="${ARCHIVE_AFTER_DAYS:-7}"
 
 ONCE=false
 DRY_RUN=false
@@ -40,7 +42,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 function cleanup_completed() {
-    # Archive completed items older than 7 days
+    # Archive completed items older than configured days
     local archive_dir
     archive_dir="$(dirname "$QUEUE_FILE")/archive"
     mkdir -p "$archive_dir"
@@ -52,7 +54,7 @@ from datetime import datetime, timezone, timedelta
 with open('$QUEUE_FILE') as f:
     data = json.load(f)
 
-cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+cutoff = datetime.now(timezone.utc) - timedelta(days=$ARCHIVE_AFTER_DAYS)
 keep = []
 archive = []
 

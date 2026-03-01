@@ -136,7 +136,7 @@ echo "Queue: $ACTIVE_COUNT active"
 
 if [[ "$STALLED_COUNT" -gt 0 ]]; then
     echo ""
-    echo "Stalled streams (active >24h):"
+    echo "Stalled streams (no commits in >${STALL_THRESHOLD_MIN}m):"
     echo "$QUEUE_HEALTH" | python3 -c "
 import json, sys
 data = json.load(sys.stdin)

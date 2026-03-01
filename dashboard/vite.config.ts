@@ -201,7 +201,8 @@ function queueApiPlugin(): Plugin {
       })
 
       // GET /api/sessions — list vmux sessions
-      server.middlewares.use('/api/sessions', (_req, res) => {
+      server.middlewares.use('/api/sessions', (_req, res, next) => {
+        if (_req.url && _req.url !== '/' && _req.url !== '') { next(); return }
         const vmuxPath = join(homedir(), '.local/bin/vmux')
         execFile(vmuxPath, ['sessions'], { timeout: 5000 }, (err, stdout) => {
           res.setHeader('Content-Type', 'application/json')
@@ -347,7 +348,8 @@ function queueApiPlugin(): Plugin {
       })
 
       // GET /api/health — orchestrator health check
-      server.middlewares.use('/api/health', (_req, res) => {
+      server.middlewares.use('/api/health', (_req, res, next) => {
+        if (_req.url && _req.url !== '/' && _req.url !== '') { next(); return }
         const scriptPath = join(__dirname, '..', 'scripts', 'health-check.sh')
         execFile('bash', [scriptPath, '--json'], { timeout: 15000, env: { ...process.env, HOME: homedir() } }, (err, stdout) => {
           res.setHeader('Content-Type', 'application/json')
@@ -510,7 +512,8 @@ function queueApiPlugin(): Plugin {
       })
 
       // GET /api/delegators — delegator status
-      server.middlewares.use('/api/delegators', (_req, res) => {
+      server.middlewares.use('/api/delegators', (_req, res, next) => {
+        if (_req.url && _req.url !== '/' && _req.url !== '') { next(); return }
         const scriptPath = join(__dirname, '..', 'scripts', 'delegator-status.sh')
         execFile('bash', [scriptPath, '--json'], { timeout: 10000, env: { ...process.env, HOME: homedir() } }, (err, stdout) => {
           res.setHeader('Content-Type', 'application/json')
