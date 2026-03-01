@@ -81,6 +81,11 @@
   &.RowDragOver {
     border-top: 2px solid var(--color-primary);
   }
+
+  &.RowFocused {
+    background: var(--color-primary-muted);
+    border-left: 2px solid var(--color-primary);
+  }
 }
 
 .ColCheck {

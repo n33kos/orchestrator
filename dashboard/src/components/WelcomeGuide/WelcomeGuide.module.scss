@@ -1,0 +1,160 @@
+.Root {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 32px 24px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  animation: welcomeFade 0.3s ease;
+}
+
+@keyframes welcomeFade {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.Header {
+  text-align: center;
+}
+
+.Title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text-strong);
+  margin-bottom: 6px;
+}
+
+.Subtitle {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.Steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.Step {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-secondary, var(--color-surface-hover));
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: var(--color-surface-hover);
+  }
+}
+
+.StepIcon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary-muted);
+  color: var(--color-primary);
+  border-radius: var(--radius-md);
+}
+
+.StepContent {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.StepTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.StepDesc {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.Actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.PrimaryAction {
+  padding: 8px 20px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: white;
+  font-family: var(--font-family);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--color-primary-hover);
+  }
+}
+
+.SecondaryAction {
+  padding: 8px 20px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+  }
+}
+
+.DismissAction {
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  font-family: var(--font-family);
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-text-secondary);
+    text-decoration: underline;
+  }
+}
+
+.Hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.Kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-weight: 600;
+}

@@ -21,6 +21,7 @@ interface CompactListProps {
   onStatusChange: (id: string, status: WorkItemStatus) => void
   onActivateStream?: (id: string) => void
   activatingIds?: Set<string>
+  focusedItemId?: string | null
   onNavigate: (id: string) => void
   onReorder?: (dragId: string, dropId: string) => void
   onEdit?: (id: string, updates: { title?: string }) => void
@@ -68,7 +69,7 @@ function InlineEditTitle({ value, onSave, onCancel }: { value: string; onSave: (
   )
 }
 
-export function CompactList({ items, selectable, selectedIds, onSelect, onStatusChange, onActivateStream, activatingIds, onNavigate, onReorder, onEdit }: CompactListProps) {
+export function CompactList({ items, selectable, selectedIds, onSelect, onStatusChange, onActivateStream, activatingIds, focusedItemId, onNavigate, onReorder, onEdit }: CompactListProps) {
   const { dragId, overId, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(onReorder ?? (() => {}))
   const [editingId, setEditingId] = useState<string | null>(null)
   const [sortCol, setSortCol] = useState<SortCol | null>(null)
@@ -137,6 +138,7 @@ export function CompactList({ items, selectable, selectedIds, onSelect, onStatus
               selectedIds?.has(item.id) && styles.RowSelected,
               dragId === item.id && styles.RowDragging,
               overId === item.id && styles.RowDragOver,
+              focusedItemId === item.id && styles.RowFocused,
             )}
             draggable={!!onReorder}
             onDragStart={() => handleDragStart(item.id)}

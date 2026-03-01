@@ -28,6 +28,8 @@ import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary.tsx'
 import { HealthPanel } from './components/HealthPanel/HealthPanel.tsx'
 import { ShortcutSheet } from './components/ShortcutSheet/ShortcutSheet.tsx'
 import { StatusFooter } from './components/StatusFooter/StatusFooter.tsx'
+import { WelcomeGuide } from './components/WelcomeGuide/WelcomeGuide.tsx'
+import { KanbanBoard } from './components/KanbanBoard/KanbanBoard.tsx'
 import type { NewWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import { useQueue } from './hooks/useQueue.ts'
 import { useTheme } from './hooks/useTheme.ts'
@@ -111,7 +113,7 @@ export function App() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null)
   const [detailItemId, setDetailItemId] = useState<string | null>(null)
-  const [viewMode, setViewMode] = usePersistedState<'cards' | 'compact' | 'grouped'>('viewMode', 'cards')
+  const [viewMode, setViewMode] = usePersistedState<'cards' | 'compact' | 'grouped' | 'kanban'>('viewMode', 'cards')
   const [sortField, setSortField] = usePersistedState<SortField>('sortField', 'priority')
   const [sortDirection, setSortDirection] = usePersistedState<SortDirection>('sortDirection', 'asc')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -129,6 +131,7 @@ export function App() {
   const [healthIssues, setHealthIssues] = useState(0)
   const [showHealthPanel, setShowHealthPanel] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [welcomeDismissed, setWelcomeDismissed] = usePersistedState('welcomeDismissed', false)
 
   // Periodic health check for issue count
   useEffect(() => {
@@ -226,7 +229,7 @@ export function App() {
       })
     }, [selectionMode, filteredItems]),
     onToggleViewMode: useCallback(() => {
-      setViewMode(prev => prev === 'cards' ? 'compact' : prev === 'compact' ? 'grouped' : 'cards')
+      setViewMode(prev => prev === 'cards' ? 'compact' : prev === 'compact' ? 'grouped' : prev === 'grouped' ? 'kanban' : 'cards')
     }, [setViewMode]),
     onNavigateDown: useCallback(() => {
       if (filteredItems.length === 0) return
@@ -790,8 +793,8 @@ export function App() {
               )}
               <button
                 className={styles.ViewModeToggle}
-                onClick={() => setViewMode(viewMode === 'cards' ? 'compact' : viewMode === 'compact' ? 'grouped' : 'cards')}
-                title={viewMode === 'cards' ? 'Compact view' : viewMode === 'compact' ? 'Grouped view' : 'Card view'}
+                onClick={() => setViewMode(viewMode === 'cards' ? 'compact' : viewMode === 'compact' ? 'grouped' : viewMode === 'grouped' ? 'kanban' : 'cards')}
+                title={viewMode === 'cards' ? 'Compact view' : viewMode === 'compact' ? 'Grouped view' : viewMode === 'grouped' ? 'Kanban view' : 'Card view'}
               >
                 {viewMode === 'cards' ? (
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -824,6 +827,13 @@ export function App() {
                 onCancel={() => setShowAddForm(false)}
               />
             )}
+            {!welcomeDismissed && queue.items.length === 0 && !queue.loading && (
+              <WelcomeGuide
+                onDismiss={() => setWelcomeDismissed(true)}
+                onAddItem={() => { setWelcomeDismissed(true); setShowAddForm(true) }}
+                onOpenSettings={() => { setWelcomeDismissed(true); setSettingsOpen(true) }}
+              />
+            )}
             {viewMode === 'compact' ? (
               <CompactList
                 items={filteredItems}
@@ -833,12 +843,19 @@ export function App() {
                 onStatusChange={handleStatusChange}
                 onActivateStream={handleActivateStream}
                 activatingIds={activatingIds}
+                focusedItemId={focusedItemId}
                 onNavigate={id => setDetailItemId(id)}
                 onReorder={handleReorder}
                 onEdit={handleEdit}
               />
             ) : viewMode === 'grouped' ? (
               <GroupedList
+                items={filteredItems}
+                onStatusChange={handleStatusChange}
+                onNavigate={id => setDetailItemId(id)}
+              />
+            ) : viewMode === 'kanban' ? (
+              <KanbanBoard
                 items={filteredItems}
                 onStatusChange={handleStatusChange}
                 onNavigate={id => setDetailItemId(id)}
@@ -973,7 +990,7 @@ export function App() {
             if (text) handleSendMessage(sessionId, text)
           }}
           onGoToSessions={() => setActiveTab('sessions')}
-          onToggleViewMode={() => setViewMode(prev => prev === 'cards' ? 'compact' : prev === 'compact' ? 'grouped' : 'cards')}
+          onToggleViewMode={() => setViewMode(prev => prev === 'cards' ? 'compact' : prev === 'compact' ? 'grouped' : prev === 'grouped' ? 'kanban' : 'cards')}
           onDiscoverWork={handleDiscoverWork}
           onHealthCheck={() => setShowHealthPanel(true)}
           onActivateStream={handleActivateStream}
