@@ -38,12 +38,25 @@ export function SessionsView({ sessions, items, messagesBySession, onSendMessage
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [messageText, setMessageText] = useState<Record<string, string>>({})
   const [confirmKill, setConfirmKill] = useState<string | null>(null)
+  const [broadcastText, setBroadcastText] = useState('')
+  const [showBroadcast, setShowBroadcast] = useState(false)
 
   function handleSend(sessionId: string) {
     const text = messageText[sessionId]?.trim()
     if (!text) return
     onSendMessage(sessionId, text)
     setMessageText(prev => ({ ...prev, [sessionId]: '' }))
+  }
+
+  function handleBroadcast() {
+    const text = broadcastText.trim()
+    if (!text) return
+    const standbyAndActive = sessions.filter(s => s.state === 'standby' || s.state === 'thinking' || s.state === 'responding')
+    for (const s of standbyAndActive) {
+      onSendMessage(s.id, text)
+    }
+    setBroadcastText('')
+    setShowBroadcast(false)
   }
 
   if (sessions.length === 0) {
@@ -122,7 +135,40 @@ export function SessionsView({ sessions, items, messagesBySession, onSendMessage
             <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
           </svg>
         </button>
+        <button
+          className={classnames(styles.BroadcastToggle, showBroadcast && styles.BroadcastToggleActive)}
+          onClick={() => setShowBroadcast(!showBroadcast)}
+          title="Broadcast message to all sessions"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+          </svg>
+        </button>
       </div>
+
+      {showBroadcast && (
+        <div className={styles.BroadcastBar}>
+          <span className={styles.BroadcastLabel}>Broadcast to all active sessions:</span>
+          <div className={styles.BroadcastRow}>
+            <input
+              className={styles.BroadcastInput}
+              type="text"
+              value={broadcastText}
+              onChange={e => setBroadcastText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleBroadcast() }}
+              placeholder="Type a message to send to all sessions..."
+              autoFocus
+            />
+            <button
+              className={styles.BroadcastSend}
+              onClick={handleBroadcast}
+              disabled={!broadcastText.trim()}
+            >
+              Send to {sessions.filter(s => s.state !== 'zombie').length}
+            </button>
+          </div>
+        </div>
+      )}
 
       {groups.map(group => (
         <div key={group.label} className={styles.Group}>
