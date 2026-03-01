@@ -11,8 +11,6 @@ import type { ContextMenuItem } from '../ContextMenu/ContextMenu.tsx'
 import { timeAgo, formatDate } from '../../utils/time.ts'
 import { useTimeRefresh } from '../../hooks/useTimeRefresh.ts'
 import { ProgressBar } from '../ProgressBar/ProgressBar.tsx'
-import { PlanEditor } from '../PlanEditor/PlanEditor.tsx'
-import type { Plan } from '../PlanEditor/PlanEditor.tsx'
 import { usePrStatus, usePrStack } from '../../hooks/usePrStatus.ts'
 import type { StackPr } from '../../hooks/usePrStatus.ts'
 import type { WorkItem, WorkItemStatus, SessionInfo, MessageEntry } from '../../types.ts'
@@ -43,7 +41,6 @@ interface WorkStreamCardProps {
   onActivateStream?: (id: string) => void
   onTeardownStream?: (id: string) => void
   onPrUrlChange?: (id: string, prUrl: string) => void
-  onPlanChange?: (id: string, plan: Plan) => void
   onGeneratePlan?: (id: string) => void
   activating?: boolean
   tearingDown?: boolean
@@ -56,7 +53,7 @@ interface WorkStreamCardProps {
   onDragEnd?: () => void
 }
 
-export function WorkStreamCard({ item, index = 0, position, totalCount, isDragging, isDragOver, selectable, selected, onSelect, focused, onClearFocus, pinned, onTogglePin, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onActivateStream, onTeardownStream, onPrUrlChange, onPlanChange, onGeneratePlan, activating, tearingDown, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
+export function WorkStreamCard({ item, index = 0, position, totalCount, isDragging, isDragOver, selectable, selected, onSelect, focused, onClearFocus, pinned, onTogglePin, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onActivateStream, onTeardownStream, onPrUrlChange, onGeneratePlan, activating, tearingDown, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -83,7 +80,8 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
   const isStack = item.metadata?.pr_type === 'graphite_stack'
   const { stack: prStack, loading: stackLoading } = usePrStack(expanded ? item.pr_url : null, isStack)
   const delegatorAssessment = item.metadata.delegator_assessment as string | undefined
-  const itemPlan = item.metadata.plan as Plan | undefined
+  const itemPlan = item.metadata.plan as { summary?: string; approved?: boolean } | undefined
+  const itemPlanFile = item.metadata.plan_file as string | undefined
 
   const activityEntries = useMemo(() => {
     const entries: { timestamp: string; action: string; detail?: string }[] = []
@@ -105,9 +103,9 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
     if (tearingDown) return { label: 'Tearing down...', status: 'completed' }
     if (item.status === 'queued') return { label: 'Plan', status: 'planning' }
     if (item.status === 'planning') {
-      const planApproved = itemPlan?.approved
+      const planApproved = item.metadata?.plan_approved
       if (planApproved) return { label: 'Activate', status: 'active', useStream: !!onActivateStream }
-      return itemPlan
+      return itemPlanFile
         ? { label: 'Review Plan', status: 'planning', expandOnly: true }
         : { label: 'Write Plan', status: 'planning', expandOnly: true }
     }
@@ -367,19 +365,19 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
               </svg>
               {hasLiveSession && <span className={classnames(styles.SessionDot, styles[sessionInfo!.state])} />}
             </span>
-            {itemPlan && (
+            {itemPlanFile && (
               <span
                 className={classnames(
                   styles.PlanIndicator,
-                  itemPlan.approved ? styles.PlanApproved : styles.PlanDraft,
+                  item.metadata?.plan_approved ? styles.PlanApproved : styles.PlanDraft,
                 )}
-                title={itemPlan.approved ? 'Plan approved' : 'Plan draft — needs review'}
+                title={item.metadata?.plan_approved ? 'Plan approved' : 'Plan draft — needs review'}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
                   <rect x="9" y="3" width="6" height="4" rx="1" />
                 </svg>
-                {itemPlan.approved ? '' : '!'}
+                {item.metadata?.plan_approved ? '' : '!'}
               </span>
             )}
             <span className={classnames(styles.Indicator, hasDelegator && styles.IndicatorActive)} title="Delegator">
@@ -449,7 +447,7 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
           )}
 
           {/* Implementation Plan */}
-          {onPlanChange && (item.status === 'planning' || item.status === 'queued' || itemPlan) && (
+          {itemPlanFile && (
             <div className={styles.Section}>
               <h4 className={styles.SectionTitle}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -458,26 +456,10 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
                   <line x1="9" y1="12" x2="15" y2="12" />
                   <line x1="9" y1="16" x2="15" y2="16" />
                 </svg>
-                Implementation Plan
-                {onGeneratePlan && !itemPlan && item.status === 'planning' && (
-                  <button
-                    className={styles.GeneratePlanButton}
-                    onClick={() => onGeneratePlan(item.id)}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                      <path d="M2 17l10 5 10-5" />
-                      <path d="M2 12l10 5 10-5" />
-                    </svg>
-                    Auto-Generate
-                  </button>
-                )}
+                Plan: {itemPlanFile.split('/').pop()}
+                {item.metadata?.plan_approved ? ' (Approved)' : ' (Draft)'}
               </h4>
-              <PlanEditor
-                plan={itemPlan ?? null}
-                onSave={plan => onPlanChange(item.id, plan)}
-                readOnly={item.status === 'completed'}
-              />
+              {itemPlan?.summary && <p className={styles.NotesText}>{itemPlan.summary}</p>}
             </div>
           )}
 
@@ -774,7 +756,7 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
                   Start Planning
                 </button>
               )}
-              {item.status === 'planning' && itemPlan?.approved && (
+              {item.status === 'planning' && item.metadata?.plan_approved && (
                 <button
                   className={classnames(styles.ActionButtonText, onActivateStream && styles.ActionPrimary)}
                   onClick={() => onActivateStream ? onActivateStream(item.id) : onStatusChange(item.id, 'active')}
@@ -783,7 +765,7 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
                   {activating ? 'Activating...' : onActivateStream ? 'Activate Stream' : 'Activate'}
                 </button>
               )}
-              {item.status === 'planning' && !itemPlan?.approved && item.type === 'quick_fix' && (
+              {item.status === 'planning' && !item.metadata?.plan_approved && item.type === 'quick_fix' && (
                 <button
                   className={styles.ActionButtonText}
                   onClick={() => onActivateStream ? onActivateStream(item.id) : onStatusChange(item.id, 'active')}
@@ -792,7 +774,7 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
                   {activating ? 'Activating...' : 'Skip Plan & Activate'}
                 </button>
               )}
-              {item.status === 'planning' && !itemPlan?.approved && (
+              {item.status === 'planning' && !item.metadata?.plan_approved && (
                 <button
                   className={styles.ActionButtonText}
                   onClick={() => onStatusChange(item.id, 'queued')}

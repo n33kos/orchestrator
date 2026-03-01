@@ -3,8 +3,6 @@ import styles from './DetailPanel.module.scss'
 import { StatusBadge } from '../StatusBadge/StatusBadge.tsx'
 import { PriorityBadge } from '../PriorityBadge/PriorityBadge.tsx'
 import { ItemNotes } from '../ItemNotes/ItemNotes.tsx'
-import { PlanEditor } from '../PlanEditor/PlanEditor.tsx'
-import type { Plan } from '../PlanEditor/PlanEditor.tsx'
 import { timeAgo, formatDate } from '../../utils/time.ts'
 import { useFocusTrap } from '../../hooks/useFocusTrap.ts'
 import { usePrStack } from '../../hooks/usePrStatus.ts'
@@ -26,8 +24,8 @@ interface DetailPanelProps {
   onTeardownStream?: (id: string) => void
   onSendMessage?: (sessionId: string, text: string) => void
   onDelegatorToggle?: (id: string, enabled: boolean) => void
-  onPlanChange?: (id: string, plan: Plan) => void
   onGeneratePlan?: (id: string) => void
+  onRefresh?: () => void
 }
 
 function getNextAction(status: WorkItemStatus): { label: string; nextStatus: WorkItemStatus } | null {
@@ -55,7 +53,7 @@ function formatItemSummary(item: WorkItem): string {
   return lines.filter(Boolean).join('\n')
 }
 
-export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange, onUpdate, onDelete, onDuplicate, onNotesChange, onActivateStream, onTeardownStream, onSendMessage, onDelegatorToggle, onPlanChange, onGeneratePlan }: DetailPanelProps) {
+export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange, onUpdate, onDelete, onDuplicate, onNotesChange, onActivateStream, onTeardownStream, onSendMessage, onDelegatorToggle, onGeneratePlan, onRefresh }: DetailPanelProps) {
   const panelRef = useFocusTrap<HTMLDivElement>()
   const [copied, setCopied] = useState(false)
   const [editingNotes, setEditingNotes] = useState(false)
@@ -120,9 +118,9 @@ export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange
     (item.worktree_path && (s.cwd === item.worktree_path || item.worktree_path!.startsWith(s.cwd)))
   )
 
-  const plan = item.metadata?.plan as { title?: string; summary?: string; steps?: { text: string; done?: boolean }[]; approved?: boolean } | undefined
+  const planSummary = (item.metadata?.plan as { summary?: string } | undefined)?.summary
   const planFile = item.metadata?.plan_file as string | undefined
-  const planApproved = !!(item.metadata?.plan_approved || plan?.approved)
+  const planApproved = !!(item.metadata?.plan_approved)
   const implNotes = (item.metadata?.implementation_notes as string) || ''
 
   function handleOpenPlanFile() {
@@ -139,10 +137,7 @@ export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ itemId: item.id, approved: !planApproved }),
     }).then(() => {
-      // Trigger a refresh by closing and reopening (the queue will re-fetch)
-      if (onPlanChange && plan) {
-        onPlanChange(item.id, { ...plan as Plan, approved: !planApproved, approved_at: !planApproved ? new Date().toISOString() : null } as Plan)
-      }
+      onRefresh?.()
     }).catch(() => {})
   }
 
@@ -458,15 +453,15 @@ export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange
           )}
 
           {/* Implementation Plan */}
-          {(plan || planFile || onPlanChange || item.status === 'planning' || item.status === 'queued') && (
+          {(planFile || onGeneratePlan || item.status === 'planning' || item.status === 'queued') && (
             <div className={styles.Section}>
               <div className={styles.SectionHeader}>
                 <span className={styles.SectionLabel}>
                   Implementation Plan
-                  {planApproved ? ' (Approved)' : plan || planFile ? ' (Draft)' : ''}
+                  {planApproved ? ' (Approved)' : planFile ? ' (Draft)' : ''}
                 </span>
                 <div className={styles.PlanActions}>
-                  {onGeneratePlan && !plan && !planFile && (
+                  {onGeneratePlan && !planFile && (
                     <button className={styles.EditNotesButton} onClick={() => onGeneratePlan(item.id)}>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M12 2L2 7l10 5 10-5-10-5z" />
@@ -476,56 +471,37 @@ export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange
                       Auto-Generate
                     </button>
                   )}
-                  <button className={styles.EditNotesButton} onClick={handleOpenPlanFile} title="Open plan file in editor">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
-                      <polyline points="15 3 21 3 21 9" />
-                      <line x1="10" y1="14" x2="21" y2="3" />
-                    </svg>
-                    Open File
-                  </button>
+                  {planFile && (
+                    <button className={styles.EditNotesButton} onClick={handleOpenPlanFile} title="Open plan file in editor">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+                        <polyline points="15 3 21 3 21 9" />
+                        <line x1="10" y1="14" x2="21" y2="3" />
+                      </svg>
+                      Open File
+                    </button>
+                  )}
                 </div>
               </div>
-              {/* Plan approval control */}
-              {(plan || planFile) && item.status !== 'completed' && (
-                <div className={styles.PlanApprovalRow}>
-                  <button
-                    className={planApproved ? styles.UnapproveButton : styles.ApproveButton}
-                    onClick={handleTogglePlanApproval}
-                  >
-                    {planApproved ? 'Revoke Approval' : 'Approve Plan'}
-                  </button>
-                  {planFile && (
+              {planFile && (
+                <>
+                  <div className={styles.PlanApprovalRow}>
+                    {item.status !== 'completed' && (
+                      <button
+                        className={planApproved ? styles.UnapproveButton : styles.ApproveButton}
+                        onClick={handleTogglePlanApproval}
+                      >
+                        {planApproved ? 'Revoke Approval' : 'Approve Plan'}
+                      </button>
+                    )}
                     <span className={styles.PlanFilePath} title={planFile}>
                       {planFile.split('/').pop()}
                     </span>
-                  )}
-                </div>
+                  </div>
+                  {planSummary && <div className={styles.PlanSummary}>{planSummary}</div>}
+                </>
               )}
-              {/* Inline plan editor (for quick inline plans) */}
-              {onPlanChange ? (
-                <PlanEditor
-                  plan={(plan as Plan) ?? null}
-                  onSave={p => onPlanChange(item.id, p)}
-                  readOnly={item.status === 'completed'}
-                />
-              ) : plan ? (
-                <div className={styles.PlanCard}>
-                  {plan.summary && <div className={styles.PlanTitle}>{plan.summary}</div>}
-                  {plan.steps && plan.steps.length > 0 && (
-                    <div className={styles.PlanSteps}>
-                      {plan.steps.map((step, i) => (
-                        <div key={i} className={styles.PlanStep}>
-                          <span className={`${styles.PlanCheck} ${step.done ? styles.PlanCheckDone : ''}`}>
-                            {step.done ? '\u2713' : (i + 1)}
-                          </span>
-                          <span className={step.done ? styles.PlanStepDone : ''}>{step.text}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : null}
+              {!planFile && <div className={styles.PlanEmpty}>No plan file yet. Generate one or create manually.</div>}
             </div>
           )}
 

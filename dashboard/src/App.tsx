@@ -64,7 +64,6 @@ import { usePageVisibility } from './hooks/usePageVisibility.ts'
 import { useBeforeUnload } from './hooks/useBeforeUnload.ts'
 import { playNotificationSound } from './utils/sound.ts'
 import { exportWorkItemsCsv, downloadCsv } from './utils/csv.ts'
-import type { Plan } from './components/PlanEditor/PlanEditor.tsx'
 import type { WorkItemStatus, MessageEntry } from './types.ts'
 
 export function App() {
@@ -734,24 +733,6 @@ export function App() {
     addToast('PR URL updated', 'success')
   }
 
-  async function handlePlanChange(id: string, plan: Plan) {
-    try {
-      await fetch('/api/queue/update', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, metadata: { plan } }),
-      })
-      queue.refresh()
-      if (plan.approved) {
-        addToast('Plan approved — ready for activation', 'success')
-      } else {
-        addToast('Plan updated', 'info')
-      }
-    } catch {
-      addToast('Failed to save plan', 'error')
-    }
-  }
-
   async function handleGeneratePlan(id: string) {
     addToast('Generating plan...', 'info')
     try {
@@ -1157,7 +1138,6 @@ export function App() {
               activatingIds={activatingIds}
               tearingDownIds={tearingDownIds}
               onPrUrlChange={handlePrUrlChange}
-              onPlanChange={handlePlanChange}
               onGeneratePlan={handleGeneratePlan}
               onReorder={handleReorder}
               onSendMessage={handleSendMessage}
@@ -1307,8 +1287,8 @@ export function App() {
             onTeardownStream={handleTeardownStream}
             onSendMessage={handleSendMessage}
             onDelegatorToggle={handleDelegatorToggle}
-            onPlanChange={handlePlanChange}
             onGeneratePlan={handleGeneratePlan}
+            onRefresh={() => queue.refresh()}
           />
         )
       })()}
