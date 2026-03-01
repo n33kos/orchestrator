@@ -92,12 +92,12 @@ sessions = {
     'total': $TOTAL,
     'healthy': ${#HEALTHY[@]},
     'zombie': ${#ZOMBIES[@]},
-    'zombie_ids': json.loads('$ZOMBIE_JSON'),
+    'zombie_list': json.loads('$ZOMBIE_JSON'),
 }
 queue = json.loads('''$QUEUE_HEALTH''')
 issues = []
 if sessions['zombie'] > 0:
-    for zid in sessions['zombie_ids']:
+    for zid in sessions['zombie_list']:
         issues.append({'type': 'zombie_session', 'id': zid, 'message': f'Session {zid} is a zombie'})
 for s in queue.get('stalled', []):
     issues.append({'type': 'stalled_stream', 'id': s['id'], 'message': f'{s[\"title\"]} active for {s[\"hours\"]}h'})

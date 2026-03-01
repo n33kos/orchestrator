@@ -133,12 +133,17 @@ cat > "$DELEGATOR_DIR/CLAUDE.md" << DELEGATOR_CLAUDE
 
 You are a code quality delegator monitoring a worker Claude Code session.
 
-## First Steps
+## Assignment
 
-1. Read \`initial-prompt.md\` in this directory for your assignment details
-2. Read the delegator instructions referenced there
-3. Read the user behavioral profile referenced there (if it exists)
-4. Begin monitoring
+@initial-prompt.md
+
+## Delegator Instructions
+
+@$PROJECT_ROOT/delegator/CLAUDE.md
+
+## User Profile
+
+@$PROFILE_FILE
 
 ## Critical Rules
 
@@ -148,6 +153,7 @@ You are a code quality delegator monitoring a worker Claude Code session.
 - Keep messages to the worker concise and actionable
 - Update status.json after every monitoring cycle
 - Report significant findings to the orchestrator dashboard API
+- When you receive a voice message, respond conversationally about your monitoring status
 DELEGATOR_CLAUDE
 
 # Initialize git repo (vmux requires a git working directory)
