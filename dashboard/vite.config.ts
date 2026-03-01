@@ -475,6 +475,29 @@ function queueApiPlugin(): Plugin {
         })
       })
 
+      // POST /api/scheduler/run — run the scheduler once
+      server.middlewares.use('/api/scheduler/run', async (req, res) => {
+        if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
+        try {
+          const body = req.method === 'POST' ? JSON.parse(await readBody(req)) : {}
+          const scriptPath = join(__dirname, '..', 'scripts', 'scheduler.sh')
+          const args = ['--once']
+          if (body.dryRun) args.push('--dry-run')
+          execFile('bash', [scriptPath, ...args], { timeout: 120000, env: { ...process.env, HOME: homedir() } }, (err, stdout, stderr) => {
+            res.setHeader('Content-Type', 'application/json')
+            if (err) {
+              res.statusCode = 500
+              res.end(JSON.stringify({ error: stderr || String(err), output: stdout }))
+              return
+            }
+            res.end(JSON.stringify({ ok: true, output: stdout }))
+          })
+        } catch (err) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: String(err) }))
+        }
+      })
+
       // GET /api/queue — read the queue
       server.middlewares.use('/api/queue', (_req, res) => {
         try {

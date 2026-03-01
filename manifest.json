@@ -33,6 +33,11 @@
       "path": "skills/health.md",
       "description": "Run health check — detect zombie sessions, stalled streams, and issues",
       "user_invocable": true
+    },
+    "schedule": {
+      "path": "skills/schedule.md",
+      "description": "Run the queue scheduler to auto-activate ready items",
+      "user_invocable": true
     }
   }
 }
