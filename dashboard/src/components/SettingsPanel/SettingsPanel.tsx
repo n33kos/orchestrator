@@ -252,7 +252,7 @@ export function SettingsPanel({
                 type="text"
                 value={settings.plansDirectory}
                 onChange={(e) => onUpdate("plansDirectory", e.target.value)}
-                placeholder="~/Desktop/plans"
+                placeholder="~/.claude/orchestrator/plans"
               />
             </SettingRow>
             <SettingRow

@@ -780,7 +780,7 @@ function queueApiPlugin(): Plugin {
             const configPath = join(__dirname, '..', 'config', 'environment.yml')
             const configContent = readFileSync(configPath, 'utf-8')
             const dirMatch = configContent.match(/^\s*directory:\s*(.+)$/m)
-            const plansDir = (dirMatch ? dirMatch[1].trim().replace('~', homedir()) : join(homedir(), 'Desktop/plans'))
+            const plansDir = (dirMatch ? dirMatch[1].trim().replace('~', homedir()) : join(homedir(), '.claude/orchestrator/plans'))
             const defaultPath = join(plansDir, `${itemId}.md`)
             if (existsSync(defaultPath)) {
               res.setHeader('Content-Type', 'application/json')
@@ -819,7 +819,7 @@ function queueApiPlugin(): Plugin {
             const configPath = join(__dirname, '..', 'config', 'environment.yml')
             const configContent = readFileSync(configPath, 'utf-8')
             const dirMatch = configContent.match(/^\s*directory:\s*(.+)$/m)
-            const plansDir = (dirMatch ? dirMatch[1].trim().replace('~', homedir()) : join(homedir(), 'Desktop/plans'))
+            const plansDir = (dirMatch ? dirMatch[1].trim().replace('~', homedir()) : join(homedir(), '.claude/orchestrator/plans'))
             planPath = join(plansDir, `${body.itemId}.md`)
             // Create the file if it doesn't exist
             if (!existsSync(planPath)) {
@@ -1169,7 +1169,7 @@ function queueApiPlugin(): Plugin {
             maxConcurrentQuickFixes: parseInt(getVal('quick_fix_limit') || '4', 10),
             autoActivate: getVal('auto_activate') === 'true',
             requireApprovedPlan: getVal('require_approved_plan') === 'true',
-            plansDirectory: getVal('plans_directory') || '~/Desktop/plans',
+            plansDirectory: getVal('plans_directory') || '~/.claude/orchestrator/plans',
             defaultDelegatorEnabled: getVal('enabled_by_default') === 'true',
             stallThresholdMinutes: parseInt(getVal('threshold_minutes') || '30', 10),
             archiveAfterDays: parseInt(getVal('archive_after_days') || '7', 10),

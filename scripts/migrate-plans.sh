@@ -17,7 +17,7 @@ CONFIG="$PROJECT_ROOT/config/environment.yml"
 eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
 
 QUEUE_FILE="$CONFIG_QUEUE_FILE"
-PLANS_DIR="${CONFIG_PLANS_DIR:-$HOME/Desktop/plans}"
+PLANS_DIR="${CONFIG_PLANS_DIR:-$HOME/.claude/orchestrator/plans}"
 
 DRY_RUN=false
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true

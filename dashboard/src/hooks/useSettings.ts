@@ -36,7 +36,7 @@ const DEFAULTS: OrchestratorSettings = {
   pollIntervalMs: 5000,
   autoActivate: false,
   requireApprovedPlan: false,
-  plansDirectory: '~/Desktop/plans',
+  plansDirectory: '~/.claude/orchestrator/plans',
   defaultDelegatorEnabled: true,
   notificationsEnabled: true,
   soundEnabled: false,

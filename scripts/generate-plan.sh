@@ -20,7 +20,7 @@ eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
 
 QUEUE_FILE="$CONFIG_QUEUE_FILE"
 REPO_PATH="$CONFIG_REPO_PATH"
-PLANS_DIR="${CONFIG_PLANS_DIR:-$HOME/Desktop/plans}"
+PLANS_DIR="${CONFIG_PLANS_DIR:-$HOME/.claude/orchestrator/plans}"
 
 # shellcheck source=validate-env.sh
 source "$SCRIPT_DIR/validate-env.sh"

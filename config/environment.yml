@@ -37,7 +37,7 @@ autonomy:
 
 # Plans
 plans:
-  plans_directory: ~/Desktop/plans
+  plans_directory: ~/.claude/orchestrator/plans
 
 # Delegator
 delegator:
