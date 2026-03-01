@@ -62,3 +62,17 @@
     color: white;
   }
 }
+
+.AlertDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-error);
+  flex-shrink: 0;
+  animation: alertPulse 2s ease infinite;
+}
+
+@keyframes alertPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}

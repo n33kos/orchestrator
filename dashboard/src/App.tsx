@@ -74,11 +74,13 @@ export function App() {
     onConfirm: () => void
   } | null>(null)
 
+  const projectBlockers = queue.projects.filter(i => i.blockers.some(b => !b.resolved)).length
+  const qfBlockers = queue.quickFixes.filter(i => i.blockers.some(b => !b.resolved)).length
   const tabs = [
-    { id: 'projects', label: 'Projects', count: queue.projects.length },
-    { id: 'quick_fixes', label: 'Quick Fixes', count: queue.quickFixes.length },
-    { id: 'all', label: 'All', count: queue.items.length },
-    { id: 'sessions', label: 'Sessions', count: sessions.length },
+    { id: 'projects', label: 'Projects', count: queue.projects.length, alertCount: projectBlockers },
+    { id: 'quick_fixes', label: 'Quick Fixes', count: queue.quickFixes.length, alertCount: qfBlockers },
+    { id: 'all', label: 'All', count: queue.items.length, alertCount: queue.blockedItems.length },
+    { id: 'sessions', label: 'Sessions', count: sessions.length, alertCount: zombieCount },
   ]
 
   const filteredItems = useMemo(() => {

@@ -5,6 +5,7 @@ export interface Tab {
   id: string
   label: string
   count: number
+  alertCount?: number
 }
 
 interface TabBarProps {
@@ -24,6 +25,9 @@ export function TabBar({ tabs, activeTab, onTabChange }: TabBarProps) {
         >
           <span className={styles.TabLabel}>{tab.label}</span>
           <span className={styles.TabCount}>{tab.count}</span>
+          {tab.alertCount != null && tab.alertCount > 0 && (
+            <span className={styles.AlertDot} title={`${tab.alertCount} need attention`} />
+          )}
         </button>
       ))}
     </div>
