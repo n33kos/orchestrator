@@ -77,26 +77,29 @@ for item in data['items']:
 if not archive:
     print('[cleanup] No completed items older than 7 days')
 else:
-    # Write archive
+    # Write archive first — only update queue if archive succeeds
     archive_file = '$archive_dir/archived-' + datetime.now().strftime('%Y-%m-%d') + '.json'
     try:
-        with open(archive_file) as f:
-            existing = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        existing = []
-    existing.extend(archive)
-    with open(archive_file, 'w') as f:
-        json.dump(existing, f, indent=2)
-        f.write('\n')
-
-    # Update queue
-    data['items'] = keep
-    with open('$QUEUE_FILE', 'w') as f:
-        json.dump(data, f, indent=2)
-        f.write('\n')
-
-    print(f'[cleanup] Archived {len(archive)} completed item(s) to {archive_file}')
-    print(f'[cleanup] Queue now has {len(keep)} items')
+        try:
+            with open(archive_file) as f:
+                existing = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            existing = []
+        existing.extend(archive)
+        with open(archive_file, 'w') as f:
+            json.dump(existing, f, indent=2)
+            f.write('\n')
+    except OSError as e:
+        print(f'[cleanup] ERROR: Failed to write archive: {e}', file=__import__('sys').stderr)
+        print('[cleanup] Queue NOT modified — items preserved')
+    else:
+        # Archive write succeeded — safe to remove from queue
+        data['items'] = keep
+        with open('$QUEUE_FILE', 'w') as f:
+            json.dump(data, f, indent=2)
+            f.write('\n')
+        print(f'[cleanup] Archived {len(archive)} completed item(s) to {archive_file}')
+        print(f'[cleanup] Queue now has {len(keep)} items')
 "
 }
 
