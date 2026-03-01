@@ -4,8 +4,10 @@
   "description": "Autonomous work stream management for Claude Code",
   "start_url": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#0a0a0f",
-  "theme_color": "#0a0a0f",
+  "theme_color": "#6366f1",
+  "categories": ["developer", "productivity"],
   "icons": [
     {
       "src": "/icon-192.png",
@@ -24,6 +26,20 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Add Work Item",
+      "short_name": "Add",
+      "url": "/?action=add",
+      "description": "Add a new work item to the queue"
+    },
+    {
+      "name": "View All",
+      "short_name": "All",
+      "url": "/?tab=all",
+      "description": "View all work streams"
     }
   ]
 }

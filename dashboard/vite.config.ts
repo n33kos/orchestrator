@@ -139,6 +139,27 @@ function queueApiPlugin(): Plugin {
         }
       })
 
+      // PATCH /api/queue/reorder — swap priorities of two items
+      server.middlewares.use('/api/queue/reorder', async (req, res) => {
+        if (req.method !== 'PATCH') { res.statusCode = 405; res.end('Method not allowed'); return }
+        try {
+          const body = JSON.parse(await readBody(req))
+          const data = readQueue()
+          const dragItem = data.items.find((i: { id: string }) => i.id === body.dragId)
+          const dropItem = data.items.find((i: { id: string }) => i.id === body.dropId)
+          if (!dragItem || !dropItem) { res.statusCode = 404; res.end('Item not found'); return }
+          const tmpPriority = dragItem.priority
+          dragItem.priority = dropItem.priority
+          dropItem.priority = tmpPriority
+          writeQueue(data)
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ ok: true }))
+        } catch (err) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: String(err) }))
+        }
+      })
+
       // DELETE /api/queue/delete — remove a work item
       server.middlewares.use('/api/queue/delete', async (req, res) => {
         if (req.method !== 'DELETE') { res.statusCode = 405; res.end('Method not allowed'); return }

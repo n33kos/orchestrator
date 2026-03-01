@@ -19,13 +19,15 @@ import { useTheme } from './hooks/useTheme.ts'
 import { useToast } from './hooks/useToast.ts'
 import { useKeyboard } from './hooks/useKeyboard.ts'
 import { useSettings } from './hooks/useSettings.ts'
+import { useNotifications } from './hooks/useNotifications.ts'
 import type { WorkItemStatus } from './types.ts'
 
 export function App() {
-  const queue = useQueue()
+  const { settings, update: updateSetting, reset: resetSettings, open: settingsOpen, setOpen: setSettingsOpen } = useSettings()
+  const queue = useQueue(settings.pollIntervalMs)
   const { theme, toggle: toggleTheme } = useTheme()
   const { toasts, addToast, dismissToast } = useToast()
-  const { settings, update: updateSetting, reset: resetSettings, open: settingsOpen, setOpen: setSettingsOpen } = useSettings()
+  useNotifications(queue.items, settings.notificationsEnabled)
   const [activeTab, setActiveTab] = useState('projects')
   const [showAddForm, setShowAddForm] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -156,11 +158,9 @@ export function App() {
 
   function handleReorder(dragId: string, dropId: string) {
     const dragItem = queue.items.find(i => i.id === dragId)
-    const dropItem = queue.items.find(i => i.id === dropId)
-    if (!dragItem || !dropItem) return
-    const newPriority = dropItem.priority
-    queue.updateItem(dragId, { priority: newPriority })
-    addToast(`Moved "${dragItem.title}" to priority ${newPriority}`, 'info')
+    if (!dragItem) return
+    queue.reorderItems(dragId, dropId)
+    addToast(`Reordered "${dragItem.title}"`, 'info')
   }
 
   function handleDelete(id: string) {

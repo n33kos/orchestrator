@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { WorkItem, QueueData, WorkItemStatus } from '../types.ts'
 
-const POLL_INTERVAL = 5000
-
 function normalizeItem(raw: Record<string, unknown>): WorkItem {
   return {
     ...raw,
@@ -11,7 +9,7 @@ function normalizeItem(raw: Record<string, unknown>): WorkItem {
   } as WorkItem
 }
 
-export function useQueue() {
+export function useQueue(pollIntervalMs = 5000) {
   const [items, setItems] = useState<WorkItem[]>([])
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
@@ -34,17 +32,26 @@ export function useQueue() {
 
   useEffect(() => {
     fetchQueue()
-    pollRef.current = setInterval(fetchQueue, POLL_INTERVAL)
+    pollRef.current = setInterval(fetchQueue, pollIntervalMs)
     return () => {
       if (pollRef.current) clearInterval(pollRef.current)
     }
-  }, [fetchQueue])
+  }, [fetchQueue, pollIntervalMs])
 
   const updateItem = useCallback(async (id: string, updates: { status?: WorkItemStatus; priority?: number; delegator_enabled?: boolean; title?: string; description?: string }) => {
     await fetch('/api/queue/update', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, ...updates }),
+    })
+    await fetchQueue()
+  }, [fetchQueue])
+
+  const reorderItems = useCallback(async (dragId: string, dropId: string) => {
+    await fetch('/api/queue/reorder', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dragId, dropId }),
     })
     await fetchQueue()
   }, [fetchQueue])
@@ -99,6 +106,7 @@ export function useQueue() {
     lastUpdated,
     refresh: fetchQueue,
     updateItem,
+    reorderItems,
     addBlocker,
     resolveBlocker,
     deleteItem,
