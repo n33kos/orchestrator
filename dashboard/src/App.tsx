@@ -25,6 +25,7 @@ import { useSettings } from './hooks/useSettings.ts'
 import { useNotifications } from './hooks/useNotifications.ts'
 import { useSessions } from './hooks/useSessions.ts'
 import { useDocumentTitle } from './hooks/useDocumentTitle.ts'
+import { useFaviconBadge } from './hooks/useFaviconBadge.ts'
 import type { WorkItemStatus, MessageEntry } from './types.ts'
 
 export function App() {
@@ -40,6 +41,7 @@ export function App() {
     blockedCount: queue.blockedItems.length,
     zombieCount,
   })
+  useFaviconBadge(queue.blockedItems.length > 0 || zombieCount > 0)
   const [messagesBySession, setMessagesBySession] = useState<Record<string, MessageEntry[]>>({})
   const [activeTab, setActiveTab] = useState('projects')
   const [showAddForm, setShowAddForm] = useState(false)
