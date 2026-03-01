@@ -218,6 +218,18 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  animation: detailsIn 0.2s ease;
+}
+
+@keyframes detailsIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .Section {

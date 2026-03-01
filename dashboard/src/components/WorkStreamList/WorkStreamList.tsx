@@ -1,12 +1,15 @@
 import styles from './WorkStreamList.module.scss'
 import { WorkStreamCard } from '../WorkStreamCard/WorkStreamCard.tsx'
 import type { WorkItem, WorkItemStatus } from '../../types.ts'
+import type { SortField, SortDirection } from '../SortControls/SortControls.tsx'
 
 interface WorkStreamListProps {
   items: WorkItem[]
   loading: boolean
   hasSearch: boolean
   emptyLabel?: string
+  sortField: SortField
+  sortDirection: SortDirection
   onStatusChange: (id: string, status: WorkItemStatus) => void
   onPriorityChange: (id: string, priority: number) => void
   onDelegatorToggle: (id: string, enabled: boolean) => void
@@ -17,7 +20,7 @@ interface WorkStreamListProps {
   onDelete: (id: string) => void
 }
 
-export function WorkStreamList({ items, loading, hasSearch, emptyLabel, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete }: WorkStreamListProps) {
+export function WorkStreamList({ items, loading, hasSearch, emptyLabel, sortField, sortDirection, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete }: WorkStreamListProps) {
   if (loading) {
     return (
       <div className={styles.Root}>
@@ -68,10 +71,29 @@ export function WorkStreamList({ items, loading, hasSearch, emptyLabel, onStatus
     completed: 5,
   }
 
+  const dir = sortDirection === 'asc' ? 1 : -1
+
   const sorted = [...items].sort((a, b) => {
-    const statusDiff = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99)
-    if (statusDiff !== 0) return statusDiff
-    return a.priority - b.priority
+    switch (sortField) {
+      case 'status': {
+        const statusDiff = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99)
+        if (statusDiff !== 0) return statusDiff * dir
+        return (a.priority - b.priority) * dir
+      }
+      case 'created': {
+        const da = new Date(a.created_at).getTime()
+        const db = new Date(b.created_at).getTime()
+        return (da - db) * dir
+      }
+      case 'title':
+        return a.title.localeCompare(b.title) * dir
+      case 'priority':
+      default: {
+        const statusDiff = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99)
+        if (statusDiff !== 0) return statusDiff
+        return (a.priority - b.priority) * dir
+      }
+    }
   })
 
   return (

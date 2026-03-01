@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import classnames from 'classnames'
 import styles from './WorkStreamCard.module.scss'
 import { StatusBadge } from '../StatusBadge/StatusBadge.tsx'
 import { BlockerManager } from '../BlockerManager/BlockerManager.tsx'
 import { InlineEdit } from '../InlineEdit/InlineEdit.tsx'
+import { ActivityLog } from '../ActivityLog/ActivityLog.tsx'
 import type { WorkItem, WorkItemStatus } from '../../types.ts'
 
 interface WorkStreamCardProps {
@@ -29,9 +30,21 @@ export function WorkStreamCard({ item, onStatusChange, onPriorityChange, onDeleg
   const hasSession = !!item.session_id
   const hasDelegator = !!item.delegator_id
   const unresolvedBlockers = item.blockers.filter(b => !b.resolved)
-  const resolvedBlockers = item.blockers.filter(b => b.resolved)
   const implementationNotes = item.metadata.implementation_notes as string[] | undefined
   const notes = item.metadata.notes as string | undefined
+
+  const activityEntries = useMemo(() => {
+    const entries: { timestamp: string; action: string; detail?: string }[] = []
+    if (item.created_at) entries.push({ timestamp: item.created_at, action: 'Created', detail: `Source: ${item.source}` })
+    if (item.activated_at) entries.push({ timestamp: item.activated_at, action: 'Activated' })
+    for (const b of item.blockers) {
+      entries.push({ timestamp: b.created_at, action: 'Blocker added', detail: b.description })
+      if (b.resolved && b.resolved_at) entries.push({ timestamp: b.resolved_at, action: 'Blocker resolved', detail: b.description })
+    }
+    if (item.completed_at) entries.push({ timestamp: item.completed_at, action: 'Completed' })
+    entries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    return entries
+  }, [item])
 
   return (
     <div
@@ -172,6 +185,18 @@ export function WorkStreamCard({ item, onStatusChange, onPriorityChange, onDeleg
               <p className={styles.NotesText}>{notes}</p>
             </div>
           )}
+
+          {/* Activity Timeline */}
+          <div className={styles.Section}>
+            <h4 className={styles.SectionTitle}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              Activity
+            </h4>
+            <ActivityLog entries={activityEntries} />
+          </div>
 
           {/* Metadata Grid */}
           <div className={styles.MetaGrid}>
