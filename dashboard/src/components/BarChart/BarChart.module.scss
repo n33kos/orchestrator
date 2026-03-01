@@ -1,0 +1,53 @@
+.Root {
+  display: flex;
+  flex-direction: column;
+}
+
+.Bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex: 1;
+  padding-bottom: 4px;
+}
+
+.BarGroup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.BarWrapper {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.Bar {
+  width: 100%;
+  max-width: 32px;
+  border-radius: 4px 4px 0 0;
+  min-height: 2px;
+  transition: height 0.3s ease;
+}
+
+.Value {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.Label {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  text-align: center;
+}

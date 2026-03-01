@@ -1,0 +1,141 @@
+.Overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  animation: fadeIn 0.15s ease;
+}
+
+.Modal {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.Header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.Title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.Close {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--color-text-muted);
+
+  &:hover {
+    background: var(--color-hover);
+    color: var(--color-text);
+  }
+}
+
+.Content {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.Hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.Field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.FieldLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.Select,
+.Input {
+  padding: 6px 8px;
+  font-size: 13px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-family);
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-muted);
+  }
+}
+
+.Footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.CancelButton {
+  all: unset;
+  cursor: pointer;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+  color: var(--color-text-muted);
+
+  &:hover {
+    background: var(--color-hover);
+    color: var(--color-text);
+  }
+}
+
+.ApplyButton {
+  all: unset;
+  cursor: pointer;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--color-primary);
+  color: white;
+  border-radius: 6px;
+
+  &:hover:not(:disabled) {
+    background: var(--color-primary-hover);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0 }
+  to { opacity: 1 }
+}

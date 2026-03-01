@@ -781,6 +781,8 @@ export function App() {
         pausedCount={queue.pausedItems.length}
         blockedCount={queue.blockedItems.length}
         sessionCount={sessions.length}
+        workersActiveCount={sessions.filter(s => s.state === 'thinking' || s.state === 'responding').length}
+        zombieCount={zombieCount}
         activityCount={history.length}
         activitySparkline={activitySparkline}
         healthIssues={healthIssues}
