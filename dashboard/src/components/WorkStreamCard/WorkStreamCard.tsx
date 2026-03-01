@@ -73,8 +73,9 @@ export function WorkStreamCard({ item, position, totalCount, isDragging, isDragO
   }, [item])
 
   function getQuickAction(): { label: string; status: WorkItemStatus } | null {
-    if (item.status === 'queued') return { label: 'Activate', status: 'active' }
-    if (item.status === 'active') return { label: 'Pause', status: 'paused' }
+    if (item.status === 'queued' || item.status === 'planning') return { label: 'Activate', status: 'active' }
+    if (item.status === 'active') return { label: 'Review', status: 'review' }
+    if (item.status === 'review') return { label: 'Complete', status: 'completed' }
     if (item.status === 'paused') return { label: 'Resume', status: 'active' }
     return null
   }
@@ -427,24 +428,34 @@ export function WorkStreamCard({ item, position, totalCount, isDragging, isDragO
             </div>
 
             <div className={styles.StatusActions}>
-              {item.status === 'active' && (
-                <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'paused')}>
-                  Pause
-                </button>
-              )}
-              {item.status === 'paused' && (
-                <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'active')}>
-                  Resume
-                </button>
-              )}
-              {item.status === 'queued' && (
+              {(item.status === 'queued' || item.status === 'planning') && (
                 <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'active')}>
                   Activate
                 </button>
               )}
-              {(item.status === 'active' || item.status === 'review') && (
-                <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'completed')}>
-                  Complete
+              {item.status === 'active' && (
+                <>
+                  <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'review')}>
+                    Move to Review
+                  </button>
+                  <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'paused')}>
+                    Pause
+                  </button>
+                </>
+              )}
+              {item.status === 'review' && (
+                <>
+                  <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'completed')}>
+                    Complete
+                  </button>
+                  <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'active')}>
+                    Back to Active
+                  </button>
+                </>
+              )}
+              {item.status === 'paused' && (
+                <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'active')}>
+                  Resume
                 </button>
               )}
               <button

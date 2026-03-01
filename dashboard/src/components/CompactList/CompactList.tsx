@@ -14,10 +14,10 @@ interface CompactListProps {
 }
 
 function getQuickAction(status: WorkItemStatus): { label: string; nextStatus: WorkItemStatus } | null {
-  if (status === 'queued') return { label: 'Activate', nextStatus: 'active' }
-  if (status === 'active') return { label: 'Pause', nextStatus: 'paused' }
-  if (status === 'paused') return { label: 'Resume', nextStatus: 'active' }
+  if (status === 'queued' || status === 'planning') return { label: 'Activate', nextStatus: 'active' }
+  if (status === 'active') return { label: 'Review', nextStatus: 'review' }
   if (status === 'review') return { label: 'Complete', nextStatus: 'completed' }
+  if (status === 'paused') return { label: 'Resume', nextStatus: 'active' }
   return null
 }
 
