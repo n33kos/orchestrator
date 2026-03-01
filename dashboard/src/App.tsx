@@ -489,6 +489,7 @@ export function App() {
             const text = prompt(`Message to session ${sessionId.slice(0, 8)}:`)
             if (text) handleSendMessage(sessionId, text)
           }}
+          onGoToSessions={() => setActiveTab('sessions')}
         />
       )}
     </div>

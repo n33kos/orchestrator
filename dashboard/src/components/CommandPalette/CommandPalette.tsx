@@ -7,7 +7,7 @@ interface Command {
   id: string
   label: string
   description?: string
-  icon: 'search' | 'add' | 'settings' | 'refresh' | 'status' | 'theme' | 'message'
+  icon: 'search' | 'add' | 'settings' | 'refresh' | 'status' | 'theme' | 'message' | 'monitor'
   action: () => void
 }
 
@@ -28,6 +28,7 @@ interface CommandPaletteProps {
   onRefresh: () => void
   onToggleTheme: () => void
   onMessageSession: (sessionId: string) => void
+  onGoToSessions?: () => void
 }
 
 const ICONS: Record<string, React.JSX.Element> = {
@@ -67,9 +68,16 @@ const ICONS: Record<string, React.JSX.Element> = {
       <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
     </svg>
   ),
+  monitor: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="2" y="3" width="20" height="14" rx="2" />
+      <line x1="8" y1="21" x2="16" y2="21" />
+      <line x1="12" y1="17" x2="12" y2="21" />
+    </svg>
+  ),
 }
 
-export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateToItem, onStatusChange, onAddItem, onOpenSettings, onRefresh, onToggleTheme, onMessageSession }: CommandPaletteProps) {
+export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateToItem, onStatusChange, onAddItem, onOpenSettings, onRefresh, onToggleTheme, onMessageSession, onGoToSessions }: CommandPaletteProps) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -79,12 +87,18 @@ export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateTo
     inputRef.current?.focus()
   }, [])
 
-  const globalCommands: Command[] = useMemo(() => [
-    { id: 'cmd-add', label: 'Add work item', icon: 'add', action: () => { onClose(); onAddItem() } },
-    { id: 'cmd-settings', label: 'Open settings', icon: 'settings', action: () => { onClose(); onOpenSettings() } },
-    { id: 'cmd-refresh', label: 'Refresh queue', icon: 'refresh', action: () => { onClose(); onRefresh() } },
-    { id: 'cmd-theme', label: 'Toggle theme', icon: 'theme', action: () => { onClose(); onToggleTheme() } },
-  ], [onClose, onAddItem, onOpenSettings, onRefresh, onToggleTheme])
+  const globalCommands: Command[] = useMemo(() => {
+    const cmds: Command[] = [
+      { id: 'cmd-add', label: 'Add work item', icon: 'add', action: () => { onClose(); onAddItem() } },
+      { id: 'cmd-settings', label: 'Open settings', icon: 'settings', action: () => { onClose(); onOpenSettings() } },
+      { id: 'cmd-refresh', label: 'Refresh queue', icon: 'refresh', action: () => { onClose(); onRefresh() } },
+      { id: 'cmd-theme', label: 'Toggle theme', icon: 'theme', action: () => { onClose(); onToggleTheme() } },
+    ]
+    if (onGoToSessions) {
+      cmds.push({ id: 'cmd-sessions', label: 'Go to sessions', description: 'View and manage active worker sessions', icon: 'monitor', action: () => { onClose(); onGoToSessions() } })
+    }
+    return cmds
+  }, [onClose, onAddItem, onOpenSettings, onRefresh, onToggleTheme, onGoToSessions])
 
   const itemCommands: Command[] = useMemo(() => {
     return items.map(item => ({
