@@ -662,13 +662,30 @@ if [[ "$ONCE" == "true" ]]; then
     generate_plans
     check_and_activate
 else
-    # Calculate delegator trigger frequency in terms of scheduler cycles
+    function reload_config() {
+        # Re-read config to pick up dashboard settings changes
+        eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
+        QUEUE_FILE="$CONFIG_QUEUE_FILE"
+        MAX_ACTIVE="$CONFIG_MAX_ACTIVE_PROJECTS"
+        AUTO_ACTIVATE="$CONFIG_AUTO_ACTIVATE"
+        AUTO_APPROVE_PLANS="$CONFIG_AUTO_APPROVE_PLANS"
+        POLL_INTERVAL="${CONFIG_POLL_INTERVAL:-120}"
+        DELEGATOR_CYCLE_INTERVAL="${CONFIG_DELEGATOR_CYCLE_INTERVAL:-300}"
+        CLEANUP_EVERY="${CONFIG_CLEANUP_EVERY:-10}"
+        ARCHIVE_AFTER_DAYS="${CONFIG_ARCHIVE_AFTER_DAYS:-7}"
+        # Recalculate delegator trigger frequency
+        DELEGATOR_TRIGGER_EVERY=$(( (DELEGATOR_CYCLE_INTERVAL + POLL_INTERVAL - 1) / POLL_INTERVAL ))
+    }
+
+    # Initial calculation
     DELEGATOR_TRIGGER_EVERY=$(( (DELEGATOR_CYCLE_INTERVAL + POLL_INTERVAL - 1) / POLL_INTERVAL ))
     echo "[scheduler] Starting continuous scheduler (Ctrl+C to stop)"
     echo "[scheduler] Poll interval: ${POLL_INTERVAL}s | Delegator cycle: ${DELEGATOR_CYCLE_INTERVAL}s (every ${DELEGATOR_TRIGGER_EVERY} cycles) | Max active: $MAX_ACTIVE | Auto-activate: $AUTO_ACTIVATE"
     echo ""
     CYCLE=0
     while true; do
+        # Reload config each cycle to pick up settings changes
+        reload_config
         check_services
         recover_sessions
         recover_delegators
