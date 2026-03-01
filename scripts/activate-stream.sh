@@ -141,17 +141,35 @@ echo "Step 2: Spawning worker session..."
 SESSION_OUTPUT="$($VMUX spawn "$WORKTREE_PATH" 2>&1)" || true
 echo "  $SESSION_OUTPUT"
 
-# Get the session ID (deterministic from path)
-SESSION_ID="$(python3 -c "
+# Get session ID from vmux sessions (preferred) or compute from path (fallback)
+SESSION_ID=""
+for attempt in 1 2 3; do
+    SESSION_ID="$($VMUX sessions 2>/dev/null | python3 -c "
+import sys
+lines = sys.stdin.read().strip().split('\n')
+current_id = None
+for line in lines:
+    line = line.strip()
+    if line.startswith('[') and ']' in line:
+        current_id = line.split(']')[1].strip()
+    elif 'cwd:' in line and '$WORKTREE_PATH' in line and current_id:
+        print(current_id)
+        break
+" 2>/dev/null)"
+    if [[ -n "$SESSION_ID" ]]; then
+        break
+    fi
+    sleep 2
+done
+
+# Fallback: compute from path hash
+if [[ -z "$SESSION_ID" ]]; then
+    SESSION_ID="$(python3 -c "
 import hashlib
 cwd = '$WORKTREE_PATH'
 print(hashlib.sha256(cwd.encode()).hexdigest()[:12])
 ")"
-
-# Verify session spawned (check if tmux session exists)
-if ! tmux has-session -t "claude-$SESSION_ID" 2>/dev/null; then
-    echo "WARNING: Session $SESSION_ID may not have spawned correctly" >&2
-    echo "  Continuing anyway — session may still be initializing" >&2
+    echo "  WARNING: Could not find session in vmux — using computed ID $SESSION_ID" >&2
 fi
 
 # Step 2b: Send full task context to the worker session
