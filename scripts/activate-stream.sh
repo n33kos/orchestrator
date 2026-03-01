@@ -59,6 +59,7 @@ ITEM_TYPE="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sy
 ITEM_BRANCH="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['branch'])")"
 ITEM_TITLE="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['title'])")"
 DELEGATOR_ENABLED="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('delegator_enabled', True))")"
+CUSTOM_REPO="$(echo "$ITEM_JSON" | python3 -c "import json,sys; m=json.load(sys.stdin).get('metadata',{}); print(m.get('repo_path',''))" | sed "s|~|$HOME|")"
 
 # Validate status
 if [[ "$ITEM_STATUS" != "queued" && "$ITEM_STATUS" != "planning" ]]; then
@@ -81,26 +82,41 @@ print(count)
     fi
 fi
 
-# Validate branch name
-if [[ -z "$ITEM_BRANCH" ]]; then
-    echo "ERROR: Item $ITEM_ID has no branch name configured" >&2
-    exit 1
-fi
-
-echo "Activating: $ITEM_TITLE ($ITEM_ID)"
-echo "  Type: $ITEM_TYPE"
-echo "  Branch: $ITEM_BRANCH"
-
-# Step 1: Create worktree
-WORKTREE_PATH="${WORKTREE_PREFIX}${ITEM_BRANCH}"
-echo ""
-echo "Step 1: Creating worktree..."
-cd "$REPO_PATH"
-if [[ -d "$WORKTREE_PATH" ]]; then
-    echo "  Worktree already exists at $WORKTREE_PATH"
+# Cross-repo items use the custom repo path directly (no worktree)
+if [[ -n "$CUSTOM_REPO" ]]; then
+    if [[ ! -d "$CUSTOM_REPO" ]]; then
+        echo "ERROR: Custom repo path does not exist: $CUSTOM_REPO" >&2
+        exit 1
+    fi
+    WORKTREE_PATH="$CUSTOM_REPO"
+    echo "Activating: $ITEM_TITLE ($ITEM_ID)"
+    echo "  Type: $ITEM_TYPE (cross-repo)"
+    echo "  Repo: $CUSTOM_REPO"
+    echo ""
+    echo "Step 1: Using existing repo (no worktree needed)"
+    echo "  Path: $WORKTREE_PATH"
 else
-    $ROSTRUM setup "$ITEM_BRANCH" $QUICK_FLAG
-    echo "  Created: $WORKTREE_PATH"
+    # Standard flow: validate branch and create worktree via Rostrum
+    if [[ -z "$ITEM_BRANCH" ]]; then
+        echo "ERROR: Item $ITEM_ID has no branch name configured" >&2
+        exit 1
+    fi
+
+    echo "Activating: $ITEM_TITLE ($ITEM_ID)"
+    echo "  Type: $ITEM_TYPE"
+    echo "  Branch: $ITEM_BRANCH"
+
+    # Step 1: Create worktree
+    WORKTREE_PATH="${WORKTREE_PREFIX}${ITEM_BRANCH}"
+    echo ""
+    echo "Step 1: Creating worktree..."
+    cd "$REPO_PATH"
+    if [[ -d "$WORKTREE_PATH" ]]; then
+        echo "  Worktree already exists at $WORKTREE_PATH"
+    else
+        $ROSTRUM setup "$ITEM_BRANCH" $QUICK_FLAG
+        echo "  Created: $WORKTREE_PATH"
+    fi
 fi
 
 # Step 2: Spawn worker session

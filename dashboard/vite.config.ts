@@ -73,6 +73,7 @@ function queueApiPlugin(): Plugin {
             metadata: {
               source_ref: 'Dashboard — manual entry',
               ...(body.prType ? { pr_type: body.prType } : {}),
+              ...(body.repoPath ? { repo_path: body.repoPath } : {}),
             },
           }
           data.items.push(newItem)

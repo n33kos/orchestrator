@@ -15,6 +15,7 @@ export interface NewWorkItem {
   priority: number
   branch: string
   prType?: 'graphite_stack'
+  repoPath?: string
 }
 
 export function AddWorkItem({ onAdd, onCancel }: AddWorkItemProps) {
@@ -24,6 +25,7 @@ export function AddWorkItem({ onAdd, onCancel }: AddWorkItemProps) {
   const [priority, setPriority] = useState(1)
   const [branch, setBranch] = useState('')
   const [isGraphiteStack, setIsGraphiteStack] = useState(false)
+  const [repoPath, setRepoPath] = useState('')
 
   const canSubmit = title.trim().length > 0
 
@@ -48,6 +50,7 @@ export function AddWorkItem({ onAdd, onCancel }: AddWorkItemProps) {
       priority,
       branch: branch.trim(),
       ...(isGraphiteStack ? { prType: 'graphite_stack' } : {}),
+      ...(repoPath.trim() ? { repoPath: repoPath.trim() } : {}),
     })
   }
 
@@ -128,6 +131,17 @@ export function AddWorkItem({ onAdd, onCancel }: AddWorkItemProps) {
             </button>
           )}
         </div>
+      </div>
+
+      <div className={styles.Field}>
+        <label className={styles.Label}>Repository path (optional — leave empty for default repo)</label>
+        <input
+          className={styles.Input}
+          type="text"
+          value={repoPath}
+          onChange={e => setRepoPath(e.target.value)}
+          placeholder="e.g., ~/my-other-project"
+        />
       </div>
 
       <label className={styles.CheckboxField}>
