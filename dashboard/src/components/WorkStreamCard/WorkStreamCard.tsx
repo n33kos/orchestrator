@@ -3,6 +3,7 @@ import classnames from 'classnames'
 import styles from './WorkStreamCard.module.scss'
 import { StatusBadge } from '../StatusBadge/StatusBadge.tsx'
 import { BlockerManager } from '../BlockerManager/BlockerManager.tsx'
+import { InlineEdit } from '../InlineEdit/InlineEdit.tsx'
 import type { WorkItem, WorkItemStatus } from '../../types.ts'
 
 interface WorkStreamCardProps {
@@ -10,6 +11,7 @@ interface WorkStreamCardProps {
   onStatusChange: (id: string, status: WorkItemStatus) => void
   onPriorityChange: (id: string, priority: number) => void
   onDelegatorToggle: (id: string, enabled: boolean) => void
+  onEdit: (id: string, updates: { title?: string; description?: string }) => void
   onAddBlocker: (id: string, description: string) => void
   onResolveBlocker: (id: string, blockerId: string) => void
   onUnresolveBlocker: (id: string, blockerId: string) => void
@@ -22,7 +24,7 @@ function formatDate(iso: string | null): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-export function WorkStreamCard({ item, onStatusChange, onPriorityChange, onDelegatorToggle, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete }: WorkStreamCardProps) {
+export function WorkStreamCard({ item, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete }: WorkStreamCardProps) {
   const [expanded, setExpanded] = useState(false)
   const hasSession = !!item.session_id
   const hasDelegator = !!item.delegator_id
@@ -39,7 +41,15 @@ export function WorkStreamCard({ item, onStatusChange, onPriorityChange, onDeleg
       <div className={styles.Header}>
         <div className={styles.TitleRow}>
           <span className={styles.Priority}>#{item.priority}</span>
-          <h3 className={styles.Title}>{item.title}</h3>
+          {expanded ? (
+            <InlineEdit
+              value={item.title}
+              onSave={title => onEdit(item.id, { title })}
+              className={styles.Title}
+            />
+          ) : (
+            <h3 className={styles.Title}>{item.title}</h3>
+          )}
           {unresolvedBlockers.length > 0 && (
             <span className={styles.BlockerBadge} title={`${unresolvedBlockers.length} blocker(s)`}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -59,9 +69,18 @@ export function WorkStreamCard({ item, onStatusChange, onPriorityChange, onDeleg
         </div>
       </div>
 
-      <p className={classnames(styles.Description, expanded && styles.DescriptionExpanded)}>
-        {item.description}
-      </p>
+      {expanded ? (
+        <InlineEdit
+          value={item.description}
+          onSave={description => onEdit(item.id, { description })}
+          className={classnames(styles.Description, styles.DescriptionExpanded)}
+          multiline
+        />
+      ) : (
+        <p className={styles.Description}>
+          {item.description}
+        </p>
+      )}
 
       {!expanded && (
         <div className={styles.Meta}>

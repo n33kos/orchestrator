@@ -40,7 +40,7 @@ export function useQueue() {
     }
   }, [fetchQueue])
 
-  const updateItem = useCallback(async (id: string, updates: { status?: WorkItemStatus; priority?: number; delegator_enabled?: boolean }) => {
+  const updateItem = useCallback(async (id: string, updates: { status?: WorkItemStatus; priority?: number; delegator_enabled?: boolean; title?: string; description?: string }) => {
     await fetch('/api/queue/update', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

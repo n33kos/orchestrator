@@ -105,6 +105,11 @@ export function App() {
     queue.updateItem(id, { priority })
   }
 
+  function handleEdit(id: string, updates: { title?: string; description?: string }) {
+    queue.updateItem(id, updates)
+    addToast('Work item updated', 'success')
+  }
+
   function handleAddBlocker(id: string, description: string) {
     queue.addBlocker(id, description)
     addToast('Blocker added', 'info')
@@ -177,6 +182,7 @@ export function App() {
           onStatusChange={handleStatusChange}
           onPriorityChange={handlePriorityChange}
           onDelegatorToggle={handleDelegatorToggle}
+          onEdit={handleEdit}
           onAddBlocker={handleAddBlocker}
           onResolveBlocker={handleResolveBlocker}
           onUnresolveBlocker={handleUnresolveBlocker}
