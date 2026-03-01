@@ -31,9 +31,10 @@ sources:
     state: open
     limit: 10
 
-  # Jira source (requires jira CLI or API token):
+  # Jira source (requires JIRA_EMAIL and JIRA_API_TOKEN env vars):
   # team-board:
   #   type: jira
+  #   domain: mycompany.atlassian.net
   #   board: CONSUMER
-  #   filter: "assignee = currentUser() AND status != Done"
+  #   filter: "project = CONSUMER AND assignee = currentUser() AND status != Done"
   #   limit: 20

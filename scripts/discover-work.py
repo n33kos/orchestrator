@@ -288,12 +288,107 @@ def poll_github_issues(source_name: str, config: dict) -> list[dict]:
 
 
 def poll_jira_issues(source_name: str, config: dict) -> list[dict]:
-    """Poll Jira issues. Requires jira CLI or API token.
+    """Poll Jira issues using the Jira REST API via curl.
 
-    This is a placeholder that will work when a Jira MCP or CLI is available.
+    Config keys:
+        domain: Jira domain (e.g. mycompany.atlassian.net) — required
+        board: board/project key to filter (e.g. CONSUMER) — required
+        filter: JQL filter string (default: assignee = currentUser() AND status != Done)
+        limit: max issues to fetch (default: 20)
+
+    Environment:
+        JIRA_EMAIL — Jira account email
+        JIRA_API_TOKEN — Jira API token (from https://id.atlassian.com/manage-profile/security/api-tokens)
     """
-    print(f"  Jira adapter not yet fully implemented")
-    return []
+    import subprocess
+    import os
+
+    domain = config.get("domain", "")
+    board = config.get("board", "")
+    if not domain or not board:
+        print("  Error: jira source requires 'domain' and 'board'", file=sys.stderr)
+        return []
+
+    email = os.environ.get("JIRA_EMAIL", "")
+    token = os.environ.get("JIRA_API_TOKEN", "")
+    if not email or not token:
+        print("  Skipping Jira: JIRA_EMAIL and JIRA_API_TOKEN env vars required", file=sys.stderr)
+        return []
+
+    jql = config.get("filter", f"project = {board} AND assignee = currentUser() AND status != Done")
+    limit = config.get("limit", "20")
+
+    url = f"https://{domain}/rest/api/3/search?jql={jql}&maxResults={limit}&fields=summary,description,priority,labels,status,issuetype,assignee,created"
+
+    try:
+        result = subprocess.run(
+            [
+                "curl", "-s", "-u", f"{email}:{token}",
+                "-H", "Accept: application/json",
+                url,
+            ],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            print(f"  Jira API error: {result.stderr.strip()}", file=sys.stderr)
+            return []
+
+        data = json.loads(result.stdout)
+    except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
+        print(f"  Error polling Jira: {e}", file=sys.stderr)
+        return []
+
+    if "errorMessages" in data:
+        print(f"  Jira error: {data['errorMessages']}", file=sys.stderr)
+        return []
+
+    priority_mapping = {"highest": 1, "high": 2, "medium": 3, "low": 4, "lowest": 4}
+
+    items = []
+    for issue in data.get("issues", []):
+        key = issue.get("key", "")
+        fields = issue.get("fields", {})
+        summary = fields.get("summary", "")
+        description_doc = fields.get("description")
+
+        # Extract plain text from Atlassian Document Format
+        description = ""
+        if description_doc and isinstance(description_doc, dict):
+            for block in description_doc.get("content", []):
+                for inline in block.get("content", []):
+                    if inline.get("type") == "text":
+                        description += inline.get("text", "")
+                description += "\n"
+            description = description[:500].strip()
+            if len(description) >= 500:
+                description += "..."
+
+        # Map priority
+        priority_name = (fields.get("priority") or {}).get("name", "").lower()
+        priority = priority_mapping.get(priority_name, 3)
+
+        # Map type
+        issue_type = (fields.get("issuetype") or {}).get("name", "").lower()
+        labels = [l for l in fields.get("labels", [])]
+
+        work_type = "project"
+        if issue_type in ("bug", "task", "sub-task"):
+            work_type = "quick_fix"
+        if any("bug" in l.lower() or "quick" in l.lower() for l in labels):
+            work_type = "quick_fix"
+        if issue_type in ("story", "epic"):
+            work_type = "project"
+
+        items.append({
+            "title": f"{key}: {summary}",
+            "description": description,
+            "source": source_name,
+            "source_ref": f"https://{domain}/browse/{key}",
+            "type": work_type,
+            "priority": priority,
+        })
+
+    return items
 
 
 def main():
