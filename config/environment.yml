@@ -1,0 +1,51 @@
+# Orchestrator Environment Configuration
+# All site-specific values that make the orchestrator portable.
+
+# Identity
+user:
+  initials: nas
+  name: Your Name
+
+# Repository
+repo:
+  path: ~/my-project
+  worktree_prefix: ~/my-project-
+
+# CLI Tools
+tools:
+  rostrum: /usr/local/bin/rostrum
+  vmux: ~/.local/bin/vmux
+  graphite: gt
+
+# Orchestrator State
+state:
+  queue_file: ~/.claude/orchestrator/queue.json
+  dashboard_file: ~/.claude/orchestrator/dashboard.md
+  profile_file: ~/.claude/orchestrator/profile.md
+
+# Concurrency
+concurrency:
+  max_active_projects: 2
+  quick_fix_limit: unlimited
+  queue_strategy: priority
+
+# Autonomy
+autonomy:
+  auto_activate: false
+  auto_approve_plans: false
+  ask_before_teardown: true
+
+# Delegator
+delegator:
+  enabled_by_default: true
+  training_mode: true
+  communication: text
+
+# Branch Naming
+branches:
+  pattern: "{initials}/{domain}/{project}/{position}/{description}"
+
+# Dashboard
+dashboard:
+  port: 3201
+  api_port: 3200

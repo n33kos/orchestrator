@@ -1,0 +1,116 @@
+import { useState } from 'react'
+import classnames from 'classnames'
+import styles from './AddWorkItem.module.scss'
+import type { WorkItemType } from '../../types.ts'
+
+interface AddWorkItemProps {
+  onAdd: (item: NewWorkItem) => void
+  onCancel: () => void
+}
+
+export interface NewWorkItem {
+  title: string
+  description: string
+  type: WorkItemType
+  priority: number
+  branch: string
+}
+
+export function AddWorkItem({ onAdd, onCancel }: AddWorkItemProps) {
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [type, setType] = useState<WorkItemType>('project')
+  const [priority, setPriority] = useState(1)
+  const [branch, setBranch] = useState('')
+
+  const canSubmit = title.trim().length > 0
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!canSubmit) return
+    onAdd({ title: title.trim(), description: description.trim(), type, priority, branch: branch.trim() })
+  }
+
+  return (
+    <form className={styles.Root} onSubmit={handleSubmit} onClick={e => e.stopPropagation()}>
+      <h3 className={styles.FormTitle}>Add Work Item</h3>
+
+      <div className={styles.Field}>
+        <label className={styles.Label}>Title</label>
+        <input
+          className={styles.Input}
+          type="text"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="e.g., Enzyme Migration - Consumer Registry"
+          autoFocus
+        />
+      </div>
+
+      <div className={styles.Field}>
+        <label className={styles.Label}>Description</label>
+        <textarea
+          className={styles.Textarea}
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+          placeholder="What needs to be done?"
+          rows={3}
+        />
+      </div>
+
+      <div className={styles.Row}>
+        <div className={styles.Field}>
+          <label className={styles.Label}>Type</label>
+          <div className={styles.TypeToggle}>
+            <button
+              type="button"
+              className={classnames(styles.TypeButton, type === 'project' && styles.TypeActive)}
+              onClick={() => setType('project')}
+            >
+              Project
+            </button>
+            <button
+              type="button"
+              className={classnames(styles.TypeButton, type === 'quick_fix' && styles.TypeActive)}
+              onClick={() => setType('quick_fix')}
+            >
+              Quick Fix
+            </button>
+          </div>
+        </div>
+
+        <div className={styles.Field}>
+          <label className={styles.Label}>Priority</label>
+          <input
+            className={styles.Input}
+            type="number"
+            min={1}
+            max={99}
+            value={priority}
+            onChange={e => setPriority(Number(e.target.value))}
+          />
+        </div>
+      </div>
+
+      <div className={styles.Field}>
+        <label className={styles.Label}>Branch (optional)</label>
+        <input
+          className={styles.Input}
+          type="text"
+          value={branch}
+          onChange={e => setBranch(e.target.value)}
+          placeholder="e.g., me/react-18/enzyme-migration/1/consumer-registry"
+        />
+      </div>
+
+      <div className={styles.Actions}>
+        <button type="button" className={styles.CancelButton} onClick={onCancel}>
+          Cancel
+        </button>
+        <button type="submit" className={styles.SubmitButton} disabled={!canSubmit}>
+          Add to Queue
+        </button>
+      </div>
+    </form>
+  )
+}

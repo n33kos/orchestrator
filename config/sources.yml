@@ -1,0 +1,28 @@
+# Work Source Configuration
+# Define where the orchestrator discovers new work items.
+
+sources:
+  react-18-plan:
+    type: markdown
+    path: ~/Desktop/Plans/react-18-upgrade-plan.md
+    polling: manual
+
+  # Example Jira source (uncomment and configure):
+  # team-board:
+  #   type: jira
+  #   board: CONSUMER
+  #   filter: "assignee = currentUser() AND status != Done"
+  #   priority_mapping:
+  #     Highest: 1
+  #     High: 2
+  #     Medium: 3
+  #     Low: 4
+
+  # Example GitHub source (uncomment and configure):
+  # github-issues:
+  #   type: github
+  #   repo: owner/repo
+  #   labels: ["agent/claude-code"]
+  #   priority_mapping:
+  #     P0: 1
+  #     P1: 2

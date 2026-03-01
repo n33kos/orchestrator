@@ -9,6 +9,12 @@
   padding-top: env(safe-area-inset-top, 12px);
 }
 
+.Left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .Title {
   font-size: 18px;
   font-weight: 700;
@@ -49,5 +55,39 @@
   &[data-status="blocked"] {
     background: var(--color-error);
     box-shadow: 0 0 0 2px var(--color-error-muted);
+  }
+}
+
+.AddButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+    border-color: var(--color-primary);
+  }
+
+  &.AddButtonActive {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+
+    svg {
+      transform: rotate(45deg);
+    }
+  }
+
+  svg {
+    transition: transform 0.2s ease;
   }
 }
