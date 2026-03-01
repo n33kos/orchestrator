@@ -27,6 +27,9 @@ CLEANUP_EVERY="${CLEANUP_EVERY:-10}"
 ARCHIVE_AFTER_DAYS="$(grep 'archive_after_days:' "$CONFIG" | sed 's/[^0-9]//g')"
 ARCHIVE_AFTER_DAYS="${ARCHIVE_AFTER_DAYS:-7}"
 
+# shellcheck source=validate-env.sh
+source "$SCRIPT_DIR/validate-env.sh"
+
 ONCE=false
 DRY_RUN=false
 CLEANUP=false

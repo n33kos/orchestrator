@@ -20,6 +20,9 @@ STALL_THRESHOLD_MIN="$(grep 'threshold_minutes:' "$CONFIG" | sed 's/.*: *//')"
 STALL_THRESHOLD_MIN="${STALL_THRESHOLD_MIN:-30}"
 STALL_THRESHOLD_HOURS="$(python3 -c "print($STALL_THRESHOLD_MIN / 60)")"
 
+# shellcheck source=validate-env.sh
+source "$SCRIPT_DIR/validate-env.sh"
+
 AUTO_RECOVER=false
 JSON_OUTPUT=false
 

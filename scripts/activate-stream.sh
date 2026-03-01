@@ -24,6 +24,9 @@ VMUX="$(grep 'vmux:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
 MAX_ACTIVE="$(grep 'max_active_projects:' "$CONFIG" | sed 's/.*: *//')"
 DELEGATOR_DEFAULT="$(grep 'enabled_by_default:' "$CONFIG" | sed 's/.*: *//')"
 
+# shellcheck source=validate-env.sh
+source "$SCRIPT_DIR/validate-env.sh"
+
 # Arguments
 ITEM_ID="${1:?Usage: activate-stream.sh <item-id> [--quick] [--no-delegator]}"
 QUICK_FLAG=""

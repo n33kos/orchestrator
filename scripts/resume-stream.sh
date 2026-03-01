@@ -21,6 +21,9 @@ ROSTRUM="$(grep 'rostrum:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
 WORKTREE_PREFIX="$(grep 'worktree_prefix:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
 MAX_ACTIVE="$(grep 'max_active_projects:' "$CONFIG" | sed 's/.*: *//')"
 
+# shellcheck source=validate-env.sh
+source "$SCRIPT_DIR/validate-env.sh"
+
 ITEM_ID="${1:?Usage: resume-stream.sh <item-id> [--no-delegator]}"
 NO_DELEGATOR=false
 

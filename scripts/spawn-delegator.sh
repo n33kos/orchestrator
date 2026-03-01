@@ -25,6 +25,9 @@ PROFILE_FILE="$(grep 'profile_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOM
 VMUX="$(grep 'vmux:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
 DASHBOARD_PORT="$(grep 'api_port:' "$CONFIG" | sed 's/.*: *//')"
 
+# shellcheck source=validate-env.sh
+source "$SCRIPT_DIR/validate-env.sh"
+
 ITEM_ID="${1:?Usage: spawn-delegator.sh <item-id>}"
 
 # Validate profile exists

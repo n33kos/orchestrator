@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { execFile } from 'child_process'
 import { join } from 'path'
 import { homedir } from 'os'
@@ -18,7 +18,18 @@ function readBody(req: IncomingMessage): Promise<string> {
 function queueApiPlugin(): Plugin {
   const queuePath = join(homedir(), '.claude/orchestrator/queue.json')
 
+  function ensureQueue() {
+    const dir = join(homedir(), '.claude/orchestrator')
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true })
+    }
+    if (!existsSync(queuePath)) {
+      writeFileSync(queuePath, JSON.stringify({ items: [] }, null, 2) + '\n')
+    }
+  }
+
   function readQueue() {
+    ensureQueue()
     return JSON.parse(readFileSync(queuePath, 'utf-8'))
   }
 
