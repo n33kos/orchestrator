@@ -12,10 +12,45 @@
   border-radius: 50%;
   background: var(--color-success);
   flex-shrink: 0;
+  transition: background 0.3s ease;
+}
+
+.Recent .Dot {
+  background: var(--color-success);
+  box-shadow: 0 0 4px var(--color-success);
+  animation: pulse 1s ease;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--color-success);
+  }
+  50% {
+    box-shadow: 0 0 0 4px transparent;
+  }
+  100% {
+    box-shadow: 0 0 4px var(--color-success);
+  }
 }
 
 .Stale .Dot {
   background: var(--color-warning);
+  box-shadow: none;
+}
+
+.Disconnected .Dot {
+  background: var(--color-error);
+  box-shadow: none;
+  animation: blink 2s ease infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.Disconnected .Text {
+  color: var(--color-error);
 }
 
 .Text {
