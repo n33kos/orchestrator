@@ -291,6 +291,9 @@ export function SettingsPanel({ settings, onUpdate, onReset, onClose, onExportQu
 function TrainingSection() {
   const [profileContent, setProfileContent] = useState<string | null>(null)
   const [profileExpanded, setProfileExpanded] = useState(false)
+  const [editingProfile, setEditingProfile] = useState(false)
+  const [editText, setEditText] = useState('')
+  const [saving, setSaving] = useState(false)
   const [training, setTraining] = useState(false)
   const [preseeding, setPreseeding] = useState(false)
   const [trainingOutput, setTrainingOutput] = useState('')
@@ -375,7 +378,57 @@ function TrainingSection() {
         <pre className={styles.TrainingOutput}>{trainingOutput}</pre>
       )}
       {profileExpanded && profileContent && (
-        <pre className={styles.ProfilePreview}>{profileContent}</pre>
+        editingProfile ? (
+          <div className={styles.ProfileEdit}>
+            <textarea
+              className={styles.ProfileTextarea}
+              value={editText}
+              onChange={e => setEditText(e.target.value)}
+              rows={20}
+            />
+            <div className={styles.ProfileEditActions}>
+              <button
+                className={styles.ExportButton}
+                onClick={async () => {
+                  setSaving(true)
+                  try {
+                    await fetch('/api/training/profile', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ content: editText }),
+                    })
+                    setProfileContent(editText)
+                    setEditingProfile(false)
+                  } catch { /* ignore */ }
+                  finally { setSaving(false) }
+                }}
+                disabled={saving}
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                className={styles.ProfileToggle}
+                onClick={() => { setEditingProfile(false); setEditText('') }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className={styles.ProfileViewWrap}>
+            <button
+              className={styles.ProfileEditButton}
+              onClick={() => { setEditingProfile(true); setEditText(profileContent) }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+              Edit
+            </button>
+            <pre className={styles.ProfilePreview}>{profileContent}</pre>
+          </div>
+        )
       )}
     </div>
   )

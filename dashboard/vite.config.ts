@@ -575,15 +575,32 @@ function queueApiPlugin(): Plugin {
         }
       })
 
-      // GET /api/training/profile — read the user profile
-      server.middlewares.use('/api/training/profile', (_req, res) => {
+      // GET/PUT /api/training/profile — read or update the user profile
+      server.middlewares.use('/api/training/profile', async (req, res) => {
+        const profilePath = join(homedir(), '.claude/orchestrator/profile.md')
+        res.setHeader('Content-Type', 'application/json')
+
+        if (req.method === 'PUT') {
+          try {
+            const body = JSON.parse(await readBody(req))
+            if (!body.content || typeof body.content !== 'string') {
+              res.statusCode = 400
+              res.end(JSON.stringify({ error: 'Missing content field' }))
+              return
+            }
+            writeFileSync(profilePath, body.content, 'utf-8')
+            res.end(JSON.stringify({ ok: true }))
+          } catch (err) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: String(err) }))
+          }
+          return
+        }
+
         try {
-          const profilePath = join(homedir(), '.claude/orchestrator/profile.md')
           const content = readFileSync(profilePath, 'utf-8')
-          res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify({ content, path: profilePath }))
         } catch {
-          res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify({ content: null, error: 'Profile not found. Run preseed-profile.py first.' }))
         }
       })
