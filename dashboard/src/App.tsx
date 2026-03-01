@@ -51,6 +51,7 @@ import { useFileDrop } from './hooks/useFileDrop.ts'
 import { usePinnedItems } from './hooks/usePinnedItems.ts'
 import { useSearchHistory } from './hooks/useSearchHistory.ts'
 import { useZoom } from './hooks/useZoom.ts'
+import { useScrollRestore } from './hooks/useScrollRestore.ts'
 import { playNotificationSound } from './utils/sound.ts'
 import { exportWorkItemsCsv, downloadCsv } from './utils/csv.ts'
 import type { Plan } from './components/PlanEditor/PlanEditor.tsx'
@@ -123,6 +124,7 @@ export function App() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const searchRef = useRef<HTMLInputElement>(null)
   const mainRef = useRef<HTMLElement>(null)
+  useScrollRestore(activeTab, mainRef.current)
   const [confirmAction, setConfirmAction] = useState<{
     title: string
     message: string

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import styles from './SettingsPanel.module.scss'
 import type { OrchestratorSettings } from '../../hooks/useSettings.ts'
 
@@ -210,12 +210,107 @@ export function SettingsPanel({ settings, onUpdate, onReset, onClose, onExportQu
           </div>
         )}
 
+        <TrainingSection />
+
         <div className={styles.Footer}>
           <button className={styles.ResetButton} onClick={onReset}>
             Reset to defaults
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function TrainingSection() {
+  const [profileContent, setProfileContent] = useState<string | null>(null)
+  const [profileExpanded, setProfileExpanded] = useState(false)
+  const [training, setTraining] = useState(false)
+  const [preseeding, setPreseeding] = useState(false)
+  const [trainingOutput, setTrainingOutput] = useState('')
+
+  useEffect(() => {
+    fetch('/api/training/profile')
+      .then(res => res.json())
+      .then(data => setProfileContent(data.content))
+      .catch(() => { /* ignore */ })
+  }, [])
+
+  async function handleTrain() {
+    setTraining(true)
+    setTrainingOutput('')
+    try {
+      const res = await fetch('/api/training/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lastN: 30 }),
+      })
+      const data = await res.json()
+      setTrainingOutput(data.output || data.error || 'Done')
+      // Refresh profile
+      const profileRes = await fetch('/api/training/profile')
+      const profileData = await profileRes.json()
+      setProfileContent(profileData.content)
+    } catch {
+      setTrainingOutput('Training failed')
+    } finally {
+      setTraining(false)
+    }
+  }
+
+  async function handlePreseed() {
+    setPreseeding(true)
+    setTrainingOutput('')
+    try {
+      const res = await fetch('/api/training/preseed', { method: 'POST' })
+      const data = await res.json()
+      setTrainingOutput(data.output || data.error || 'Done')
+      // Refresh profile
+      const profileRes = await fetch('/api/training/profile')
+      const profileData = await profileRes.json()
+      setProfileContent(profileData.content)
+    } catch {
+      setTrainingOutput('Preseed failed')
+    } finally {
+      setPreseeding(false)
+    }
+  }
+
+  return (
+    <div className={styles.Group}>
+      <h3 className={styles.GroupTitle}>Training</h3>
+      <div className={styles.TrainingActions}>
+        {profileContent === null ? (
+          <button className={styles.ExportButton} onClick={handlePreseed} disabled={preseeding}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+            </svg>
+            {preseeding ? 'Bootstrapping...' : 'Bootstrap Profile'}
+          </button>
+        ) : (
+          <>
+            <button className={styles.ExportButton} onClick={handleTrain} disabled={training}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+              </svg>
+              {training ? 'Training...' : 'Train from latest session'}
+            </button>
+            <button
+              className={styles.ProfileToggle}
+              onClick={() => setProfileExpanded(!profileExpanded)}
+            >
+              {profileExpanded ? 'Hide profile' : 'View profile'}
+            </button>
+          </>
+        )}
+      </div>
+      {trainingOutput && (
+        <pre className={styles.TrainingOutput}>{trainingOutput}</pre>
+      )}
+      {profileExpanded && profileContent && (
+        <pre className={styles.ProfilePreview}>{profileContent}</pre>
+      )}
     </div>
   )
 }

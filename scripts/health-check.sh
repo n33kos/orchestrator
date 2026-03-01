@@ -65,6 +65,7 @@ blocked = [i for i in data['items'] if any(not b.get('resolved', False) for b in
 
 print(json.dumps({
     'active_count': len(active),
+    'max_concurrent': $MAX_ACTIVE,
     'stalled': stalled,
     'blocked': [{'id': i['id'], 'title': i['title']} for i in blocked],
     'total_items': len(data['items']),
@@ -72,16 +73,34 @@ print(json.dumps({
 ")"
 
 if [[ "$JSON_OUTPUT" == "true" ]]; then
+    # Build zombie IDs as a proper JSON array
+    ZOMBIE_JSON="[]"
+    if [[ ${#ZOMBIES[@]} -gt 0 ]]; then
+        ZOMBIE_JSON="$(printf '%s\n' "${ZOMBIES[@]}" | python3 -c "import json,sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))")"
+    fi
+
     python3 -c "
 import json
+sessions = {
+    'total': $TOTAL,
+    'healthy': ${#HEALTHY[@]},
+    'zombie': ${#ZOMBIES[@]},
+    'zombie_ids': json.loads('$ZOMBIE_JSON'),
+}
+queue = json.loads('''$QUEUE_HEALTH''')
+issues = []
+if sessions['zombie'] > 0:
+    for zid in sessions['zombie_ids']:
+        issues.append({'type': 'zombie_session', 'id': zid, 'message': f'Session {zid} is a zombie'})
+for s in queue.get('stalled', []):
+    issues.append({'type': 'stalled_stream', 'id': s['id'], 'message': f'{s[\"title\"]} active for {s[\"hours\"]}h'})
+for b in queue.get('blocked', []):
+    issues.append({'type': 'blocked_item', 'id': b['id'], 'message': f'{b[\"title\"]} has unresolved blockers'})
+
 health = {
-    'sessions': {
-        'total': $TOTAL,
-        'healthy': ${#HEALTHY[@]},
-        'zombie': ${#ZOMBIES[@]},
-        'zombie_ids': $(python3 -c "import json; print(json.dumps([$(printf '"%s",' "${ZOMBIES[@]}" 2>/dev/null || echo '')]))"),
-    },
-    'queue': $QUEUE_HEALTH,
+    'sessions': sessions,
+    'queue': queue,
+    'issues': issues,
 }
 print(json.dumps(health, indent=2))
 "
