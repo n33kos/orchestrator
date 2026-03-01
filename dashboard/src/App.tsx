@@ -355,6 +355,18 @@ export function App() {
     setFocusedItemId(id)
   }
 
+  function handleExportQueue() {
+    const data = { version: 1, items: queue.items, exportedAt: new Date().toISOString() }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `orchestrator-queue-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    addToast('Queue exported', 'success')
+  }
+
   function handleDelete(id: string) {
     const item = queue.items.find(i => i.id === id)
     setConfirmAction({
@@ -556,6 +568,7 @@ export function App() {
           onUpdate={updateSetting}
           onReset={resetSettings}
           onClose={() => setSettingsOpen(false)}
+          onExportQueue={handleExportQueue}
         />
       )}
       {showActivityFeed && (

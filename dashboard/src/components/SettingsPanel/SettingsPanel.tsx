@@ -7,6 +7,7 @@ interface SettingsPanelProps {
   onUpdate: <K extends keyof OrchestratorSettings>(key: K, value: OrchestratorSettings[K]) => void
   onReset: () => void
   onClose: () => void
+  onExportQueue?: () => void
 }
 
 function SettingRow({ label, description, children }: { label: string; description?: string; children: React.ReactNode }) {
@@ -34,7 +35,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   )
 }
 
-export function SettingsPanel({ settings, onUpdate, onReset, onClose }: SettingsPanelProps) {
+export function SettingsPanel({ settings, onUpdate, onReset, onClose, onExportQueue }: SettingsPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -148,6 +149,22 @@ export function SettingsPanel({ settings, onUpdate, onReset, onClose }: Settings
             </SettingRow>
           </div>
         </div>
+
+        {onExportQueue && (
+          <div className={styles.Group}>
+            <h3 className={styles.GroupTitle}>Data</h3>
+            <SettingRow label="Export queue" description="Download the current queue as a JSON file">
+              <button className={styles.ExportButton} onClick={onExportQueue}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                Export JSON
+              </button>
+            </SettingRow>
+          </div>
+        )}
 
         <div className={styles.Footer}>
           <button className={styles.ResetButton} onClick={onReset}>

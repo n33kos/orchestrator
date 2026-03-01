@@ -236,6 +236,29 @@
   }
 }
 
+/* ── Export Button ── */
+.ExportButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+    border-color: var(--color-primary);
+  }
+}
+
 /* ── Footer ── */
 .Footer {
   padding: 12px 20px;
