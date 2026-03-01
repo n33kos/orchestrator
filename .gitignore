@@ -4,3 +4,17 @@ dist
 .env
 .env.*
 scripts/__pycache__/
+
+# Playwright CLI
+.playwright-cli/
+
+# OS files
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+# User-specific config overrides
+config/environment.local.yml
+config/sources.local.yml

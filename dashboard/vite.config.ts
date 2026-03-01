@@ -680,7 +680,7 @@ function queueApiPlugin(): Plugin {
         if (!prUrl && !basePr) { res.statusCode = 400; res.end(JSON.stringify({ error: 'Missing url or base param' })); return }
 
         // Extract owner/repo from URL, or use base PR number
-        let owner = 'myproject', repo = 'web', baseNumber = basePr || ''
+        let owner = '', repo = '', baseNumber = basePr || ''
         if (prUrl) {
           const match = prUrl.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/)
           if (match) {
@@ -697,7 +697,7 @@ function queueApiPlugin(): Plugin {
             const basePrData = JSON.parse(stdout)
             const branch = basePrData.headRefName || ''
             const author = basePrData.author?.login || ''
-            // Extract the branch prefix (e.g., "me/react-18/bootstrap-elimination" from "me/react-18/bootstrap-elimination/1/modal-replacement")
+            // Extract the branch prefix (e.g., "initials/project/name" from "initials/project/name/1/description")
             const parts = branch.split('/')
             const prefix = parts.length > 3 ? parts.slice(0, 3).join('/') : branch
 

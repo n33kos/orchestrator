@@ -224,7 +224,7 @@ Refinement and scaling capabilities.
 - ~~Support work items across different repositories~~ ✓ metadata.repo_path
 - ~~Configure worktree manager targets per work item~~ ✓ activate-stream.sh cross-repo
 - Handle cross-repo dependencies
-- Auto-detect repo tooling (Rostrum for myproject, git worktree for others)
+- Auto-detect repo tooling (Rostrum if available, git worktree for others)
 
 ### 5.5 Worker Completion Automation
 - Workers self-report completion via API endpoint or vmux message
@@ -249,7 +249,7 @@ All site-specific values are abstracted into environment config rather than hard
 
 # Identity
 user:
-  initials: nas
+  initials: me
   name: Your Name
 
 # Repository

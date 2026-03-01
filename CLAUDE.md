@@ -183,6 +183,3 @@ When the user asks to check on sessions or recover zombies, iterate through all 
 - If a branch is already checked out in another worktree, setup will fail — use the open command instead
 - Zombie sessions (shown in `vmux status`) can be cleaned up with `vmux kill`
 - The relay session ID is derived from the working directory, so each worktree gets a unique session
-
-# currentDate
-Today's date is 2026-02-24.

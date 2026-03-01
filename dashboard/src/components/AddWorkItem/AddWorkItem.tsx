@@ -123,7 +123,7 @@ export function AddWorkItem({ onAdd, onCancel }: AddWorkItemProps) {
             type="text"
             value={branch}
             onChange={e => setBranch(e.target.value)}
-            placeholder="e.g., me/react-18/enzyme-migration/1/consumer-registry"
+            placeholder="e.g., me/project/feature/1/description"
           />
           {title.trim() && !branch && (
             <button type="button" className={styles.GenerateButton} onClick={generateBranch}>

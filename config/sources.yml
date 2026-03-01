@@ -11,25 +11,28 @@
 #   limit: max items to return per poll (default: 20)
 
 sources:
-  react-18-plan:
-    type: markdown
-    path: ~/Desktop/Plans/react-18-upgrade-plan.md
-    polling: manual
+  # Example markdown source — point to a local plan file
+  # my-plan:
+  #   type: markdown
+  #   path: ~/Desktop/Plans/my-upgrade-plan.md
+  #   polling: manual
 
-  github-issues:
-    type: github
-    repo: owner/repo
-    assignee: "@me"
-    labels: agent/claude-code
-    state: open
-    limit: 20
+  # Example GitHub Issues source
+  # github-issues:
+  #   type: github
+  #   repo: owner/repo
+  #   assignee: "@me"
+  #   labels: agent/claude-code
+  #   state: open
+  #   limit: 20
 
-  design-system-issues:
-    type: github
-    repo: owner/design-system
-    assignee: "@me"
-    state: open
-    limit: 10
+  # Example secondary repo
+  # design-system-issues:
+  #   type: github
+  #   repo: owner/design-system
+  #   assignee: "@me"
+  #   state: open
+  #   limit: 10
 
   # Jira source (requires JIRA_EMAIL and JIRA_API_TOKEN env vars):
   # team-board:

@@ -2,7 +2,7 @@
   "name": "orchestrator",
   "version": "0.1.0",
   "description": "Autonomous work orchestrator — manages priority queues, isolated dev environments, Claude worker sessions, and delegator instances",
-  "author": "Your Name",
+  "author": "n33kos",
   "skills": {
     "status": {
       "path": "skills/status.md",
