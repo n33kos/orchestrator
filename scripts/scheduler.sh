@@ -20,6 +20,10 @@ CONFIG="$PROJECT_ROOT/config/environment.yml"
 QUEUE_FILE="$(grep 'queue_file:' "$CONFIG" | sed 's/.*: *//' | sed "s|~|$HOME|")"
 MAX_ACTIVE="$(grep 'max_active_projects:' "$CONFIG" | sed 's/.*: *//')"
 AUTO_ACTIVATE="$(grep 'auto_activate:' "$CONFIG" | sed 's/.*: *//')"
+POLL_INTERVAL="$(grep 'poll_interval:' "$CONFIG" | sed 's/.*: *//')"
+POLL_INTERVAL="${POLL_INTERVAL:-120}"
+CLEANUP_EVERY="$(grep 'cleanup_every:' "$CONFIG" | sed 's/[^0-9]//g')"
+CLEANUP_EVERY="${CLEANUP_EVERY:-10}"
 
 ONCE=false
 DRY_RUN=false
@@ -265,19 +269,19 @@ if [[ "$ONCE" == "true" ]]; then
     check_and_activate
 else
     echo "[scheduler] Starting continuous scheduler (Ctrl+C to stop)"
-    echo "[scheduler] Poll interval: 120s | Max active: $MAX_ACTIVE | Auto-activate: $AUTO_ACTIVATE"
+    echo "[scheduler] Poll interval: ${POLL_INTERVAL}s | Max active: $MAX_ACTIVE | Auto-activate: $AUTO_ACTIVATE"
     echo ""
     CYCLE=0
     while true; do
         recover_sessions
         teardown_merged
         check_and_activate
-        # Run cleanup every 10 cycles (every ~20 minutes)
+        # Run cleanup every N cycles
         CYCLE=$((CYCLE + 1))
-        if [[ $((CYCLE % 10)) -eq 0 ]]; then
+        if [[ $((CYCLE % CLEANUP_EVERY)) -eq 0 ]]; then
             cleanup_completed
         fi
-        echo "[scheduler] Next check in 120s..."
-        sleep 120
+        echo "[scheduler] Next check in ${POLL_INTERVAL}s..."
+        sleep "$POLL_INTERVAL"
     done
 fi

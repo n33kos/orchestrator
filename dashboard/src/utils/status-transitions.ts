@@ -5,7 +5,8 @@ import type { WorkItemStatus } from '../types.ts'
  * Each key lists the statuses it can transition to.
  */
 const TRANSITIONS: Record<WorkItemStatus, WorkItemStatus[]> = {
-  queued: ['active', 'paused'],
+  queued: ['planning', 'active', 'paused'],
+  planning: ['active', 'queued'],
   active: ['paused', 'review', 'completed'],
   paused: ['queued', 'active'],
   review: ['active', 'completed', 'queued'],
@@ -23,6 +24,7 @@ export function isValidTransition(from: WorkItemStatus, to: WorkItemStatus): boo
 export function getTransitionLabel(status: WorkItemStatus): string {
   const labels: Record<WorkItemStatus, string> = {
     queued: 'Queue',
+    planning: 'Plan',
     active: 'Activate',
     paused: 'Pause',
     review: 'Review',

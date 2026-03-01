@@ -32,9 +32,12 @@ for item_dir in delegators_dir.iterdir():
         continue
     status_file = item_dir / 'status.json'
     if status_file.exists():
-        with open(status_file) as f:
-            status = json.load(f)
-        results.append(status)
+        try:
+            with open(status_file) as f:
+                status = json.load(f)
+            results.append(status)
+        except (json.JSONDecodeError, KeyError) as e:
+            results.append({'item_id': item_dir.name, 'status': 'parse_error', 'error': str(e)})
     else:
         results.append({'item_id': item_dir.name, 'status': 'unknown'})
 
@@ -54,19 +57,23 @@ else
         if [[ -f "$status_file" ]]; then
             python3 -c "
 import json
-with open('$status_file') as f:
-    s = json.load(f)
-status = s.get('status', 'unknown')
-worker = s.get('worker_session', 'unknown')
-commits = s.get('commits_reviewed', 0)
-issues = len(s.get('issues_found', []))
-print(f'  {s.get(\"item_id\", \"$item_id\")}')
-print(f'    Status: {status}')
-print(f'    Worker: {worker}')
-print(f'    Commits reviewed: {commits}')
-print(f'    Issues found: {issues}')
-if s.get('assessment'):
-    print(f'    Assessment: {s[\"assessment\"]}')
+try:
+    with open('$status_file') as f:
+        s = json.load(f)
+    status = s.get('status', 'unknown')
+    worker = s.get('worker_session', 'unknown')
+    commits = s.get('commits_reviewed', 0)
+    issues = len(s.get('issues_found', []))
+    print(f'  {s.get(\"item_id\", \"$item_id\")}')
+    print(f'    Status: {status}')
+    print(f'    Worker: {worker}')
+    print(f'    Commits reviewed: {commits}')
+    print(f'    Issues found: {issues}')
+    if s.get('assessment'):
+        print(f'    Assessment: {s[\"assessment\"]}')
+except (json.JSONDecodeError, KeyError) as e:
+    print(f'  $item_id')
+    print(f'    Status: parse_error ({e})')
 "
         else
             echo "  $item_id"

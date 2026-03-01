@@ -282,7 +282,7 @@ export function App() {
     }, [queue, addToast]),
     onCommandPalette: useCallback(() => setShowCommandPalette(prev => !prev), []),
     onTabSwitch: useCallback((index: number) => {
-      const tabIds = ['projects', 'quick_fixes', 'all', 'sessions', 'analytics']
+      const tabIds = ['projects', 'quick_fixes', 'all', 'delegators', 'sessions', 'analytics']
       if (index >= 0 && index < tabIds.length) {
         setActiveTab(tabIds[index])
       }
@@ -526,11 +526,16 @@ export function App() {
   }
 
   async function handleReconnectSession(sessionId: string) {
+    const session = sessions.find(s => s.id === sessionId)
+    if (!session) {
+      addToast('Session not found', 'error')
+      return
+    }
     try {
       const res = await fetch('/api/sessions/reconnect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId }),
+        body: JSON.stringify({ cwd: session.cwd }),
       })
       if (res.ok) {
         addToast('Session reconnecting...', 'info')
