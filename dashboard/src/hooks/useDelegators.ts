@@ -38,8 +38,8 @@ export function useDelegators(pollInterval = 10_000) {
     return () => clearInterval(interval)
   }, [refresh, pollInterval])
 
-  const issueCount = delegators.reduce((sum, d) => sum + d.issues_found.length, 0)
-  const errorCount = delegators.reduce((sum, d) => sum + d.errors.length, 0)
+  const issueCount = delegators.reduce((sum, d) => sum + (d.issues_found?.length ?? 0), 0)
+  const errorCount = delegators.reduce((sum, d) => sum + (d.errors?.length ?? 0), 0)
   const stallCount = delegators.filter(d => d.stall_detected).length
 
   return {
