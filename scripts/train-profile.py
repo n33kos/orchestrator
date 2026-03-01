@@ -143,16 +143,16 @@ def categorize_insight(insight: str) -> str:
     """Determine which profile section an insight belongs to."""
     lower = insight.lower()
     if lower.startswith("always:") or lower.startswith("never:"):
-        return "## Invariants"
+        return "## Things Always Checked"
     if lower.startswith("prefers:") or lower.startswith("avoids:"):
-        return "## Style Preferences"
+        return "## Communication Style"
     if any(k in lower for k in ["test", "type safety", "accessibility", "performance", "error handling", "security"]):
         return "## Quality Priorities"
     if any(k in lower for k in ["review", "pr ", "pull request", "code review"]):
-        return "## Review Patterns"
+        return "## Common Review Patterns"
     if any(k in lower for k in ["delegate", "hand off", "worker", "session"]):
-        return "## Delegation Patterns"
-    return "## Training Log"
+        return "## Domain-Specific Concerns"
+    return "## Interaction Examples"
 
 
 def update_profile(profile_path: Path, new_insights: list[str]) -> bool:
@@ -176,7 +176,7 @@ def update_profile(profile_path: Path, new_insights: list[str]) -> bool:
             insert_idx = None
             in_section = False
             for i, line in enumerate(lines):
-                if line.strip() == section:
+                if line.strip().startswith(section):
                     in_section = True
                     continue
                 if in_section:

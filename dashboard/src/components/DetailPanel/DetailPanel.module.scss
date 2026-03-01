@@ -498,6 +498,48 @@
   font-weight: 500;
 }
 
+.pr_open {
+  background: var(--color-success-muted, rgba(52, 199, 89, 0.15));
+  color: var(--color-success);
+}
+.pr_merged {
+  background: rgba(139, 92, 246, 0.15);
+  color: rgb(139, 92, 246);
+}
+.pr_closed {
+  background: var(--color-error-muted, rgba(255, 69, 58, 0.15));
+  color: var(--color-error);
+}
+.pr_pass {
+  background: var(--color-success-muted, rgba(52, 199, 89, 0.15));
+  color: var(--color-success);
+}
+.pr_fail {
+  background: var(--color-error-muted, rgba(255, 69, 58, 0.15));
+  color: var(--color-error);
+}
+
+.StackItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.StackPrTitle {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Plan Overview ── */
 .PlanCard {
   padding: 8px 10px;

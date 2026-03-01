@@ -5,6 +5,8 @@ import { PriorityBadge } from '../PriorityBadge/PriorityBadge.tsx'
 import { ItemNotes } from '../ItemNotes/ItemNotes.tsx'
 import { timeAgo, formatDate } from '../../utils/time.ts'
 import { useFocusTrap } from '../../hooks/useFocusTrap.ts'
+import { usePrStack } from '../../hooks/usePrStatus.ts'
+import type { StackPr } from '../../hooks/usePrStatus.ts'
 import type { WorkItem, WorkItemStatus, SessionInfo } from '../../types.ts'
 import type { DelegatorStatus } from '../../hooks/useDelegators.ts'
 
@@ -59,6 +61,8 @@ export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange
   const [notesText, setNotesText] = useState((item.metadata?.notes as string) || '')
   const [prStatus, setPrStatus] = useState<{ state?: string; reviewDecision?: string; checks?: string; url?: string } | null>(null)
   const [messageText, setMessageText] = useState('')
+  const isStack = item.metadata?.pr_type === 'graphite_stack'
+  const { stack: prStack } = usePrStack(item.pr_url, isStack)
   const notesRef = useRef<HTMLTextAreaElement>(null)
   const titleRef = useRef<HTMLInputElement>(null)
   const descRef = useRef<HTMLTextAreaElement>(null)
@@ -354,37 +358,62 @@ export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange
           {/* PR Status */}
           {item.pr_url && (
             <div className={styles.Section}>
-              <span className={styles.SectionLabel}>Pull Request</span>
-              <div className={styles.PrCard}>
-                <a href={item.pr_url} target="_blank" rel="noopener noreferrer" className={styles.PrLink}>
-                  {item.pr_url.replace(/^https:\/\/github\.com\//, '')}
-                </a>
-                {prStatus && (
-                  <div className={styles.PrMeta}>
-                    {prStatus.state && (
-                      <span className={`${styles.PrBadge} ${styles[prStateLabels[prStatus.state]?.cls || '']}`}>
-                        {prStateLabels[prStatus.state]?.label || prStatus.state}
+              <span className={styles.SectionLabel}>
+                {isStack ? 'PR Stack (Graphite)' : 'Pull Request'}
+              </span>
+              {isStack && prStack ? (
+                <div className={styles.PrCard}>
+                  {prStack.graphiteStackUrl && (
+                    <a href={prStack.graphiteStackUrl} target="_blank" rel="noopener noreferrer" className={styles.PrLink}>
+                      View full stack on Graphite
+                    </a>
+                  )}
+                  {prStack.prs.map((pr: StackPr) => (
+                    <div key={pr.number} className={styles.StackItem}>
+                      <a href={pr.url} target="_blank" rel="noopener noreferrer" className={styles.PrLink}>
+                        #{pr.number}
+                      </a>
+                      <span className={styles.StackPrTitle}>{pr.title}</span>
+                      <span className={`${styles.PrBadge} ${styles[`pr_${pr.state.toLowerCase()}`] || ''}`}>
+                        {pr.state}
                       </span>
-                    )}
-                    {prStatus.reviewDecision && (
-                      <span className={styles.PrReview}>
-                        {prStatus.reviewDecision === 'APPROVED' ? 'Approved' :
-                         prStatus.reviewDecision === 'CHANGES_REQUESTED' ? 'Changes requested' :
-                         prStatus.reviewDecision === 'REVIEW_REQUIRED' ? 'Review needed' :
-                         prStatus.reviewDecision}
-                      </span>
-                    )}
-                    {prStatus.checks && (
-                      <span className={styles.PrChecks}>
-                        {prStatus.checks === 'SUCCESS' ? 'Checks passing' :
-                         prStatus.checks === 'FAILURE' ? 'Checks failing' :
-                         prStatus.checks === 'PENDING' ? 'Checks running' :
-                         prStatus.checks}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
+                      {pr.checksPass && <span className={`${styles.PrBadge} ${styles.pr_pass}`}>Pass</span>}
+                      {pr.checksFail && <span className={`${styles.PrBadge} ${styles.pr_fail}`}>Fail</span>}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className={styles.PrCard}>
+                  <a href={item.pr_url} target="_blank" rel="noopener noreferrer" className={styles.PrLink}>
+                    {item.pr_url.replace(/^https:\/\/github\.com\//, '')}
+                  </a>
+                  {prStatus && (
+                    <div className={styles.PrMeta}>
+                      {prStatus.state && (
+                        <span className={`${styles.PrBadge} ${styles[prStateLabels[prStatus.state]?.cls || '']}`}>
+                          {prStateLabels[prStatus.state]?.label || prStatus.state}
+                        </span>
+                      )}
+                      {prStatus.reviewDecision && (
+                        <span className={styles.PrReview}>
+                          {prStatus.reviewDecision === 'APPROVED' ? 'Approved' :
+                           prStatus.reviewDecision === 'CHANGES_REQUESTED' ? 'Changes requested' :
+                           prStatus.reviewDecision === 'REVIEW_REQUIRED' ? 'Review needed' :
+                           prStatus.reviewDecision}
+                        </span>
+                      )}
+                      {prStatus.checks && (
+                        <span className={styles.PrChecks}>
+                          {prStatus.checks === 'SUCCESS' ? 'Checks passing' :
+                           prStatus.checks === 'FAILURE' ? 'Checks failing' :
+                           prStatus.checks === 'PENDING' ? 'Checks running' :
+                           prStatus.checks}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

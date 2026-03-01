@@ -14,6 +14,7 @@ export interface NewWorkItem {
   type: WorkItemType
   priority: number
   branch: string
+  prType?: 'graphite_stack'
 }
 
 export function AddWorkItem({ onAdd, onCancel }: AddWorkItemProps) {
@@ -22,6 +23,7 @@ export function AddWorkItem({ onAdd, onCancel }: AddWorkItemProps) {
   const [type, setType] = useState<WorkItemType>('project')
   const [priority, setPriority] = useState(1)
   const [branch, setBranch] = useState('')
+  const [isGraphiteStack, setIsGraphiteStack] = useState(false)
 
   const canSubmit = title.trim().length > 0
 
@@ -39,7 +41,14 @@ export function AddWorkItem({ onAdd, onCancel }: AddWorkItemProps) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
-    onAdd({ title: title.trim(), description: description.trim(), type, priority, branch: branch.trim() })
+    onAdd({
+      title: title.trim(),
+      description: description.trim(),
+      type,
+      priority,
+      branch: branch.trim(),
+      ...(isGraphiteStack ? { prType: 'graphite_stack' } : {}),
+    })
   }
 
   return (
@@ -120,6 +129,15 @@ export function AddWorkItem({ onAdd, onCancel }: AddWorkItemProps) {
           )}
         </div>
       </div>
+
+      <label className={styles.CheckboxField}>
+        <input
+          type="checkbox"
+          checked={isGraphiteStack}
+          onChange={e => setIsGraphiteStack(e.target.checked)}
+        />
+        <span>Graphite stack (multiple stacked PRs)</span>
+      </label>
 
       <div className={styles.Actions}>
         <button type="button" className={styles.CancelButton} onClick={onCancel}>

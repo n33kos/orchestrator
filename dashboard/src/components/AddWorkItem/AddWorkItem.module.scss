@@ -138,6 +138,22 @@
   }
 }
 
+.CheckboxField {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  margin-bottom: 4px;
+
+  input[type="checkbox"] {
+    accent-color: var(--color-primary);
+    width: 16px;
+    height: 16px;
+  }
+}
+
 .Actions {
   display: flex;
   justify-content: flex-end;

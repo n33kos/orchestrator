@@ -56,7 +56,10 @@ function queueApiPlugin(): Plugin {
             created_at: new Date().toISOString(),
             activated_at: null,
             completed_at: null,
-            metadata: { source_ref: 'Dashboard — manual entry' },
+            metadata: {
+              source_ref: 'Dashboard — manual entry',
+              ...(body.prType ? { pr_type: body.prType } : {}),
+            },
           }
           data.items.push(newItem)
           writeQueue(data)
