@@ -143,6 +143,14 @@ curl -s -X PATCH http://localhost:${DASHBOARD_PORT}/api/queue/update \\
   -d '{"id": "$ITEM_ID", "metadata": {"delegator_assessment": "YOUR_ASSESSMENT", "delegator_status": "STATUS"}}'
 \`\`\`
 
+Suspend stream and move to review (**primary way to transition to review** — atomically updates status, kills worker session, and kills delegator):
+\`\`\`bash
+curl -s -X POST http://localhost:${DASHBOARD_PORT}/api/stream/suspend \\
+  -H 'Content-Type: application/json' \\
+  -d '{"itemId": "$ITEM_ID"}'
+\`\`\`
+Use this when: PR exists, CI passing, your review assessment is "approve", and worker is idle/done. This will kill your session, so it must be the last thing you call.
+
 ## Files to Load
 - **Delegator instructions**: $PROJECT_ROOT/delegator/CLAUDE.md
 - **User behavioral profile**: $PROFILE_FILE

@@ -202,7 +202,7 @@ for item in active_with_pr:
                 continue
             all_prs = json.loads(result.stdout)
             # Find PRs in this stack (branches starting with same prefix)
-            branch_prefix = '/'.join(branch.split('/')[:3])  # e.g. initials/project/name
+            branch_prefix = '/'.join(branch.split('/')[:3])  # e.g. me/project/name
             stack_prs = [p for p in all_prs if p['headRefName'].startswith(branch_prefix)]
             if not stack_prs:
                 # Fallback to single PR check
@@ -490,6 +490,9 @@ with open('$QUEUE_FILE') as f:
 for item in data['items']:
     if item['status'] == 'completed' and (item.get('session_id') or item.get('worktree_path')):
         print(f'TEARDOWN:{item[\"id\"]}:{item[\"title\"]}')
+    elif item['status'] == 'review' and (item.get('session_id') or item.get('delegator_id')):
+        # Safety net: review items should not have active sessions — suspend them
+        print(f'SUSPEND:{item[\"id\"]}:{item[\"title\"]}')
     elif item['status'] == 'review' and item.get('metadata', {}).get('completion_message'):
         # Worker moved to review — log it for visibility
         msg = item['metadata']['completion_message']
@@ -508,6 +511,21 @@ for item in data['items']:
                 "$SCRIPT_DIR/teardown-stream.sh" "$item_id" 2>&1 | sed 's/^/  /' || {
                     echo "[scheduler] ERROR: Failed to teardown $item_id" >&2
                     emit_event "scheduler.error" "Failed to teardown $item_id after worker completion" --item-id "$item_id" --severity error
+                }
+            fi
+        elif [[ "$line" == SUSPEND:* ]]; then
+            local item_id item_title
+            item_id="$(echo "$line" | cut -d: -f2)"
+            item_title="$(echo "$line" | cut -d: -f3-)"
+
+            if [[ "$DRY_RUN" == "true" ]]; then
+                echo "[scheduler] Would suspend (review with active sessions): $item_id — $item_title"
+            else
+                echo "[scheduler] Safety net: suspending review item with active sessions: $item_id — $item_title"
+                emit_event "scheduler.safety_suspend" "Suspending review item with lingering sessions: $item_title" --item-id "$item_id" --severity warn
+                "$SCRIPT_DIR/suspend-stream.sh" "$item_id" 2>&1 | sed 's/^/  /' || {
+                    echo "[scheduler] ERROR: Failed to suspend $item_id" >&2
+                    emit_event "scheduler.error" "Failed to suspend $item_id" --item-id "$item_id" --severity error
                 }
             fi
         elif [[ "$line" == REVIEW:* ]]; then

@@ -304,6 +304,33 @@ bash ~/orchestrator/scripts/worker-complete.sh <item-id> --status review --messa
 - **User toggles delegator off**: Stop gracefully, write final status
 - **Blocking issue found**: Report immediately, don't wait for next cycle
 
+### Autonomous Review Transition
+
+When ALL of the following criteria are met, you MUST autonomously move the work item to "review" status:
+
+1. **PR exists and is open** — `gh pr list --head <branch>` returns an open PR
+2. **CI checks are passing** — `gh pr checks <pr_number>` shows all checks passing, or only non-blocking checks (e.g., linters, optional coverage) are failing
+3. **Your PR review assessment is "approve"** — no blocking concerns remain from your review
+4. **Worker is idle or has completed its work** — transcript idle-check returns `IDLE` or the worker has explicitly signaled completion
+
+When all criteria are met, suspend the stream by calling the dashboard API. This atomically updates the item status to "review" and kills both the worker session and your own delegator session:
+
+```bash
+curl -s -X POST http://localhost:3201/api/stream/suspend \
+  -H 'Content-Type: application/json' \
+  -d '{"itemId": "<item_id>"}'
+```
+
+This is the **preferred** way to move items to review — it handles status update, session teardown, and delegator shutdown in one atomic operation. After calling this, your session will be killed, so this should be the last thing you do.
+
+Before suspending, send a final message to the worker and update queue metadata:
+```bash
+vmux send <worker_session_id> "[Delegator <item-id>]: PR looks good, CI passing. Moving to review."
+curl -s -X PATCH http://localhost:3201/api/queue/update \
+  -H 'Content-Type: application/json' \
+  -d '{"id": "<item_id>", "metadata": {"delegator_assessment": "approve — ready for user review", "delegator_status": "completed"}}'
+```
+
 ## Error Recovery
 
 If something fails during a monitoring cycle:

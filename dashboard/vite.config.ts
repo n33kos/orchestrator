@@ -1284,6 +1284,14 @@ function queueApiPlugin(): Plugin {
             execFile('bash', [scriptPath, body.itemId], { timeout: 60000, env: { ...process.env, HOME: homedir() } }, () => { /* fire and forget */ })
           }
 
+          // If moving to review and sessions are still active, suspend the stream
+          if (targetStatus === 'review' && (item.session_id || item.delegator_id)) {
+            const suspendScript = join(__dirname, '..', 'scripts', 'suspend-stream.sh')
+            execFile('bash', [suspendScript, body.itemId], { timeout: 30000, env: { ...process.env, HOME: homedir() } }, (err, _stdout, stderr) => {
+              if (err) console.error('suspend-stream failed:', stderr || String(err))
+            })
+          }
+
           res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify({ ok: true, itemId: body.itemId, prevStatus, newStatus: targetStatus }))
         } catch (err) {
