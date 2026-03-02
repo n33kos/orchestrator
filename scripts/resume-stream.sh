@@ -115,45 +115,23 @@ with open('$QUEUE_FILE', 'w') as f:
 
 echo "  Status: active (session: $SESSION_ID)"
 
-# Send task context to the resumed worker session
+# Send task reference to the resumed worker session
 sleep 5
-TASK_MESSAGE="$(echo "$ITEM_JSON" | python3 -c "
-import json, sys
-
+PLAN_FILE="$(echo "$ITEM_JSON" | python3 -c "
+import json, sys, os
 item = json.load(sys.stdin)
-parts = []
-parts.append(f'[Task Resumed] {item[\"title\"]}')
-parts.append('')
-
-desc = item.get('description', '')
-if desc:
-    parts.append(f'Description: {desc}')
-    parts.append('')
-
-parts.append(f'Type: {item[\"type\"]}')
-branch = item.get('branch', '')
-if branch:
-    parts.append(f'Branch: {branch}')
-
 meta = item.get('metadata', {}) or {}
-notes = meta.get('notes', '')
-if notes:
-    parts.append(f'Notes: {notes}')
-
-plan = meta.get('plan', {})
-if plan and plan.get('steps'):
-    parts.append('')
-    parts.append(f'Implementation plan: {plan.get(\"summary\", \"\")}')
-    parts.append('Steps:')
-    for step in plan['steps']:
-        marker = 'x' if step.get('done') else ' '
-        parts.append(f'  [{marker}] {step[\"text\"]}')
-
-parts.append('')
-parts.append('This task was previously suspended. Please continue where you left off.')
-
-print('\n'.join(parts))
+plan_file = meta.get('plan_file', '')
+if plan_file:
+    print(os.path.expanduser(plan_file))
 ")"
+
+TASK_MESSAGE="[Task Resumed] $ITEM_TITLE
+
+Read your full implementation plan and task context at: $PLAN_FILE
+
+Branch: $ITEM_BRANCH
+Status: Resuming — continue where you left off, following the plan steps in order."
 
 if $VMUX send "$SESSION_ID" "$TASK_MESSAGE" 2>/dev/null; then
     echo "  Task context sent to worker"

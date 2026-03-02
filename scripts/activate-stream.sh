@@ -172,52 +172,28 @@ print(hashlib.sha256(cwd.encode()).hexdigest()[:12])
     echo "  WARNING: Could not find session in vmux — using computed ID $SESSION_ID" >&2
 fi
 
-# Step 2b: Send full task context to the worker session
+# Step 2b: Send task reference to the worker session
 echo ""
 echo "Step 2b: Sending task instructions to worker..."
 # Wait for session to enter standby (give it time to initialize)
 sleep 5
 
-# Build the task message from the full queue item data
-TASK_MESSAGE="$(echo "$ITEM_JSON" | python3 -c "
-import json, sys
-
+# Build a concise task message that references the plan file
+PLAN_FILE="$(echo "$ITEM_JSON" | python3 -c "
+import json, sys, os
 item = json.load(sys.stdin)
-parts = []
-parts.append(f'[Task Assignment] {item[\"title\"]}')
-parts.append('')
-
-desc = item.get('description', '')
-if desc:
-    parts.append(f'Description: {desc}')
-    parts.append('')
-
-parts.append(f'Type: {item[\"type\"]}')
-branch = item.get('branch', '')
-if branch:
-    parts.append(f'Branch: {branch}')
-
-# Include metadata notes if present
 meta = item.get('metadata', {}) or {}
-notes = meta.get('notes', '')
-if notes:
-    parts.append(f'Notes: {notes}')
-
-# Include implementation plan if one exists
-plan = meta.get('plan', {})
-if plan and plan.get('steps'):
-    parts.append('')
-    parts.append(f'Implementation plan: {plan.get(\"summary\", \"\")}')
-    parts.append('Steps:')
-    for step in plan['steps']:
-        marker = 'x' if step.get('done') else ' '
-        parts.append(f'  [{marker}] {step[\"text\"]}')
-
-parts.append('')
-parts.append('Please work on this task. Follow the description and plan exactly as written.')
-
-print('\n'.join(parts))
+plan_file = meta.get('plan_file', '')
+if plan_file:
+    print(os.path.expanduser(plan_file))
 ")"
+
+TASK_MESSAGE="[Task Assignment] $ITEM_TITLE
+
+Read your full implementation plan and task context at: $PLAN_FILE
+
+Branch: $ITEM_BRANCH
+Status: Activating now — follow the plan steps in order."
 
 if $VMUX send "$SESSION_ID" "$TASK_MESSAGE" 2>/dev/null; then
     echo "  Task instructions sent to worker"
