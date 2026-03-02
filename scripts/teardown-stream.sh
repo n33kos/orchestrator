@@ -67,6 +67,13 @@ else
     echo "Step 1: No delegator to kill"
 fi
 
+# Clean up delegator status directory
+DELEGATOR_DIR="$HOME/.claude/orchestrator/delegators/$ITEM_ID"
+if [[ -d "$DELEGATOR_DIR" ]]; then
+    echo "  Cleaning up delegator status dir..."
+    rm -rf "$DELEGATOR_DIR"
+fi
+
 # Step 2: Kill worker session
 if [[ -n "$SESSION_ID" ]]; then
     echo ""

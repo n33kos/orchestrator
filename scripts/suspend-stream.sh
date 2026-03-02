@@ -56,6 +56,13 @@ if [[ -n "$DELEGATOR_ID" ]]; then
     $VMUX kill "$DELEGATOR_ID" 2>&1 || echo "  Delegator already stopped"
 fi
 
+# Clean up delegator status directory
+DELEGATOR_DIR="$HOME/.claude/orchestrator/delegators/$ITEM_ID"
+if [[ -d "$DELEGATOR_DIR" ]]; then
+    echo "  Cleaning up delegator status dir..."
+    rm -rf "$DELEGATOR_DIR"
+fi
+
 # Kill worker session
 if [[ -n "$SESSION_ID" ]]; then
     echo "  Killing worker session ($SESSION_ID)..."
