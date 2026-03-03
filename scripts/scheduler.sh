@@ -685,6 +685,11 @@ for item in data['items']:
 function trigger_delegator_cycles() {
     # Send monitoring cycle triggers to active delegators via vmux send.
     # This wakes up delegators that are blocking in relay_standby.
+    local pause_file="$HOME/.claude/orchestrator/paused"
+    if [[ -f "$pause_file" ]]; then
+        echo "[scheduler] Paused — skipping delegator triggers"
+        return 0
+    fi
     local vmux_path="$CONFIG_TOOL_VMUX"
 
     python3 -c "
@@ -721,7 +726,13 @@ function reconcile_state() {
     #   - Must have a delegator if delegator_enabled (spawn if missing)
     # For REVIEW items:
     #   - Must NOT have active sessions (suspend if found)
+    #
+    # When PAUSED: only enforce review cleanup (kill stray sessions),
+    # do NOT respawn missing workers/delegators for active items.
     local vmux_path="$CONFIG_TOOL_VMUX"
+    local pause_file="$HOME/.claude/orchestrator/paused"
+    local is_paused=false
+    [[ -f "$pause_file" ]] && is_paused=true
 
     python3 -c "
 import json, subprocess, sys
@@ -821,7 +832,9 @@ for item in data['items']:
             case "$action" in
                 spawn_worker)
                     local worktree_path="$details"
-                    if [[ "$DRY_RUN" == "true" ]]; then
+                    if [[ "$is_paused" == "true" ]]; then
+                        echo "[reconcile] Paused — skipping worker spawn for $item_id"
+                    elif [[ "$DRY_RUN" == "true" ]]; then
                         echo "[reconcile] Would spawn worker for $item_id at $worktree_path"
                     else
                         echo "[reconcile] Spawning missing worker session for $item_id at $worktree_path"
@@ -856,7 +869,9 @@ with open('$QUEUE_FILE', 'w') as f:
                     local worktree_path old_session_id
                     worktree_path="$(echo "$details" | cut -d: -f1)"
                     old_session_id="$(echo "$details" | cut -d: -f2)"
-                    if [[ "$DRY_RUN" == "true" ]]; then
+                    if [[ "$is_paused" == "true" ]]; then
+                        echo "[reconcile] Paused — skipping worker respawn for $item_id"
+                    elif [[ "$DRY_RUN" == "true" ]]; then
                         echo "[reconcile] Would respawn zombie worker for $item_id ($old_session_id)"
                     else
                         echo "[reconcile] Respawning zombie worker for $item_id ($old_session_id)"
@@ -889,7 +904,9 @@ with open('$QUEUE_FILE', 'w') as f:
                     fi
                     ;;
                 spawn_delegator)
-                    if [[ "$DRY_RUN" == "true" ]]; then
+                    if [[ "$is_paused" == "true" ]]; then
+                        echo "[reconcile] Paused — skipping delegator spawn for $item_id"
+                    elif [[ "$DRY_RUN" == "true" ]]; then
                         echo "[reconcile] Would spawn delegator for $item_id"
                     else
                         echo "[reconcile] Spawning missing delegator for $item_id"
@@ -902,7 +919,9 @@ with open('$QUEUE_FILE', 'w') as f:
                     ;;
                 respawn_delegator)
                     local old_delegator_id="$details"
-                    if [[ "$DRY_RUN" == "true" ]]; then
+                    if [[ "$is_paused" == "true" ]]; then
+                        echo "[reconcile] Paused — skipping delegator respawn for $item_id"
+                    elif [[ "$DRY_RUN" == "true" ]]; then
                         echo "[reconcile] Would respawn zombie delegator for $item_id ($old_delegator_id)"
                     else
                         echo "[reconcile] Respawning zombie delegator for $item_id ($old_delegator_id)"
