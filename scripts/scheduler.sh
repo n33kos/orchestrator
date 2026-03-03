@@ -791,26 +791,34 @@ for item in data['items']:
         session_id = item.get('session_id') or ''
         delegator_id = item.get('delegator_id') or ''
         worktree_path = item.get('worktree_path') or ''
+        title = item.get('title', '')
         delegator_enabled = item.get('delegator_enabled')
         if delegator_enabled is None:
             delegator_enabled = delegator_default == 'true' or delegator_default == 'True'
         else:
             delegator_enabled = str(delegator_enabled) in ('true', 'True')
 
+        # Generate short session name from title
+        import re as _re
+        words = [w for w in title.split() if len(w) > 2][:3]
+        short = '-'.join(w.lower() for w in words) if words else 'worker'
+        short = _re.sub(r'[^a-z0-9_-]', '', short)[:20]
+        session_name = f'{item_id}-{short}'
+
         # Check worker session
         if not session_id:
             # No session_id recorded at all — need to spawn
             if worktree_path:
-                print(f'ACTION:{item_id}:spawn_worker:{worktree_path}')
+                print(f'ACTION:{item_id}:spawn_worker:{worktree_path}:{session_name}')
             else:
                 print(f'WARN:{item_id}:Active item has no session_id and no worktree_path', file=sys.stderr)
         elif session_id in zombie_sessions:
             # Session exists but is a zombie — respawn it
-            print(f'ACTION:{item_id}:respawn_worker:{worktree_path}:{session_id}')
+            print(f'ACTION:{item_id}:respawn_worker:{worktree_path}:{session_id}:{session_name}')
         elif session_id not in live_sessions:
             # Session ID is recorded but not found in vmux at all — respawn
             if worktree_path:
-                print(f'ACTION:{item_id}:spawn_worker:{worktree_path}')
+                print(f'ACTION:{item_id}:spawn_worker:{worktree_path}:{session_name}')
             else:
                 print(f'WARN:{item_id}:Active item has missing session and no worktree_path', file=sys.stderr)
 
@@ -841,15 +849,19 @@ for item in data['items']:
 
             case "$action" in
                 spawn_worker)
-                    local worktree_path="$details"
+                    local worktree_path session_name
+                    worktree_path="$(echo "$details" | cut -d: -f1)"
+                    session_name="$(echo "$details" | cut -d: -f2)"
                     if [[ "$is_paused" == "true" ]]; then
                         echo "[reconcile] Paused — skipping worker spawn for $item_id"
                     elif [[ "$DRY_RUN" == "true" ]]; then
                         echo "[reconcile] Would spawn worker for $item_id at $worktree_path"
                     else
-                        echo "[reconcile] Spawning missing worker session for $item_id at $worktree_path"
+                        echo "[reconcile] Spawning missing worker session for $item_id at $worktree_path (name: $session_name)"
                         emit_event "reconcile.spawn_worker" "Spawning missing worker for $item_id" --item-id "$item_id" --severity warn
-                        if "$vmux_path" spawn "$worktree_path" 2>&1 | sed 's/^/  /'; then
+                        local spawn_args=("$worktree_path")
+                        [[ -n "$session_name" ]] && spawn_args+=(--name "$session_name")
+                        if "$vmux_path" spawn "${spawn_args[@]}" 2>&1 | sed 's/^/  /'; then
                             # Update session_id in queue
                             local new_session_id
                             new_session_id="$(python3 -c "
@@ -876,9 +888,10 @@ with open('$QUEUE_FILE', 'w') as f:
                     fi
                     ;;
                 respawn_worker)
-                    local worktree_path old_session_id
+                    local worktree_path old_session_id session_name
                     worktree_path="$(echo "$details" | cut -d: -f1)"
                     old_session_id="$(echo "$details" | cut -d: -f2)"
+                    session_name="$(echo "$details" | cut -d: -f3)"
                     if [[ "$is_paused" == "true" ]]; then
                         echo "[reconcile] Paused — skipping worker respawn for $item_id"
                     elif [[ "$DRY_RUN" == "true" ]]; then
@@ -888,7 +901,9 @@ with open('$QUEUE_FILE', 'w') as f:
                         emit_event "reconcile.respawn_worker" "Respawning zombie worker $old_session_id for $item_id" --item-id "$item_id" --severity warn
                         "$vmux_path" kill "$old_session_id" 2>/dev/null || true
                         sleep 2
-                        if "$vmux_path" spawn "$worktree_path" 2>&1 | sed 's/^/  /'; then
+                        local spawn_args=("$worktree_path")
+                        [[ -n "$session_name" ]] && spawn_args+=(--name "$session_name")
+                        if "$vmux_path" spawn "${spawn_args[@]}" 2>&1 | sed 's/^/  /'; then
                             local new_session_id
                             new_session_id="$(python3 -c "
 import hashlib
