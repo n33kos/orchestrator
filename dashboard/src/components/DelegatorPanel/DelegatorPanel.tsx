@@ -24,6 +24,7 @@ const statusLabels: Record<string, { label: string; cls: string }> = {
   idle: { label: 'Idle', cls: 'statusIdle' },
   error: { label: 'Error', cls: 'statusError' },
   completed: { label: 'Completed', cls: 'statusDone' },
+  dead: { label: 'Session Dead', cls: 'statusDead' },
 }
 
 export function DelegatorPanel({ delegators, loading, items, onRefresh, onSendMessage }: DelegatorPanelProps) {
@@ -49,11 +50,22 @@ export function DelegatorPanel({ delegators, loading, items, onRefresh, onSendMe
     )
   }
 
+  const aliveCount = delegators.filter(d => d.session_alive).length
+  const deadCount = delegators.length - aliveCount
+
   return (
     <div className={styles.Root}>
       <div className={styles.Summary}>
         <span className={styles.SummaryCount}>{delegators.length}</span>
         <span className={styles.SummaryLabel}>delegator{delegators.length !== 1 ? 's' : ''}</span>
+        {deadCount > 0 && (
+          <>
+            <span className={styles.SummaryDivider} />
+            <span className={classnames(styles.SummaryStat, styles.SummaryStatWarn)}>
+              {aliveCount} alive &middot; {deadCount} dead
+            </span>
+          </>
+        )}
         <span className={styles.SummaryDivider} />
         <span className={styles.SummaryStat}>
           {delegators.reduce((sum, d) => sum + (d.commits_reviewed || 0), 0)} commits reviewed
@@ -73,10 +85,11 @@ export function DelegatorPanel({ delegators, loading, items, onRefresh, onSendMe
 
       {delegators.map(d => {
         const isExpanded = expandedId === d.item_id
-        const statusInfo = statusLabels[d.status] || { label: d.status, cls: '' }
+        const effectiveStatus = (!d.session_alive && d.status !== 'completed') ? 'dead' : d.status
+        const statusInfo = statusLabels[effectiveStatus] || { label: effectiveStatus, cls: '' }
 
         return (
-          <div key={d.item_id} className={classnames(styles.Card, isExpanded && styles.CardExpanded)}>
+          <div key={d.item_id} className={classnames(styles.Card, isExpanded && styles.CardExpanded, effectiveStatus === 'dead' && styles.CardDead)}>
             <button
               className={styles.CardHeader}
               onClick={() => setExpandedId(isExpanded ? null : d.item_id)}
@@ -114,7 +127,12 @@ export function DelegatorPanel({ delegators, loading, items, onRefresh, onSendMe
                 <div className={styles.MetaGrid}>
                   <div className={styles.MetaItem}>
                     <span className={styles.MetaLabel}>Worker Session</span>
-                    <code className={styles.MetaValue}>{d.worker_session}</code>
+                    <code className={styles.MetaValue}>
+                      {d.worker_session}
+                      {!d.session_alive && d.status !== 'completed' && (
+                        <span className={styles.DeadBadge}>dead</span>
+                      )}
+                    </code>
                   </div>
                   <div className={styles.MetaItem}>
                     <span className={styles.MetaLabel}>Branch</span>

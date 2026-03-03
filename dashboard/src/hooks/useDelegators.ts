@@ -16,6 +16,7 @@ export interface DelegatorStatus {
   pr_reviewed: boolean
   assessment: string | null
   errors: string[]
+  session_alive: boolean
 }
 
 export function useDelegators(pollInterval = 10_000) {
