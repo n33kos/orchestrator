@@ -34,35 +34,47 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
     exit 1
 fi
 
+# Derive local override path: environment.yml -> environment.local.yml
+LOCAL_CONFIG_FILE="${CONFIG_FILE%.yml}.local.yml"
+
 python3 -c "
 import re, os, sys
 
 config_path = sys.argv[1]
+local_config_path = sys.argv[2] if len(sys.argv) > 2 else None
 home = os.environ.get('HOME', os.path.expanduser('~'))
 
-# Parse YAML manually (flat key:value after stripping comments)
-# We handle the simple structure of environment.yml without a YAML library
-values = {}
-current_section = ''
+def parse_yaml(path):
+    \"\"\"Parse a simple YAML file into a flat section.key -> value dict.\"\"\"
+    values = {}
+    current_section = ''
+    with open(path) as f:
+        for line in f:
+            stripped = line.split('#')[0].rstrip()
+            if not stripped:
+                continue
+            # Section header (no leading whitespace, ends with colon, no value)
+            if not stripped.startswith(' ') and stripped.endswith(':') and ':' not in stripped[:-1]:
+                current_section = stripped[:-1]
+                continue
+            # Key-value pair (indented)
+            match = re.match(r'^\s+(\w+):\s*(.+)', stripped)
+            if match:
+                key = match.group(1)
+                val = match.group(2).strip()
+                # Remove surrounding quotes
+                if (val.startswith('\"') and val.endswith('\"')) or (val.startswith(\"'\") and val.endswith(\"'\")):
+                    val = val[1:-1]
+                values[f'{current_section}.{key}'] = val
+    return values
 
-with open(config_path) as f:
-    for line in f:
-        stripped = line.split('#')[0].rstrip()
-        if not stripped:
-            continue
-        # Section header (no leading whitespace, ends with colon, no value)
-        if not stripped.startswith(' ') and stripped.endswith(':') and ':' not in stripped[:-1]:
-            current_section = stripped[:-1]
-            continue
-        # Key-value pair (indented)
-        match = re.match(r'^\s+(\w+):\s*(.+)', stripped)
-        if match:
-            key = match.group(1)
-            val = match.group(2).strip()
-            # Remove surrounding quotes
-            if (val.startswith('\"') and val.endswith('\"')) or (val.startswith(\"'\") and val.endswith(\"'\")):
-                val = val[1:-1]
-            values[f'{current_section}.{key}'] = val
+# Parse base config
+values = parse_yaml(config_path)
+
+# Merge local overrides if the file exists
+if local_config_path and os.path.isfile(local_config_path):
+    local_values = parse_yaml(local_config_path)
+    values.update(local_values)
 
 def expand(val):
     \"\"\"Expand ~ to HOME.\"\"\"
@@ -123,4 +135,4 @@ emit('CONFIG_ARCHIVE_AFTER_DAYS', values.get('scheduler.archive_after_days', '7'
 
 # Stall Detection
 emit('CONFIG_STALL_THRESHOLD_MIN', values.get('stall_detection.threshold_minutes', '30'))
-" "$CONFIG_FILE"
+" "$CONFIG_FILE" "$LOCAL_CONFIG_FILE"

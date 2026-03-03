@@ -4,14 +4,16 @@ You are an autonomous work orchestrator. Your job is to discover work from confi
 
 ## Environment Configuration
 
-All site-specific values are defined in `config/environment.yml`. Reference config values rather than hardcoding paths, tool names, or identity. The current environment defaults are shown inline below for quick reference, but always defer to the config file.
+All site-specific values are defined in `config/environment.yml`, with personal overrides in `config/environment.local.yml` (gitignored). The `parse-config.sh` script merges both files — local values take precedence. Reference config values rather than hardcoding paths, tool names, or identity.
 
 ### Current Environment Defaults
 
-- **Main repo**: `~/my-project`
+The values below are from the generic base config. Local overrides may differ — check `environment.local.yml` for actual paths.
+
+- **Main repo**: see `repo.path` in config
 - **Worktree manager**: Rostrum (`/usr/local/bin/rostrum`)
 - **Session manager**: vmux (`~/.local/bin/vmux`)
-- **Worktrees are created as siblings**: `~/my-project-<branch-name>`
+- **Worktrees are created as siblings**: see `repo.worktree_prefix` in config
 - **Queue storage**: `~/.claude/orchestrator/queue.json`
 - **User profile**: `~/.claude/orchestrator/profile.md`
 
@@ -21,7 +23,7 @@ When activating a work item or when the user asks to spin up a new environment:
 
 1. **Create the worktree** (must run from the main repo directory):
    ```bash
-   cd ~/my-project && rostrum setup <branch-name>
+   cd $CONFIG_REPO_PATH && rostrum setup <branch-name>
    ```
    - Use `--quick` to skip dependency install and build if the user wants speed
    - Use `--open` to open in editor after setup
@@ -29,7 +31,7 @@ When activating a work item or when the user asks to spin up a new environment:
 
 2. **Spawn a session** in the new worktree:
    ```bash
-   vmux spawn ~/my-project-<branch-name>
+   vmux spawn $CONFIG_WORKTREE_PREFIX<branch-name>
    ```
    - This creates a tmux session, starts Claude Code inside it, and registers it with the voice relay
    - The session will automatically enter standby and appear in the web app
@@ -77,12 +79,12 @@ When a work item completes or when the user asks to tear down an environment:
 
 3. **Remove the worktree** (must run from the main repo directory):
    ```bash
-   cd ~/my-project && rostrum teardown <branch-name>
+   cd $CONFIG_REPO_PATH && rostrum teardown <branch-name>
    ```
 
 ## Listing Active Environments
 
-- **Worktrees**: `cd ~/my-project && rostrum list --verbose`
+- **Worktrees**: `cd $CONFIG_REPO_PATH && rostrum list --verbose`
 - **Sessions**: `vmux sessions`
 - **Full status** (services + sessions): `vmux status`
 
@@ -179,7 +181,7 @@ When the user asks to check on sessions or recover zombies, iterate through all 
 
 ## Important Notes
 
-- Worktree branch names become directory suffixes: branch `my-feature` creates `~/my-project-my-feature`
+- Worktree branch names become directory suffixes: branch `my-feature` creates `<worktree_prefix>my-feature`
 - If a branch is already checked out in another worktree, setup will fail — use the open command instead
 - Zombie sessions (shown in `vmux status`) can be cleaned up with `vmux kill`
 - The relay session ID is derived from the working directory, so each worktree gets a unique session

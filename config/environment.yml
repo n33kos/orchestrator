@@ -3,7 +3,7 @@
 
 # Identity
 user:
-  initials: nas
+  initials: me
   name: Your Name
 
 # Repository
@@ -24,13 +24,13 @@ state:
 
 # Concurrency
 concurrency:
-  max_active_projects: 3
+  max_active_projects: 2
   quick_fix_limit: 4
   queue_strategy: priority
 
 # Autonomy
 autonomy:
-  auto_activate: false
+  auto_activate: true
   auto_approve_plans: false
   require_approved_plan: true
   ask_before_teardown: true

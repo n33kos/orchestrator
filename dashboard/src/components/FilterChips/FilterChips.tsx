@@ -1,40 +1,35 @@
 import classnames from 'classnames'
 import styles from './FilterChips.module.scss'
-import type { StatusFilter } from '../SortControls/SortControls.tsx'
+import type { WorkItemStatus } from '../../types.ts'
 
 interface FilterChipsProps {
-  active: StatusFilter
+  activeStatuses: Set<WorkItemStatus>
   counts: Record<string, number>
-  onChange: (filter: StatusFilter) => void
+  onToggle: (status: WorkItemStatus) => void
 }
 
-const FILTERS: { id: StatusFilter; label: string; color?: string }[] = [
-  { id: 'all', label: 'All' },
+const FILTERS: { id: WorkItemStatus; label: string; color?: string }[] = [
   { id: 'active', label: 'Active', color: 'success' },
+  { id: 'planning', label: 'Planning', color: 'primary' },
   { id: 'queued', label: 'Queued', color: 'warning' },
   { id: 'review', label: 'Review', color: 'primary' },
-  { id: 'paused', label: 'Paused', color: 'error' },
-  { id: 'blocked', label: 'Blocked', color: 'error' },
-  { id: 'completed', label: 'Done', color: 'muted' },
+  { id: 'completed', label: 'Completed', color: 'muted' },
 ]
 
-export function FilterChips({ active, counts, onChange }: FilterChipsProps) {
+export function FilterChips({ activeStatuses, counts, onToggle }: FilterChipsProps) {
   return (
     <div className={styles.Root} role="group" aria-label="Filter by status">
       {FILTERS.map(f => {
-        const count = f.id === 'all'
-          ? Object.values(counts).reduce((s, c) => s + c, 0)
-          : (counts[f.id] ?? 0)
-
-        if (f.id !== 'all' && count === 0) return null
+        const count = counts[f.id] ?? 0
+        const isActive = activeStatuses.has(f.id)
 
         return (
           <button
             key={f.id}
-            className={classnames(styles.Chip, active === f.id && styles.ChipActive)}
+            className={classnames(styles.Chip, isActive && styles.ChipActive)}
             data-color={f.color}
-            onClick={() => onChange(f.id)}
-            aria-pressed={active === f.id}
+            onClick={() => onToggle(f.id)}
+            aria-pressed={isActive}
           >
             {f.label}
             <span className={styles.ChipCount}>{count}</span>

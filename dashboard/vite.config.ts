@@ -15,6 +15,79 @@ function readBody(req: IncomingMessage): Promise<string> {
   })
 }
 
+/**
+ * Read a YAML config file, merging a .local.yml override if it exists.
+ * Returns the merged content as a string (for regex-based value extraction).
+ */
+function readConfigWithLocal(basePath: string): string {
+  let content = readFileSync(basePath, 'utf-8')
+  const localPath = basePath.replace(/\.yml$/, '.local.yml')
+  if (existsSync(localPath)) {
+    // Merge local overrides: for each key-value in local, replace in merged content
+    const localContent = readFileSync(localPath, 'utf-8')
+    for (const line of localContent.split('\n')) {
+      const kvMatch = line.match(/^(\s+)(\w+):\s*(.+)/)
+      if (kvMatch) {
+        const [, indent, key, val] = kvMatch
+        const pattern = new RegExp(`^(\\s+${key}:\\s*).+$`, 'm')
+        if (pattern.test(content)) {
+          content = content.replace(pattern, `${indent}${key}: ${val}`)
+        } else {
+          // Key exists only in local — append after last line of the relevant section
+          content += `\n${indent}${key}: ${val}`
+        }
+      }
+    }
+  }
+  return content
+}
+
+/**
+ * Get the local config override path for writes.
+ * Creates the local file from the base if it doesn't exist.
+ */
+function getLocalConfigPath(basePath: string): string {
+  const localPath = basePath.replace(/\.yml$/, '.local.yml')
+  if (!existsSync(localPath)) {
+    writeFileSync(localPath, '# Local overrides (not committed)\n')
+  }
+  return localPath
+}
+
+/**
+ * Write a setting to the local config override file.
+ * If the key already exists in the local file, update it.
+ * If not, find the section and add the key.
+ */
+function writeLocalConfig(basePath: string, pattern: RegExp, replacement: string) {
+  const localPath = getLocalConfigPath(basePath)
+  let content = readFileSync(localPath, 'utf-8')
+  if (pattern.test(content)) {
+    content = content.replace(pattern, replacement)
+  } else {
+    // Read the base config to find which section the key belongs to
+    const baseContent = readFileSync(basePath, 'utf-8')
+    // Extract the key name from the pattern source
+    const keyMatch = replacement.match(/^\s*(\w+):/)
+    if (keyMatch) {
+      const key = keyMatch[1]
+      // Find the section this key belongs to in the base config
+      let section = ''
+      for (const line of baseContent.split('\n')) {
+        const sectionMatch = line.match(/^(\w[^:]*):$/)
+        if (sectionMatch) section = sectionMatch[1]
+        if (line.match(new RegExp(`^\\s+${key}:`))) break
+      }
+      // Add section header if not in local file, then add key
+      if (section && !content.includes(`${section}:`)) {
+        content += `\n${section}:\n`
+      }
+      content += replacement.replace(/^\$1/, '  ') + '\n'
+    }
+  }
+  writeFileSync(localPath, content, 'utf-8')
+}
+
 function queueApiPlugin(): Plugin {
   const queuePath = join(homedir(), '.claude/orchestrator/queue.json')
 
@@ -483,7 +556,7 @@ function queueApiPlugin(): Plugin {
         res.setHeader('Content-Type', 'application/json')
         try {
           const sourcesPath = join(__dirname, '..', 'config', 'sources.yml')
-          const content = readFileSync(sourcesPath, 'utf-8')
+          const content = readConfigWithLocal(sourcesPath)
           const sources: { name: string; type: string; detail: string }[] = []
           let currentName = ''
           let currentType = ''
@@ -696,7 +769,7 @@ function queueApiPlugin(): Plugin {
         if (!prUrl && !basePr) { res.statusCode = 400; res.end(JSON.stringify({ error: 'Missing url or base param' })); return }
 
         // Extract owner/repo from URL, or use base PR number
-        let owner = 'myproject', repo = 'web', baseNumber = basePr || ''
+        let owner = '', repo = '', baseNumber = basePr || ''
         if (prUrl) {
           const match = prUrl.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/)
           if (match) {
@@ -713,7 +786,7 @@ function queueApiPlugin(): Plugin {
             const basePrData = JSON.parse(stdout)
             const branch = basePrData.headRefName || ''
             const author = basePrData.author?.login || ''
-            // Extract the branch prefix (e.g., "me/react-18/bootstrap-elimination" from "me/react-18/bootstrap-elimination/1/modal-replacement")
+            // Extract the branch prefix (e.g., "user/project/name" from "user/project/name/1/description")
             const parts = branch.split('/')
             const prefix = parts.length > 3 ? parts.slice(0, 3).join('/') : branch
 
@@ -1063,11 +1136,9 @@ function queueApiPlugin(): Plugin {
           if (shouldPause) {
             // Create pause file
             writeFileSync(pauseFilePath, new Date().toISOString(), 'utf-8')
-            // Update auto_activate to false in config
+            // Update auto_activate to false in local config override
             const configPath = join(__dirname, '..', 'config', 'environment.yml')
-            let config = readFileSync(configPath, 'utf-8')
-            config = config.replace(/^(\s*auto_activate:\s*).+$/m, '$1false')
-            writeFileSync(configPath, config, 'utf-8')
+            writeLocalConfig(configPath, /^(\s*auto_activate:\s*).+$/m, '  auto_activate: false')
             // Kill all delegators (read session IDs from queue file)
             const vmuxPath = join(homedir(), '.local/bin/vmux')
             const queuePath = join(homedir(), '.claude/orchestrator/queue.json')
@@ -1085,11 +1156,9 @@ function queueApiPlugin(): Plugin {
           } else {
             // Remove pause file
             if (existsSync(pauseFilePath)) unlinkSync(pauseFilePath)
-            // Update auto_activate to true in config
+            // Update auto_activate to true in local config override
             const configPath = join(__dirname, '..', 'config', 'environment.yml')
-            let config = readFileSync(configPath, 'utf-8')
-            config = config.replace(/^(\s*auto_activate:\s*).+$/m, '$1true')
-            writeFileSync(configPath, config, 'utf-8')
+            writeLocalConfig(configPath, /^(\s*auto_activate:\s*).+$/m, '  auto_activate: true')
             res.end(JSON.stringify({ paused: false, message: 'Orchestration resumed. Auto-activate enabled.' }))
           }
         } catch (err) {
@@ -1104,56 +1173,45 @@ function queueApiPlugin(): Plugin {
           try {
             const body = JSON.parse(await readBody(req))
             const configPath = join(__dirname, '..', 'config', 'environment.yml')
-            let content = readFileSync(configPath, 'utf-8')
 
-            // Map setting keys to YAML paths
-            const mappings: Record<string, { pattern: RegExp; format: (v: unknown) => string }> = {
-              maxConcurrentProjects: {
-                pattern: /^(\s*max_active_projects:\s*).+$/m,
-                format: (v) => `$1${v}`,
-              },
-              maxConcurrentQuickFixes: {
-                pattern: /^(\s*quick_fix_limit:\s*).+$/m,
-                format: (v) => `$1${v}`,
-              },
-              autoActivate: {
-                pattern: /^(\s*auto_activate:\s*).+$/m,
-                format: (v) => `$1${v}`,
-              },
-              requireApprovedPlan: {
-                pattern: /^(\s*require_approved_plan:\s*).+$/m,
-                format: (v) => `$1${v}`,
-              },
-              defaultDelegatorEnabled: {
-                pattern: /^(\s*enabled_by_default:\s*).+$/m,
-                format: (v) => `$1${v}`,
-              },
-              stallThresholdMinutes: {
-                pattern: /^(\s*threshold_minutes:\s*).+$/m,
-                format: (v) => `$1${v}`,
-              },
-              archiveAfterDays: {
-                pattern: /^(\s*archive_after_days:\s*).+$/m,
-                format: (v) => `$1${v}`,
-              },
-              plansDirectory: {
-                pattern: /^(\s*plans_directory:\s*).+$/m,
-                format: (v) => `$1${v}`,
-              },
-              delegatorCycleInterval: {
-                pattern: /^(\s*cycle_interval:\s*)\S+(.*)$/m,
-                format: (v) => `$1${v}$2`,
-              },
+            // Map setting keys to YAML key names and their sections
+            const mappings: Record<string, { key: string; section: string }> = {
+              maxConcurrentProjects: { key: 'max_active_projects', section: 'concurrency' },
+              maxConcurrentQuickFixes: { key: 'quick_fix_limit', section: 'concurrency' },
+              autoActivate: { key: 'auto_activate', section: 'autonomy' },
+              requireApprovedPlan: { key: 'require_approved_plan', section: 'autonomy' },
+              defaultDelegatorEnabled: { key: 'enabled_by_default', section: 'delegator' },
+              stallThresholdMinutes: { key: 'threshold_minutes', section: 'stall_detection' },
+              archiveAfterDays: { key: 'archive_after_days', section: 'scheduler' },
+              plansDirectory: { key: 'plans_directory', section: 'plans' },
+              delegatorCycleInterval: { key: 'cycle_interval', section: 'delegator' },
             }
 
-            for (const [key, value] of Object.entries(body)) {
-              const mapping = mappings[key]
-              if (mapping) {
-                content = content.replace(mapping.pattern, mapping.format(value))
+            // Write each setting to the local override file
+            const localPath = getLocalConfigPath(configPath)
+            let localContent = readFileSync(localPath, 'utf-8')
+
+            for (const [settingKey, value] of Object.entries(body)) {
+              const mapping = mappings[settingKey]
+              if (!mapping) continue
+              const { key, section } = mapping
+              const linePattern = new RegExp(`^(\\s*${key}:\\s*).+$`, 'm')
+              if (linePattern.test(localContent)) {
+                localContent = localContent.replace(linePattern, `  ${key}: ${value}`)
+              } else {
+                // Ensure section header exists
+                if (!localContent.includes(`${section}:`)) {
+                  localContent += `\n${section}:\n`
+                }
+                // Insert key after section header
+                localContent = localContent.replace(
+                  new RegExp(`(${section}:\\n)`, 'm'),
+                  `$1  ${key}: ${value}\n`
+                )
               }
             }
 
-            writeFileSync(configPath, content)
+            writeFileSync(localPath, localContent, 'utf-8')
 
             // Signal the scheduler to reload config immediately
             const schedulerPidFile = join(homedir(), '.claude/orchestrator/scheduler.pid')
@@ -1173,10 +1231,10 @@ function queueApiPlugin(): Plugin {
           return
         }
 
-        // GET — read config values
+        // GET — read config values (merged with local overrides)
         try {
           const configPath = join(__dirname, '..', 'config', 'environment.yml')
-          const content = readFileSync(configPath, 'utf-8')
+          const content = readConfigWithLocal(configPath)
 
           const getVal = (key: string) => {
             const match = content.match(new RegExp(`^\\s*${key}:\\s*(.+)$`, 'm'))

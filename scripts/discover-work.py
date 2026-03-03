@@ -53,6 +53,27 @@ def load_yaml_simple(path: Path) -> dict:
     return result
 
 
+def deep_merge(base: dict, override: dict) -> dict:
+    """Recursively merge override into base. Override values win."""
+    merged = dict(base)
+    for key, val in override.items():
+        if key in merged and isinstance(merged[key], dict) and isinstance(val, dict):
+            merged[key] = deep_merge(merged[key], val)
+        else:
+            merged[key] = val
+    return merged
+
+
+def load_yaml_with_local(path: Path) -> dict:
+    """Load a YAML config, merging a .local.yml override if it exists."""
+    config = load_yaml_simple(path)
+    local_path = path.with_suffix("").with_suffix(".local.yml")
+    if local_path.exists():
+        local_config = load_yaml_simple(local_path)
+        config = deep_merge(config, local_config)
+    return config
+
+
 def parse_markdown_source(path: Path) -> list[dict]:
     """Parse a markdown plan file for actionable work items.
 
@@ -415,8 +436,8 @@ def main():
     args = parser.parse_args()
 
     project_root = Path(__file__).parent.parent
-    sources_config = load_yaml_simple(project_root / "config" / "sources.yml")
-    env_config = load_yaml_simple(project_root / "config" / "environment.yml")
+    sources_config = load_yaml_with_local(project_root / "config" / "sources.yml")
+    env_config = load_yaml_with_local(project_root / "config" / "environment.yml")
 
     queue_path = Path(
         env_config.get("state", {}).get("queue_file", "~/.claude/orchestrator/queue.json").replace(

@@ -5,7 +5,7 @@ import { TabBar } from './components/TabBar/TabBar.tsx'
 import { SearchBar } from './components/SearchBar/SearchBar.tsx'
 import { StatsBar } from './components/StatsBar/StatsBar.tsx'
 import { SortControls } from './components/SortControls/SortControls.tsx'
-import type { SortField, SortDirection, StatusFilter } from './components/SortControls/SortControls.tsx'
+import type { SortField, SortDirection } from './components/SortControls/SortControls.tsx'
 import { WorkStreamList } from './components/WorkStreamList/WorkStreamList.tsx'
 import { AddWorkItem } from './components/AddWorkItem/AddWorkItem.tsx'
 import { ConfirmDialog } from './components/ConfirmDialog/ConfirmDialog.tsx'
@@ -136,7 +136,9 @@ export function App() {
   const [viewMode, setViewMode] = usePersistedState<'cards' | 'compact' | 'grouped' | 'kanban'>('viewMode', 'cards')
   const [sortField, setSortField] = usePersistedState<SortField>('sortField', 'priority')
   const [sortDirection, setSortDirection] = usePersistedState<SortDirection>('sortDirection', 'asc')
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [statusFilter, setStatusFilter] = useState<Set<WorkItemStatus>>(
+    new Set<WorkItemStatus>(['active', 'planning', 'queued', 'review'])
+  )
   const searchRef = useRef<HTMLInputElement>(null)
   const mainRef = useRef<HTMLElement>(null)
   useScrollRestore(activeTab, mainRef.current)
@@ -244,36 +246,19 @@ export function App() {
   }, [queue, addToast])
 
   const projectBlockers = queue.projects.filter(i => i.blockers.some(b => !b.resolved)).length
-  const qfBlockers = queue.quickFixes.filter(i => i.blockers.some(b => !b.resolved)).length
   const tabs = [
-    { id: 'projects', label: 'Projects', count: queue.projects.length, alertCount: projectBlockers },
-    { id: 'quick_fixes', label: 'Quick Fixes', count: queue.quickFixes.length, alertCount: qfBlockers },
-    { id: 'planning', label: 'Planning', count: queue.planningItems.length },
-    { id: 'all', label: 'All', count: queue.items.length, alertCount: queue.blockedItems.length },
+    { id: 'projects', label: 'Projects', count: queue.items.length, alertCount: queue.blockedItems.length },
     { id: 'delegators', label: 'Delegators', count: delegatorData.count || undefined, alertCount: delegatorData.alertCount || undefined },
     { id: 'sessions', label: 'Sessions', count: sessions.length, alertCount: zombieCount },
     { id: 'analytics', label: 'Analytics' },
   ]
 
   const filteredItems = useMemo(() => {
-    let pool = activeTab === 'projects'
-      ? queue.projects
-      : activeTab === 'quick_fixes'
-        ? queue.quickFixes
-        : activeTab === 'planning'
-          ? queue.planningItems
-          : queue.items
+    let pool = queue.items
 
-    if (!showCompleted && statusFilter !== 'completed' && activeTab !== 'all') {
-      pool = pool.filter(i => i.status !== 'completed')
-    }
-
-    if (statusFilter !== 'all') {
-      if (statusFilter === 'blocked') {
-        pool = pool.filter(i => i.blockers.some(b => !b.resolved))
-      } else {
-        pool = pool.filter(i => i.status === statusFilter)
-      }
+    // Apply multi-select status filter
+    if (statusFilter.size > 0) {
+      pool = pool.filter(i => statusFilter.has(i.status))
     }
 
     if (debouncedSearch.trim()) {
@@ -287,7 +272,7 @@ export function App() {
     }
 
     return pool
-  }, [activeTab, queue.projects, queue.quickFixes, queue.planningItems, queue.items, debouncedSearch, showCompleted, statusFilter])
+  }, [queue.items, debouncedSearch, statusFilter])
 
   useKeyboard({
     onNewItem: useCallback(() => setShowAddForm(true), []),
@@ -313,7 +298,7 @@ export function App() {
     }, [queue, addToast]),
     onCommandPalette: useCallback(() => setShowCommandPalette(prev => !prev), []),
     onTabSwitch: useCallback((index: number) => {
-      const tabIds = ['projects', 'quick_fixes', 'planning', 'all', 'delegators', 'sessions', 'analytics']
+      const tabIds = ['projects', 'delegators', 'sessions', 'analytics']
       if (index >= 0 && index < tabIds.length) {
         setActiveTab(tabIds[index])
       }
@@ -652,17 +637,11 @@ export function App() {
   function handleNavigateToItem(id: string) {
     const item = queue.items.find(i => i.id === id)
     if (!item) return
-    // Switch to the right tab so the item is visible
-    if (item.type === 'project') {
-      setActiveTab('projects')
-    } else if (item.type === 'quick_fix') {
-      setActiveTab('quick_fixes')
-    } else {
-      setActiveTab('all')
-    }
-    // Clear search so the item isn't filtered out
+    // Switch to projects tab (which shows all items)
+    setActiveTab('projects')
+    // Clear search and show all statuses so the item isn't filtered out
     setSearchQuery('')
-    setStatusFilter('all')
+    setStatusFilter(new Set<WorkItemStatus>(['active', 'planning', 'queued', 'review', 'completed']))
     setFocusedItemId(id)
   }
 
@@ -922,7 +901,7 @@ export function App() {
         orchestratorPaused={orchestratorPaused}
         onPauseToggle={handlePauseToggle}
       />
-      <main ref={mainRef} id="main-content" className={styles.Main}>
+      <main ref={mainRef} id="main-content" className={`${styles.Main}${viewMode === 'kanban' && activeTab === 'projects' ? ` ${styles.MainNoScroll}` : ''}`}>
         <ErrorBoundary fallbackLabel="The main content area crashed. Try refreshing the page.">
         <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
         {activeTab === 'analytics' ? (
@@ -967,32 +946,39 @@ export function App() {
               showCompleted={showCompleted}
               onToggleCompleted={() => setShowCompleted(!showCompleted)}
             />
-            <FilterChips
-              active={statusFilter}
-              counts={{
-                active: queue.activeItems.length,
-                queued: queue.queuedItems.length,
-                review: queue.reviewItems.length,
-                paused: queue.pausedItems.length,
-                blocked: queue.blockedItems.length,
-                completed: queue.completedItems.length,
-              }}
-              onChange={setStatusFilter}
-            />
             <Breadcrumb
               tab={activeTab}
               searchQuery={debouncedSearch.trim() || undefined}
-              statusFilter={statusFilter}
+              statusFilter={statusFilter.size === 5 ? undefined : Array.from(statusFilter).join(', ')}
               viewMode={viewMode}
               itemCount={filteredItems.length}
             />
             <div className={styles.ControlsRow}>
+              <FilterChips
+                activeStatuses={statusFilter}
+                counts={{
+                  active: queue.activeItems.length,
+                  planning: queue.planningItems.length,
+                  queued: queue.queuedItems.length,
+                  review: queue.reviewItems.length,
+                  completed: queue.completedItems.length,
+                }}
+                onToggle={(status) => {
+                  setStatusFilter(prev => {
+                    const next = new Set(prev)
+                    if (next.has(status)) {
+                      next.delete(status)
+                    } else {
+                      next.add(status)
+                    }
+                    return next
+                  })
+                }}
+              />
               <SortControls
                 sortField={sortField}
                 sortDirection={sortDirection}
-                statusFilter={statusFilter}
                 onSortChange={(field, direction) => { setSortField(field); setSortDirection(direction) }}
-                onStatusFilterChange={setStatusFilter}
               />
               <button
                 className={`${styles.SelectToggle} ${selectionMode ? styles.SelectToggleActive : ''}`}
@@ -1100,11 +1086,15 @@ export function App() {
                 onNavigate={id => setDetailItemId(id)}
               />
             ) : viewMode === 'kanban' ? (
-              <KanbanBoard
-                items={filteredItems}
-                onStatusChange={handleStatusChange}
-                onNavigate={id => setDetailItemId(id)}
-              />
+              <div className={styles.KanbanWrapper}>
+                <KanbanBoard
+                  items={filteredItems}
+                  sortField={sortField}
+                  sortDirection={sortDirection}
+                  onStatusChange={handleStatusChange}
+                  onNavigate={id => setDetailItemId(id)}
+                />
+              </div>
             ) : (
             <WorkStreamList
               items={filteredItems}
@@ -1122,9 +1112,7 @@ export function App() {
               pinnedIds={pinned}
               onTogglePin={togglePin}
               emptyLabel={
-                activeTab === 'quick_fixes' ? 'No quick fixes' :
-                activeTab === 'projects' ? 'No projects' :
-                activeTab === 'planning' ? 'No items in planning' : undefined
+                activeTab === 'projects' ? 'No projects' : undefined
               }
               emptyTab={activeTab}
               onAddClick={() => setShowAddForm(true)}

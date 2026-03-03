@@ -4,14 +4,11 @@ import styles from './SortControls.module.scss'
 
 export type SortField = 'priority' | 'status' | 'created' | 'title'
 export type SortDirection = 'asc' | 'desc'
-export type StatusFilter = 'all' | 'active' | 'queued' | 'paused' | 'review' | 'blocked' | 'completed'
 
 interface SortControlsProps {
   sortField: SortField
   sortDirection: SortDirection
-  statusFilter: StatusFilter
   onSortChange: (field: SortField, direction: SortDirection) => void
-  onStatusFilterChange: (filter: StatusFilter) => void
 }
 
 const SORT_OPTIONS: { field: SortField; label: string }[] = [
@@ -19,15 +16,6 @@ const SORT_OPTIONS: { field: SortField; label: string }[] = [
   { field: 'status', label: 'Status' },
   { field: 'created', label: 'Date created' },
   { field: 'title', label: 'Title' },
-]
-
-const FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
-  { value: 'all', label: 'All statuses' },
-  { value: 'active', label: 'Active' },
-  { value: 'queued', label: 'Queued' },
-  { value: 'review', label: 'In review' },
-  { value: 'paused', label: 'Paused' },
-  { value: 'blocked', label: 'Blocked' },
 ]
 
 function Dropdown({ label, children, open, onToggle }: { label: string; children: React.ReactNode; open: boolean; onToggle: () => void }) {
@@ -55,19 +43,17 @@ function Dropdown({ label, children, open, onToggle }: { label: string; children
   )
 }
 
-export function SortControls({ sortField, sortDirection, statusFilter, onSortChange, onStatusFilterChange }: SortControlsProps) {
+export function SortControls({ sortField, sortDirection, onSortChange }: SortControlsProps) {
   const [sortOpen, setSortOpen] = useState(false)
-  const [filterOpen, setFilterOpen] = useState(false)
 
   const currentSort = SORT_OPTIONS.find(o => o.field === sortField)
-  const currentFilter = FILTER_OPTIONS.find(o => o.value === statusFilter)
 
   return (
     <div className={styles.Root}>
       <Dropdown
         label={`Sort: ${currentSort?.label}`}
         open={sortOpen}
-        onToggle={() => { setSortOpen(!sortOpen); setFilterOpen(false) }}
+        onToggle={() => setSortOpen(!sortOpen)}
       >
         {SORT_OPTIONS.map(opt => (
           <button
@@ -94,24 +80,6 @@ export function SortControls({ sortField, sortDirection, statusFilter, onSortCha
                 )}
               </svg>
             )}
-          </button>
-        ))}
-      </Dropdown>
-
-      <Dropdown
-        label={`Filter: ${currentFilter?.label}`}
-        open={filterOpen}
-        onToggle={() => { setFilterOpen(!filterOpen); setSortOpen(false) }}
-      >
-        {FILTER_OPTIONS.map(opt => (
-          <button
-            key={opt.value}
-            className={classnames(styles.MenuItem, opt.value === statusFilter && styles.MenuItemActive)}
-            role="option"
-            aria-selected={opt.value === statusFilter}
-            onClick={() => { onStatusFilterChange(opt.value); setFilterOpen(false) }}
-          >
-            {opt.label}
           </button>
         ))}
       </Dropdown>

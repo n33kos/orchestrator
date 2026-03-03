@@ -203,7 +203,7 @@ for item in active_with_pr:
                 continue
             all_prs = json.loads(result.stdout)
             # Find PRs in this stack (branches starting with same prefix)
-            branch_prefix = '/'.join(branch.split('/')[:3])  # e.g. me/project/name
+            branch_prefix = '/'.join(branch.split('/')[:3])  # e.g. user/project/name
             stack_prs = [p for p in all_prs if p['headRefName'].startswith(branch_prefix)]
             if not stack_prs:
                 # Fallback to single PR check

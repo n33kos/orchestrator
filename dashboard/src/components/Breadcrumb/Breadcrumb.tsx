@@ -10,16 +10,16 @@ interface BreadcrumbProps {
 
 const TAB_LABELS: Record<string, string> = {
   projects: 'Projects',
-  quick_fixes: 'Quick Fixes',
-  all: 'All Items',
   sessions: 'Sessions',
+  delegators: 'Delegators',
+  analytics: 'Analytics',
 }
 
 export function Breadcrumb({ tab, searchQuery, statusFilter, viewMode, itemCount }: BreadcrumbProps) {
   const parts: string[] = []
   parts.push(TAB_LABELS[tab] || tab)
-  if (statusFilter && statusFilter !== 'all') {
-    parts.push(statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1))
+  if (statusFilter) {
+    parts.push(statusFilter)
   }
   if (searchQuery) {
     parts.push(`"${searchQuery}"`)
