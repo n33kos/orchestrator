@@ -232,10 +232,25 @@ with open('$DELEGATOR_DIR/status.json', 'w') as f:
 # Spawn the delegator session using vmux
 echo ""
 echo "Spawning delegator session in $DELEGATOR_DIR..."
-$VMUX spawn "$DELEGATOR_DIR" 2>&1 || {
+$VMUX spawn "$DELEGATOR_DIR" --name "delegator-$ITEM_ID" 2>&1 || {
     echo "ERROR: Failed to spawn delegator session" >&2
     exit 1
 }
+
+# Set matching hue for delegator (same as worker — derived from item ID)
+ITEM_HUE="$(python3 -c "
+import hashlib
+h = int(hashlib.md5('$ITEM_ID'.encode()).hexdigest()[:4], 16) % 360
+print(h)
+")"
+RELAY_SECRET="$(cat "$HOME/.claude/voice-multiplexer/daemon.secret" 2>/dev/null)"
+if [[ -n "$RELAY_SECRET" ]]; then
+    curl -s -X PUT "http://localhost:3100/api/session-metadata/$DELEGATOR_SESSION_ID" \
+        -H "Content-Type: application/json" \
+        -H "X-Daemon-Secret: $RELAY_SECRET" \
+        -d "{\"hue_override\": $ITEM_HUE}" >/dev/null 2>&1 && \
+        echo "  Hue: $ITEM_HUE (matches worker)" || true
+fi
 
 # Update queue item with delegator ID
 python3 -c "

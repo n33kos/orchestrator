@@ -14,16 +14,38 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-height: 0;
+
+  &.MainNoScroll {
+    overflow: hidden;
+
+    // Prevent header elements from collapsing
+    > * {
+      flex-shrink: 0;
+    }
+
+    // ViewTransition wrapper must flex-through to KanbanWrapper
+    > .ViewTransition {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 1;
+    }
+  }
+}
+
+.KanbanWrapper {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .ControlsRow {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
-
-  @media (max-width: 480px) {
-    flex-wrap: wrap;
-  }
+  flex-wrap: wrap;
 }
 
 .SelectToggle {

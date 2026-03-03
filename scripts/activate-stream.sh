@@ -74,8 +74,9 @@ ITEM_STATUS="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(
 ITEM_TYPE="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['type'])")"
 ITEM_BRANCH="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['branch'])")"
 ITEM_TITLE="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['title'])")"
-DELEGATOR_ENABLED="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('delegator_enabled', True))")"
+DELEGATOR_ENABLED="$(echo "$ITEM_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin).get('delegator_enabled'); print(d if d is not None else '$DELEGATOR_DEFAULT')")"
 CUSTOM_REPO="$(echo "$ITEM_JSON" | python3 -c "import json,sys; m=json.load(sys.stdin).get('metadata',{}); print(m.get('repo_path',''))" | sed "s|~|$HOME|")"
+LOCAL_DIR="$(echo "$ITEM_JSON" | python3 -c "import json,sys; m=json.load(sys.stdin).get('metadata',{}); print(m.get('local_directory',''))" | sed "s|~|$HOME|")"
 
 # Validate status
 if [[ "$ITEM_STATUS" != "queued" && "$ITEM_STATUS" != "planning" ]]; then
@@ -98,8 +99,22 @@ print(count)
     fi
 fi
 
+# Local directory items: no worktree, just spawn session in the directory
+if [[ -n "$LOCAL_DIR" ]]; then
+    echo "Activating: $ITEM_TITLE ($ITEM_ID)"
+    echo "  Type: $ITEM_TYPE (local directory)"
+    echo "  Directory: $LOCAL_DIR"
+    echo ""
+    echo "Step 1: Preparing local directory..."
+    if [[ ! -d "$LOCAL_DIR" ]]; then
+        mkdir -p "$LOCAL_DIR"
+        echo "  Created: $LOCAL_DIR"
+    else
+        echo "  Already exists: $LOCAL_DIR"
+    fi
+    WORKTREE_PATH="$LOCAL_DIR"
 # Cross-repo items use the custom repo path directly (no worktree)
-if [[ -n "$CUSTOM_REPO" ]]; then
+elif [[ -n "$CUSTOM_REPO" ]]; then
     if [[ ! -d "$CUSTOM_REPO" ]]; then
         echo "ERROR: Custom repo path does not exist: $CUSTOM_REPO" >&2
         exit 1
@@ -123,22 +138,65 @@ else
     echo "  Branch: $ITEM_BRANCH"
 
     # Step 1: Create worktree
-    WORKTREE_PATH="${WORKTREE_PREFIX}${ITEM_BRANCH}"
+    # Use existing worktree_path from queue item if available, otherwise compute from prefix
+    EXISTING_WORKTREE="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('worktree_path',''))")"
+    if [[ -n "$EXISTING_WORKTREE" && -d "$EXISTING_WORKTREE" ]]; then
+        WORKTREE_PATH="$EXISTING_WORKTREE"
+    else
+        WORKTREE_PATH="${WORKTREE_PREFIX}${ITEM_BRANCH}"
+    fi
     echo ""
     echo "Step 1: Creating worktree..."
     cd "$REPO_PATH"
-    if [[ -d "$WORKTREE_PATH" ]]; then
+    # Find existing worktree by branch name (reliable even with hashed paths)
+    find_worktree_by_branch() {
+        git worktree list --porcelain | awk -v branch="refs/heads/$1" '
+            /^worktree / { wt=substr($0, 10) }
+            /^branch / && $2 == branch { print wt; exit }
+        '
+    }
+    EXISTING_GIT_WORKTREE="$(find_worktree_by_branch "$ITEM_BRANCH")"
+    if [[ -n "$EXISTING_GIT_WORKTREE" && -d "$EXISTING_GIT_WORKTREE" ]]; then
+        WORKTREE_PATH="$EXISTING_GIT_WORKTREE"
+        echo "  Worktree already exists at $WORKTREE_PATH"
+    elif [[ -d "$WORKTREE_PATH" ]]; then
         echo "  Worktree already exists at $WORKTREE_PATH"
     else
-        $ROSTRUM setup "$ITEM_BRANCH" $QUICK_FLAG
-        echo "  Created: $WORKTREE_PATH"
+        if $ROSTRUM setup "$ITEM_BRANCH" $QUICK_FLAG; then
+            ACTUAL_WORKTREE="$(find_worktree_by_branch "$ITEM_BRANCH")"
+            if [[ -n "$ACTUAL_WORKTREE" && -d "$ACTUAL_WORKTREE" ]]; then
+                WORKTREE_PATH="$ACTUAL_WORKTREE"
+            fi
+            echo "  Created: $WORKTREE_PATH"
+        else
+            ACTUAL_WORKTREE="$(find_worktree_by_branch "$ITEM_BRANCH")"
+            if [[ -n "$ACTUAL_WORKTREE" && -d "$ACTUAL_WORKTREE" ]]; then
+                WORKTREE_PATH="$ACTUAL_WORKTREE"
+                echo "  Rostrum failed but worktree exists at $WORKTREE_PATH"
+            else
+                echo "  ERROR: Rostrum setup failed and no existing worktree found" >&2
+                exit 1
+            fi
+        fi
     fi
 fi
 
 # Step 2: Spawn worker session
 echo ""
 echo "Step 2: Spawning worker session..."
-SESSION_OUTPUT="$($VMUX spawn "$WORKTREE_PATH" 2>&1)" || true
+# Generate a short display name from the item ID and title
+SESSION_NAME="$(python3 -c "
+title = '''$ITEM_TITLE'''
+item_id = '$ITEM_ID'
+# Truncate title to first 3 meaningful words
+words = [w for w in title.split() if len(w) > 2][:3]
+short = '-'.join(w.lower() for w in words) if words else 'worker'
+# Sanitize for tmux: alphanumeric, dash, underscore only
+import re
+short = re.sub(r'[^a-z0-9_-]', '', short)[:20]
+print(f'{item_id}-{short}')
+")"
+SESSION_OUTPUT="$($VMUX spawn "$WORKTREE_PATH" --name "$SESSION_NAME" 2>&1)" || true
 echo "  $SESSION_OUTPUT"
 
 # Get session ID from vmux sessions (preferred) or compute from path (fallback)
@@ -225,6 +283,21 @@ with open('$QUEUE_FILE', 'w') as f:
 "
 echo "  Status: active"
 echo "  Session ID: $SESSION_ID"
+
+# Set deterministic hue for this work item (worker + delegator will share it)
+ITEM_HUE="$(python3 -c "
+import hashlib
+h = int(hashlib.md5('$ITEM_ID'.encode()).hexdigest()[:4], 16) % 360
+print(h)
+")"
+RELAY_SECRET="$(cat "$HOME/.claude/voice-multiplexer/daemon.secret" 2>/dev/null)"
+if [[ -n "$RELAY_SECRET" ]]; then
+    curl -s -X PUT "http://localhost:3100/api/session-metadata/$SESSION_ID" \
+        -H "Content-Type: application/json" \
+        -H "X-Daemon-Secret: $RELAY_SECRET" \
+        -d "{\"hue_override\": $ITEM_HUE}" >/dev/null 2>&1 && \
+        echo "  Hue: $ITEM_HUE" || true
+fi
 
 # Step 4: Optionally spawn delegator
 if [[ "$NO_DELEGATOR" == "false" && "$DELEGATOR_ENABLED" != "False" ]]; then

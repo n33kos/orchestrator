@@ -30,6 +30,7 @@ REQUIRE_APPROVED_PLAN="${CONFIG_REQUIRE_APPROVED_PLAN:-false}"
 PLANS_DIR="${CONFIG_PLANS_DIR:-$HOME/.claude/orchestrator/plans}"
 POLL_INTERVAL="${CONFIG_POLL_INTERVAL:-120}"
 DELEGATOR_CYCLE_INTERVAL="${CONFIG_DELEGATOR_CYCLE_INTERVAL:-300}"
+DELEGATOR_DEFAULT="${CONFIG_DELEGATOR_ENABLED:-true}"
 CLEANUP_EVERY="${CONFIG_CLEANUP_EVERY:-10}"
 ARCHIVE_AFTER_DAYS="${CONFIG_ARCHIVE_AFTER_DAYS:-7}"
 
@@ -278,8 +279,11 @@ ready = []
 for i in data['items']:
     if i['status'] not in ('queued', 'planning'):
         continue
-    # Projects need a branch; quick fixes can activate without one (they use existing repos)
-    if i['type'] == 'project' and not i.get('branch'):
+    # Projects need a branch or a local_directory; quick fixes can activate without one
+    has_branch = bool(i.get('branch'))
+    has_local_dir = bool(i.get('metadata', {}).get('local_directory'))
+    has_repo_path = bool(i.get('metadata', {}).get('repo_path'))
+    if i['type'] == 'project' and not (has_branch or has_local_dir or has_repo_path):
         continue
     # Check for unresolved blockers
     if any(not b.get('resolved') for b in i.get('blockers', [])):
@@ -708,6 +712,229 @@ function recover_sessions() {
     "$SCRIPT_DIR/health-check.sh" --auto-recover 2>&1 | sed 's/^/  /'
 }
 
+function reconcile_state() {
+    # Enforce desired state every polling cycle. This is the PRIMARY mechanism
+    # for ensuring active items have sessions and review items do not.
+    #
+    # For ACTIVE items:
+    #   - Must have a live worker session (respawn if missing/zombie)
+    #   - Must have a delegator if delegator_enabled (spawn if missing)
+    # For REVIEW items:
+    #   - Must NOT have active sessions (suspend if found)
+    local vmux_path="$CONFIG_TOOL_VMUX"
+
+    python3 -c "
+import json, subprocess, sys
+
+queue_file = '$QUEUE_FILE'
+vmux = '$vmux_path'
+delegator_default = '$DELEGATOR_DEFAULT'
+
+with open(queue_file) as f:
+    data = json.load(f)
+
+# Get live sessions from vmux
+try:
+    result = subprocess.run([vmux, 'sessions'], capture_output=True, text=True, timeout=10)
+    sessions_output = result.stdout if result.returncode == 0 else ''
+except Exception:
+    sessions_output = ''
+
+# Parse session IDs and their states from vmux sessions output
+# Format: [state] session_id
+live_sessions = set()
+zombie_sessions = set()
+for line in sessions_output.split('\n'):
+    line = line.strip()
+    if not line:
+        continue
+    # Lines like: [standby] abc123def456
+    # or:         [zombie] abc123def456
+    if line.startswith('[') and ']' in line:
+        bracket_end = line.index(']')
+        state = line[1:bracket_end]
+        session_id = line[bracket_end+1:].strip()
+        if session_id:
+            if state == 'zombie':
+                zombie_sessions.add(session_id)
+            else:
+                live_sessions.add(session_id)
+
+all_known = live_sessions | zombie_sessions
+
+for item in data['items']:
+    item_id = item['id']
+    status = item['status']
+
+    if status == 'active':
+        session_id = item.get('session_id') or ''
+        delegator_id = item.get('delegator_id') or ''
+        worktree_path = item.get('worktree_path') or ''
+        delegator_enabled = item.get('delegator_enabled')
+        if delegator_enabled is None:
+            delegator_enabled = delegator_default == 'true' or delegator_default == 'True'
+        else:
+            delegator_enabled = str(delegator_enabled) in ('true', 'True')
+
+        # Check worker session
+        if not session_id:
+            # No session_id recorded at all — need to spawn
+            if worktree_path:
+                print(f'ACTION:{item_id}:spawn_worker:{worktree_path}')
+            else:
+                print(f'WARN:{item_id}:Active item has no session_id and no worktree_path', file=sys.stderr)
+        elif session_id in zombie_sessions:
+            # Session exists but is a zombie — respawn it
+            print(f'ACTION:{item_id}:respawn_worker:{worktree_path}:{session_id}')
+        elif session_id not in live_sessions:
+            # Session ID is recorded but not found in vmux at all — respawn
+            if worktree_path:
+                print(f'ACTION:{item_id}:spawn_worker:{worktree_path}')
+            else:
+                print(f'WARN:{item_id}:Active item has missing session and no worktree_path', file=sys.stderr)
+
+        # Check delegator (only if delegator_enabled)
+        if delegator_enabled:
+            if not delegator_id:
+                # No delegator recorded — spawn one
+                print(f'ACTION:{item_id}:spawn_delegator:')
+            elif delegator_id in zombie_sessions:
+                # Delegator is a zombie — respawn
+                print(f'ACTION:{item_id}:respawn_delegator:{delegator_id}')
+            elif delegator_id not in live_sessions:
+                # Delegator missing entirely — spawn fresh
+                print(f'ACTION:{item_id}:spawn_delegator:')
+
+    elif status == 'review':
+        session_id = item.get('session_id') or ''
+        delegator_id = item.get('delegator_id') or ''
+        # Review items should NOT have active sessions
+        if session_id or delegator_id:
+            print(f'ACTION:{item_id}:suspend_review:')
+" 2>/dev/null | while IFS= read -r line; do
+        if [[ "$line" == ACTION:* ]]; then
+            local item_id action details
+            item_id="$(echo "$line" | cut -d: -f2)"
+            action="$(echo "$line" | cut -d: -f3)"
+            details="$(echo "$line" | cut -d: -f4-)"
+
+            case "$action" in
+                spawn_worker)
+                    local worktree_path="$details"
+                    if [[ "$DRY_RUN" == "true" ]]; then
+                        echo "[reconcile] Would spawn worker for $item_id at $worktree_path"
+                    else
+                        echo "[reconcile] Spawning missing worker session for $item_id at $worktree_path"
+                        emit_event "reconcile.spawn_worker" "Spawning missing worker for $item_id" --item-id "$item_id" --severity warn
+                        if "$vmux_path" spawn "$worktree_path" 2>&1 | sed 's/^/  /'; then
+                            # Update session_id in queue
+                            local new_session_id
+                            new_session_id="$(python3 -c "
+import hashlib
+print(hashlib.sha256('$worktree_path'.encode()).hexdigest()[:12])
+")"
+                            python3 -c "
+import json
+with open('$QUEUE_FILE') as f:
+    data = json.load(f)
+for item in data['items']:
+    if item['id'] == '$item_id':
+        item['session_id'] = '$new_session_id'
+        break
+with open('$QUEUE_FILE', 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+" 2>/dev/null || true
+                            echo "[reconcile] Worker spawned for $item_id (session: $new_session_id)"
+                        else
+                            echo "[reconcile] WARNING: Failed to spawn worker for $item_id" >&2
+                            emit_event "reconcile.spawn_worker_failed" "Failed to spawn worker for $item_id" --item-id "$item_id" --severity error
+                        fi
+                    fi
+                    ;;
+                respawn_worker)
+                    local worktree_path old_session_id
+                    worktree_path="$(echo "$details" | cut -d: -f1)"
+                    old_session_id="$(echo "$details" | cut -d: -f2)"
+                    if [[ "$DRY_RUN" == "true" ]]; then
+                        echo "[reconcile] Would respawn zombie worker for $item_id ($old_session_id)"
+                    else
+                        echo "[reconcile] Respawning zombie worker for $item_id ($old_session_id)"
+                        emit_event "reconcile.respawn_worker" "Respawning zombie worker $old_session_id for $item_id" --item-id "$item_id" --severity warn
+                        "$vmux_path" kill "$old_session_id" 2>/dev/null || true
+                        sleep 2
+                        if "$vmux_path" spawn "$worktree_path" 2>&1 | sed 's/^/  /'; then
+                            local new_session_id
+                            new_session_id="$(python3 -c "
+import hashlib
+print(hashlib.sha256('$worktree_path'.encode()).hexdigest()[:12])
+")"
+                            python3 -c "
+import json
+with open('$QUEUE_FILE') as f:
+    data = json.load(f)
+for item in data['items']:
+    if item['id'] == '$item_id':
+        item['session_id'] = '$new_session_id'
+        break
+with open('$QUEUE_FILE', 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+" 2>/dev/null || true
+                            echo "[reconcile] Worker respawned for $item_id (session: $new_session_id)"
+                        else
+                            echo "[reconcile] WARNING: Failed to respawn worker for $item_id" >&2
+                            emit_event "reconcile.respawn_worker_failed" "Failed to respawn worker for $item_id" --item-id "$item_id" --severity error
+                        fi
+                    fi
+                    ;;
+                spawn_delegator)
+                    if [[ "$DRY_RUN" == "true" ]]; then
+                        echo "[reconcile] Would spawn delegator for $item_id"
+                    else
+                        echo "[reconcile] Spawning missing delegator for $item_id"
+                        emit_event "reconcile.spawn_delegator" "Spawning missing delegator for $item_id" --item-id "$item_id" --severity warn
+                        "$SCRIPT_DIR/spawn-delegator.sh" "$item_id" 2>&1 | sed 's/^/  /' || {
+                            echo "[reconcile] WARNING: Failed to spawn delegator for $item_id" >&2
+                            emit_event "reconcile.spawn_delegator_failed" "Failed to spawn delegator for $item_id" --item-id "$item_id" --severity error
+                        }
+                    fi
+                    ;;
+                respawn_delegator)
+                    local old_delegator_id="$details"
+                    if [[ "$DRY_RUN" == "true" ]]; then
+                        echo "[reconcile] Would respawn zombie delegator for $item_id ($old_delegator_id)"
+                    else
+                        echo "[reconcile] Respawning zombie delegator for $item_id ($old_delegator_id)"
+                        emit_event "reconcile.respawn_delegator" "Respawning zombie delegator $old_delegator_id for $item_id" --item-id "$item_id" --severity warn
+                        "$vmux_path" kill "$old_delegator_id" 2>/dev/null || true
+                        sleep 1
+                        "$SCRIPT_DIR/spawn-delegator.sh" "$item_id" 2>&1 | sed 's/^/  /' || {
+                            echo "[reconcile] WARNING: Failed to respawn delegator for $item_id" >&2
+                            emit_event "reconcile.respawn_delegator_failed" "Failed to respawn delegator for $item_id" --item-id "$item_id" --severity error
+                        }
+                    fi
+                    ;;
+                suspend_review)
+                    if [[ "$DRY_RUN" == "true" ]]; then
+                        echo "[reconcile] Would suspend review item $item_id (has active sessions)"
+                    else
+                        echo "[reconcile] Suspending review item $item_id (has lingering sessions)"
+                        emit_event "reconcile.suspend_review" "Suspending review item with active sessions: $item_id" --item-id "$item_id" --severity warn
+                        "$SCRIPT_DIR/suspend-stream.sh" "$item_id" 2>&1 | sed 's/^/  /' || {
+                            echo "[reconcile] WARNING: Failed to suspend $item_id" >&2
+                            emit_event "reconcile.suspend_failed" "Failed to suspend review item $item_id" --item-id "$item_id" --severity error
+                        }
+                    fi
+                    ;;
+                *)
+                    echo "[reconcile] Unknown action: $action for $item_id"
+                    ;;
+            esac
+        fi
+    done
+}
+
 if [[ "$ONCE" == "true" ]]; then
     check_services
     recover_sessions
@@ -717,6 +944,7 @@ if [[ "$ONCE" == "true" ]]; then
     teardown_merged
     check_planning_timeouts
     generate_plans
+    reconcile_state
     check_and_activate
 else
     function reload_config() {
@@ -757,6 +985,7 @@ else
         teardown_merged
         check_planning_timeouts
         generate_plans
+        reconcile_state
         check_and_activate
         # Run cleanup every N cycles
         CYCLE=$((CYCLE + 1))

@@ -187,14 +187,16 @@ def deduplicate(new_items: list[dict], existing_items: list[dict]) -> list[dict]
     return unique
 
 
-def generate_id(existing_items: list[dict]) -> str:
-    """Generate the next sequential work item ID."""
-    max_id = 0
-    for item in existing_items:
-        match = re.match(r"ws-(\d+)", item.get("id", ""))
-        if match:
-            max_id = max(max_id, int(match.group(1)))
-    return f"ws-{max_id + 1:03d}"
+def generate_id() -> str:
+    """Generate the next sequential work item ID using the shared counter."""
+    import subprocess
+
+    script = Path(__file__).parent / "next-ws-id.sh"
+    result = subprocess.run([str(script)], capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"  Error generating ID: {result.stderr.strip()}", file=sys.stderr)
+        sys.exit(1)
+    return result.stdout.strip()
 
 
 def poll_github_issues(source_name: str, config: dict) -> list[dict]:
@@ -483,7 +485,7 @@ def main():
 
     # Add new items to queue
     for item in unique:
-        item_id = generate_id(queue["items"])
+        item_id = generate_id()
         queue_item = {
             "id": item_id,
             "source": item.get("source", "discovery"),
@@ -496,7 +498,7 @@ def main():
             "worktree_path": None,
             "session_id": None,
             "delegator_id": None,
-            "delegator_enabled": item["type"] == "project",
+            "delegator_enabled": True,
             "blockers": [],
             "created_at": datetime.now().isoformat(),
             "activated_at": None,

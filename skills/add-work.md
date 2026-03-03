@@ -17,16 +17,19 @@ Then add the item to the queue:
 
 ```bash
 python3 -c "
-import json
+import json, subprocess
 from pathlib import Path
 from datetime import datetime
-import re
 
 queue_path = Path.home() / '.claude/orchestrator/queue.json'
 queue = json.loads(queue_path.read_text())
 
-max_id = max((int(re.match(r'ws-(\d+)', i['id']).group(1)) for i in queue['items'] if re.match(r'ws-(\d+)', i['id'])), default=0)
-new_id = f'ws-{max_id + 1:03d}'
+# Use the shared counter script for monotonically incrementing IDs
+counter_script = Path.home() / 'orchestrator/scripts/next-ws-id.sh'
+result = subprocess.run([str(counter_script)], capture_output=True, text=True)
+if result.returncode != 0:
+    raise RuntimeError(f'Failed to generate ID: {result.stderr.strip()}')
+new_id = result.stdout.strip()
 
 item = {
     'id': new_id,
@@ -41,7 +44,7 @@ item = {
     'worktree_path': None,
     'session_id': None,
     'delegator_id': None,
-    'delegator_enabled': True if '<TYPE>' == 'project' else False,
+    'delegator_enabled': True,
     'blockers': [],
     'created_at': datetime.now().isoformat(),
     'activated_at': None,

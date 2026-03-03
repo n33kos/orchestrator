@@ -60,12 +60,12 @@ function queueApiPlugin(): Plugin {
             description: body.description || '',
             type: body.type || 'project',
             priority: body.priority || data.items.length + 1,
-            status: 'queued',
+            status: 'planning',
             branch: body.branch || '',
             worktree_path: null,
             session_id: null,
             delegator_id: null,
-            delegator_enabled: body.type === 'project',
+            delegator_enabled: true,
             blockers: [],
             created_at: new Date().toISOString(),
             activated_at: null,
@@ -133,6 +133,22 @@ function queueApiPlugin(): Plugin {
           }
 
           writeQueue(data)
+
+          // NOTE: The scheduler's reconcile_state() is the PRIMARY mechanism for
+          // ensuring active items have sessions and review items do not. It runs
+          // every polling cycle and enforces desired state regardless of how items
+          // got into their current status.
+
+          // Supplementary fast-path: suspend sessions immediately when moving to
+          // review (belt-and-suspenders — scheduler reconciliation will also catch this)
+          const targetStatus = body.status
+          if (targetStatus === 'review' && (item.session_id || item.delegator_id)) {
+            const suspendScript = join(__dirname, '..', 'scripts', 'suspend-stream.sh')
+            execFile('bash', [suspendScript, body.id], { timeout: 30000, env: { ...process.env, HOME: homedir() } }, (err, _stdout, stderr) => {
+              if (err) console.error('suspend-stream failed:', stderr || String(err))
+            })
+          }
+
           res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify(item))
         } catch (err) {
@@ -680,7 +696,7 @@ function queueApiPlugin(): Plugin {
         if (!prUrl && !basePr) { res.statusCode = 400; res.end(JSON.stringify({ error: 'Missing url or base param' })); return }
 
         // Extract owner/repo from URL, or use base PR number
-        let owner = '', repo = '', baseNumber = basePr || ''
+        let owner = 'myproject', repo = 'web', baseNumber = basePr || ''
         if (prUrl) {
           const match = prUrl.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/)
           if (match) {
@@ -697,7 +713,7 @@ function queueApiPlugin(): Plugin {
             const basePrData = JSON.parse(stdout)
             const branch = basePrData.headRefName || ''
             const author = basePrData.author?.login || ''
-            // Extract the branch prefix (e.g., "initials/project/name" from "initials/project/name/1/description")
+            // Extract the branch prefix (e.g., "me/react-18/bootstrap-elimination" from "me/react-18/bootstrap-elimination/1/modal-replacement")
             const parts = branch.split('/')
             const prefix = parts.length > 3 ? parts.slice(0, 3).join('/') : branch
 
@@ -866,6 +882,12 @@ function queueApiPlugin(): Plugin {
           if (item.metadata.plan) {
             item.metadata.plan.approved = approved
             item.metadata.plan.approved_at = approved ? new Date().toISOString() : null
+          }
+          // Auto-transition: planning → queued when approved, queued → planning when revoked
+          if (approved && item.status === 'planning') {
+            item.status = 'queued'
+          } else if (!approved && item.status === 'queued') {
+            item.status = 'planning'
           }
 
           writeFileSync(queuePath, JSON.stringify(queueData, null, 2) + '\n', 'utf-8')
@@ -1046,20 +1068,18 @@ function queueApiPlugin(): Plugin {
             let config = readFileSync(configPath, 'utf-8')
             config = config.replace(/^(\s*auto_activate:\s*).+$/m, '$1false')
             writeFileSync(configPath, config, 'utf-8')
-            // Kill all delegators
+            // Kill all delegators (read session IDs from queue file)
             const vmuxPath = join(homedir(), '.local/bin/vmux')
-            const delegatorDir = join(homedir(), '.claude/orchestrator/delegators')
-            if (existsSync(delegatorDir)) {
-              const delegatorDirs = readdirSync(delegatorDir)
-              for (const dir of delegatorDirs) {
-                const pidFile = join(delegatorDir, dir, 'session_id')
-                if (existsSync(pidFile)) {
-                  const sessionId = readFileSync(pidFile, 'utf-8').trim()
-                  if (sessionId) {
-                    execFile(vmuxPath, ['kill', sessionId], { env: { ...process.env, HOME: homedir() } }, () => {})
+            const queuePath = join(homedir(), '.claude/orchestrator/queue.json')
+            if (existsSync(queuePath)) {
+              try {
+                const queue = JSON.parse(readFileSync(queuePath, 'utf-8'))
+                for (const item of queue.items || []) {
+                  if (item.delegator_id && item.status === 'active') {
+                    execFile(vmuxPath, ['kill', item.delegator_id], { env: { ...process.env, HOME: homedir() } }, () => {})
                   }
                 }
-              }
+              } catch (_e) { /* ignore parse errors */ }
             }
             res.end(JSON.stringify({ paused: true, message: 'Orchestration paused. Auto-activate disabled, delegators killed.' }))
           } else {
