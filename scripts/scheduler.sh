@@ -567,6 +567,11 @@ function check_services() {
 
 function recover_delegators() {
     # Check each active item's delegator — respawn if dead or stalled
+    local pause_file="$HOME/.claude/orchestrator/paused"
+    if [[ -f "$pause_file" ]]; then
+        echo "[watchdog] Paused — skipping delegator recovery"
+        return 0
+    fi
     local vmux_path="$CONFIG_TOOL_VMUX"
     local delegators_dir="$HOME/.claude/orchestrator/delegators"
     local stall_minutes="${CONFIG_STALL_THRESHOLD_MIN:-30}"
@@ -713,6 +718,11 @@ for item in data['items']:
 }
 
 function recover_sessions() {
+    local pause_file="$HOME/.claude/orchestrator/paused"
+    if [[ -f "$pause_file" ]]; then
+        echo "[health] Paused — skipping session recovery"
+        return 0
+    fi
     echo "[health] Checking for zombie sessions..."
     "$SCRIPT_DIR/health-check.sh" --auto-recover 2>&1 | sed 's/^/  /'
 }
