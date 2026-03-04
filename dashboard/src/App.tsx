@@ -502,9 +502,6 @@ export function App() {
         activitySparkline={activitySparkline}
         healthIssues={healthIssues}
         lastUpdated={queue.lastUpdated}
-        notificationHistory={history}
-        orchestratorEvents={orchestratorEvents}
-        onClearNotifications={clearHistory}
         theme={theme}
         onThemeToggle={toggleTheme}
         onSettingsClick={() => setSettingsOpen(true)}
