@@ -72,7 +72,7 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
   }, [focused, onClearFocus])
   const hasLiveSession = !!sessionInfo
   const hasSession = !!item.session_id
-  const hasDelegator = !!item.delegator_id
+  const hasDelegator = item.delegator_enabled
   const unresolvedBlockers = item.blockers.filter(b => !b.resolved)
   const implementationNotes = item.metadata.implementation_notes as string[] | undefined
   const notes = item.metadata.notes as string | undefined
@@ -698,7 +698,7 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
                 <span className={styles.ToggleKnob} />
               </button>
               <span className={styles.ToggleLabel}>
-                {hasDelegator ? 'Active' : item.delegator_enabled ? 'Enabled' : 'Off'}
+                {item.delegator_enabled ? 'Enabled' : 'Off'}
               </span>
             </label>
           </div>

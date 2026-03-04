@@ -17,6 +17,7 @@ CONFIG="$PROJECT_ROOT/config/environment.yml"
 eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
 
 QUEUE_FILE="$CONFIG_QUEUE_FILE"
+QUEUE_PY="python3 -m lib.queue"
 VMUX="$CONFIG_TOOL_VMUX"
 REPO_PATH="$CONFIG_REPO_PATH"
 ROSTRUM="$CONFIG_TOOL_ROSTRUM"
@@ -38,38 +39,21 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-# Read item
-ITEM_JSON="$(python3 -c "
-import json, sys
-with open('$QUEUE_FILE') as f:
-    data = json.load(f)
-item = next((i for i in data['items'] if i['id'] == '$ITEM_ID'), None)
-if not item:
-    print('ERROR: Item $ITEM_ID not found', file=sys.stderr)
-    sys.exit(1)
-if item['status'] not in ('review', 'paused'):
-    print(f'ERROR: Item $ITEM_ID is {item[\"status\"]}, expected review or paused', file=sys.stderr)
-    sys.exit(1)
-print(json.dumps(item))
-")"
+# Read item and validate status
+ITEM_STATUS="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" status)"
+if [[ "$ITEM_STATUS" != "review" && "$ITEM_STATUS" != "paused" ]]; then
+    echo "ERROR: Item $ITEM_ID is '$ITEM_STATUS', expected review or paused" >&2
+    exit 1
+fi
 
-ITEM_TITLE="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['title'])")"
-ITEM_BRANCH="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['branch'])")"
-ITEM_TYPE="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['type'])")"
-WORKTREE_PATH="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('worktree_path', '') or '')")"
-DELEGATOR_ENABLED="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('delegator_enabled', True))")"
+IFS=$'\t' read -r ITEM_TITLE ITEM_BRANCH ITEM_TYPE WORKTREE_PATH DELEGATOR_ENABLED \
+    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" title branch type worktree_path delegator_enabled)
 
 echo "Resuming: $ITEM_TITLE ($ITEM_ID)"
 
 # Check concurrency
 if [[ "$ITEM_TYPE" == "project" ]]; then
-    ACTIVE_COUNT="$(python3 -c "
-import json
-with open('$QUEUE_FILE') as f:
-    data = json.load(f)
-count = sum(1 for i in data['items'] if i['status'] == 'active' and i['type'] == 'project')
-print(count)
-")"
+    ACTIVE_COUNT="$(cd "$SCRIPT_DIR" && $QUEUE_PY count --status active --type project)"
     if [[ "$ACTIVE_COUNT" -ge "$MAX_ACTIVE" ]]; then
         echo "ERROR: Concurrency limit reached ($ACTIVE_COUNT/$MAX_ACTIVE active projects)" >&2
         exit 1
@@ -98,33 +82,13 @@ print(hashlib.sha256(cwd.encode()).hexdigest()[:12])
 ")"
 
 # Update queue: move to active, set session ID
-python3 -c "
-import json
-with open('$QUEUE_FILE') as f:
-    data = json.load(f)
-for item in data['items']:
-    if item['id'] == '$ITEM_ID':
-        item['status'] = 'active'
-        item['session_id'] = '$SESSION_ID'
-        item['worktree_path'] = '$WORKTREE_PATH'
-        break
-with open('$QUEUE_FILE', 'w') as f:
-    json.dump(data, f, indent=2)
-    f.write('\n')
-"
+(cd "$SCRIPT_DIR" && $QUEUE_PY update "$ITEM_ID" status=active session_id="$SESSION_ID" worktree_path="$WORKTREE_PATH")
 
 echo "  Status: active (session: $SESSION_ID)"
 
 # Send task reference to the resumed worker session
 sleep 5
-PLAN_FILE="$(echo "$ITEM_JSON" | python3 -c "
-import json, sys, os
-item = json.load(sys.stdin)
-meta = item.get('metadata', {}) or {}
-plan_file = meta.get('plan_file', '')
-if plan_file:
-    print(os.path.expanduser(plan_file))
-")"
+PLAN_FILE="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" metadata.plan_file)"
 
 TASK_MESSAGE="[Task Resumed] $ITEM_TITLE
 

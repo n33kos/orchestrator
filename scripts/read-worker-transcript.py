@@ -25,12 +25,26 @@ from collections import Counter
 def find_transcript(worktree_path: str) -> str | None:
     """Find the most recent transcript JSONL file for a worktree."""
     # Claude stores projects in ~/.claude/projects/ with path-derived names
-    # /Users/foo/bar-baz -> -Users-foo-bar-baz
+    # The actual convention replaces non-alphanumeric chars with dashes
+    projects_base = Path.home() / ".claude" / "projects"
+
+    # Try exact match first, then fuzzy match against existing dirs
     normalized = worktree_path.rstrip("/").replace("/", "-")
-    projects_dir = Path.home() / ".claude" / "projects" / normalized
+    projects_dir = projects_base / normalized
 
     if not projects_dir.exists():
-        return None
+        # Claude Code may normalize differently (e.g., dots become double dashes)
+        # Search for a directory containing the key path segments
+        key = worktree_path.rstrip("/").split("/")[-1]  # e.g., "ws-021"
+        candidates = sorted(
+            [d for d in projects_base.iterdir() if d.is_dir() and key in d.name],
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        if candidates:
+            projects_dir = candidates[0]
+        else:
+            return None
 
     # Find the most recently modified JSONL file
     jsonl_files = sorted(

@@ -47,40 +47,16 @@ if [[ "$TARGET_STATUS" != "completed" && "$TARGET_STATUS" != "review" ]]; then
 fi
 
 # Update queue
-PREV_STATUS="$(python3 -c "
-import json, sys
-from datetime import datetime
+QUEUE_PY="python3 -m lib.queue"
+PREV_STATUS="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" status)"
 
-with open('$QUEUE_FILE') as f:
-    data = json.load(f)
+# Build update arguments
+UPDATE_ARGS=("$ITEM_ID" "status=$TARGET_STATUS")
+[[ "$TARGET_STATUS" == "completed" ]] && UPDATE_ARGS+=("completed_at=NOW")
+[[ -n "$PR_URL" ]] && UPDATE_ARGS+=("pr_url=$PR_URL")
+[[ -n "$MESSAGE" ]] && UPDATE_ARGS+=("metadata.completion_message=$MESSAGE")
 
-item = next((i for i in data['items'] if i['id'] == '$ITEM_ID'), None)
-if not item:
-    print('ERROR: Item $ITEM_ID not found', file=sys.stderr)
-    sys.exit(1)
-
-prev = item['status']
-item['status'] = '$TARGET_STATUS'
-
-if '$TARGET_STATUS' == 'completed':
-    item['completed_at'] = datetime.now().isoformat()
-
-pr_url = '''$PR_URL'''
-if pr_url:
-    item['pr_url'] = pr_url
-
-message = '''$MESSAGE'''
-if message:
-    if 'metadata' not in item or item['metadata'] is None:
-        item['metadata'] = {}
-    item['metadata']['completion_message'] = message
-
-with open('$QUEUE_FILE', 'w') as f:
-    json.dump(data, f, indent=2)
-    f.write('\n')
-
-print(prev)
-")"
+cd "$SCRIPT_DIR" && $QUEUE_PY update "${UPDATE_ARGS[@]}"
 
 echo "Worker completion reported:"
 echo "  Item: $ITEM_ID"

@@ -21,6 +21,7 @@ eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
 QUEUE_FILE="$CONFIG_QUEUE_FILE"
 REPO_PATH="$CONFIG_REPO_PATH"
 PLANS_DIR="${CONFIG_PLANS_DIR:-$HOME/.claude/orchestrator/plans}"
+QUEUE_PY="python3 -m lib.queue"
 
 # shellcheck source=validate-env.sh
 source "$SCRIPT_DIR/validate-env.sh"
@@ -40,26 +41,17 @@ done
 # Ensure plans directory exists
 mkdir -p "$PLANS_DIR"
 
-# Read item from queue
-ITEM_JSON="$(python3 -c "
-import json, sys
-with open('$QUEUE_FILE') as f:
-    data = json.load(f)
-item = next((i for i in data['items'] if i['id'] == '$ITEM_ID'), None)
-if not item:
-    print('ERROR: Item $ITEM_ID not found', file=sys.stderr)
-    sys.exit(1)
-if item['status'] not in ('queued', 'planning'):
-    print(f'ERROR: Item $ITEM_ID is {item[\"status\"]}, expected queued or planning', file=sys.stderr)
-    sys.exit(1)
-print(json.dumps(item))
-")"
+# Read item from queue and validate status
+ITEM_STATUS="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" status)"
+if [[ "$ITEM_STATUS" != "queued" && "$ITEM_STATUS" != "planning" ]]; then
+    echo "ERROR: Item $ITEM_ID is '$ITEM_STATUS', expected queued or planning" >&2
+    exit 1
+fi
 
-ITEM_TITLE="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['title'])")"
-ITEM_DESC="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('description', ''))")"
-ITEM_TYPE="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['type'])")"
-ITEM_BRANCH="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('branch', ''))")"
-CUSTOM_REPO="$(echo "$ITEM_JSON" | python3 -c "import json,sys; m=json.load(sys.stdin).get('metadata',{}); print(m.get('repo_path',''))" | sed "s|~|$HOME|")"
+# Extract fields in a single call
+IFS=$'\t' read -r ITEM_TITLE ITEM_DESC ITEM_TYPE ITEM_BRANCH CUSTOM_REPO \
+    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" title description type branch metadata.repo_path)
+CUSTOM_REPO="$(echo "$CUSTOM_REPO" | sed "s|~|$HOME|")"
 
 # Determine the target repo for context
 TARGET_REPO="${CUSTOM_REPO:-$REPO_PATH}"
@@ -179,30 +171,24 @@ print(json.dumps(plan))
     echo "Plan auto-approved."
 fi
 
-# Update queue item with the plan reference and inline summary
-python3 -c "
-import json
+# Update queue item: simple fields via queue.py, plan object via locked_queue
+PLAN_APPROVED="$(echo "$PLAN_JSON" | python3 -c "import json,sys; print('TRUE' if json.load(sys.stdin).get('approved') else 'FALSE')")"
+cd "$SCRIPT_DIR" && $QUEUE_PY update "$ITEM_ID" metadata.plan_file="$PLAN_FILE" metadata.plan_approved="$PLAN_APPROVED"
 
-plan = json.loads('''$(echo "$PLAN_JSON" | sed "s/'/\\\\'/g")''')
-
-with open('$QUEUE_FILE') as f:
-    data = json.load(f)
-
-for item in data['items']:
-    if item['id'] == '$ITEM_ID':
-        if 'metadata' not in item or item['metadata'] is None:
-            item['metadata'] = {}
-        item['metadata']['plan'] = plan
-        item['metadata']['plan_file'] = '$PLAN_FILE'
-        item['metadata']['plan_approved'] = plan.get('approved', False)
+# Set the plan object and conditionally update status (requires locked write)
+cd "$SCRIPT_DIR" && python3 -c "
+import json, sys
+sys.path.insert(0, '.')
+from lib.queue import locked_queue, find_item
+plan = json.loads(sys.stdin.read())
+with locked_queue(write=True) as ctx:
+    item = find_item(ctx['data'], '$ITEM_ID')
+    if item:
+        item.setdefault('metadata', {})['plan'] = plan
         if item['status'] == 'queued':
             item['status'] = 'planning'
-        break
-
-with open('$QUEUE_FILE', 'w') as f:
-    json.dump(data, f, indent=2)
-    f.write('\n')
-"
+        ctx['modified'] = True
+" <<< "$PLAN_JSON"
 
 echo ""
 echo "Plan saved."

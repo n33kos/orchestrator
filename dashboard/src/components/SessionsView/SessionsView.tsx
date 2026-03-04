@@ -23,7 +23,6 @@ type SessionRole = 'worker' | 'delegator' | 'unlinked'
 function findLinkedItems(session: SessionInfo, items: WorkItem[]): WorkItem[] {
   return items.filter(item => {
     if (item.session_id === session.id) return true
-    if (item.delegator_id === session.id) return true
     if (item.worktree_path && (session.cwd === item.worktree_path || item.worktree_path.startsWith(session.cwd))) return true
     return false
   })
@@ -31,7 +30,6 @@ function findLinkedItems(session: SessionInfo, items: WorkItem[]): WorkItem[] {
 
 function getSessionRole(session: SessionInfo, items: WorkItem[]): SessionRole {
   for (const item of items) {
-    if (item.delegator_id === session.id) return 'delegator'
     if (item.session_id === session.id) return 'worker'
   }
   return 'unlinked'

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import classnames from 'classnames'
 import styles from './DelegatorPanel.module.scss'
 import { timeAgo } from '../../utils/time.ts'
@@ -14,7 +14,12 @@ interface DelegatorPanelProps {
   loading: boolean
   items?: WorkItem[]
   onRefresh?: () => void
-  onSendMessage?: (sessionId: string, text: string) => void
+}
+
+const healthLabels: Record<string, { label: string; cls: string }> = {
+  healthy: { label: 'Healthy', cls: 'statusActive' },
+  stale: { label: 'Stale', cls: 'statusIdle' },
+  error: { label: 'Error', cls: 'statusError' },
 }
 
 const statusLabels: Record<string, { label: string; cls: string }> = {
@@ -24,10 +29,49 @@ const statusLabels: Record<string, { label: string; cls: string }> = {
   idle: { label: 'Idle', cls: 'statusIdle' },
   error: { label: 'Error', cls: 'statusError' },
   completed: { label: 'Completed', cls: 'statusDone' },
-  dead: { label: 'Session Dead', cls: 'statusDead' },
 }
 
-export function DelegatorPanel({ delegators, loading, items, onRefresh, onSendMessage }: DelegatorPanelProps) {
+function CollapsibleJson({ label, data }: { label: string; data: unknown }) {
+  const [open, setOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  if (data == null) return null
+
+  const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2)
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }, [text])
+
+  return (
+    <div className={styles.Section}>
+      <button className={styles.CollapsibleHeader} onClick={() => setOpen(o => !o)}>
+        <svg
+          className={classnames(styles.Chevron, open && styles.ChevronOpen)}
+          width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+        <h4 className={styles.SectionTitle}>{label}</h4>
+        {open && (
+          <button
+            className={styles.CopyJsonButton}
+            onClick={e => { e.stopPropagation(); handleCopy() }}
+          >
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        )}
+      </button>
+      {open && (
+        <pre className={styles.JsonBlock}>{text}</pre>
+      )}
+    </div>
+  )
+}
+
+export function DelegatorPanel({ delegators, loading, items, onRefresh }: DelegatorPanelProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   if (loading) {
@@ -50,19 +94,20 @@ export function DelegatorPanel({ delegators, loading, items, onRefresh, onSendMe
     )
   }
 
-  const aliveCount = delegators.filter(d => d.session_alive).length
-  const deadCount = delegators.length - aliveCount
+  const healthyCount = delegators.filter(d => d.health?.status === 'healthy').length
+  const staleCount = delegators.filter(d => d.health?.status === 'stale').length
+  const errorCount = delegators.filter(d => d.health?.status === 'error').length
 
   return (
     <div className={styles.Root}>
       <div className={styles.Summary}>
         <span className={styles.SummaryCount}>{delegators.length}</span>
         <span className={styles.SummaryLabel}>delegator{delegators.length !== 1 ? 's' : ''}</span>
-        {deadCount > 0 && (
+        {(staleCount > 0 || errorCount > 0) && (
           <>
             <span className={styles.SummaryDivider} />
             <span className={classnames(styles.SummaryStat, styles.SummaryStatWarn)}>
-              {aliveCount} alive &middot; {deadCount} dead
+              {healthyCount} healthy{staleCount > 0 ? ` · ${staleCount} stale` : ''}{errorCount > 0 ? ` · ${errorCount} error` : ''}
             </span>
           </>
         )}
@@ -85,19 +130,19 @@ export function DelegatorPanel({ delegators, loading, items, onRefresh, onSendMe
 
       {delegators.map(d => {
         const isExpanded = expandedId === d.item_id
-        const effectiveStatus = (!d.session_alive && d.status !== 'completed') ? 'dead' : d.status
-        const statusInfo = statusLabels[effectiveStatus] || { label: effectiveStatus, cls: '' }
+        const healthStatus = d.health?.status || 'unknown'
+        const healthInfo = healthLabels[healthStatus] || { label: healthStatus, cls: '' }
 
         return (
-          <div key={d.item_id} className={classnames(styles.Card, isExpanded && styles.CardExpanded, effectiveStatus === 'dead' && styles.CardDead)}>
+          <div key={d.item_id} className={classnames(styles.Card, isExpanded && styles.CardExpanded, healthStatus === 'error' && styles.CardDead)}>
             <button
               className={styles.CardHeader}
               onClick={() => setExpandedId(isExpanded ? null : d.item_id)}
             >
-              <span className={classnames(styles.StatusDot, styles[statusInfo.cls])} />
+              <span className={classnames(styles.StatusDot, styles[healthInfo.cls])} />
               <div className={styles.CardInfo}>
                 <span className={styles.CardTitle}>{items?.find(i => i.id === d.item_id)?.title || d.item_id}</span>
-                <span className={styles.CardStatus}>{statusInfo.label} &middot; {d.item_id}</span>
+                <span className={styles.CardStatus}>{d.cycle_running ? 'Running cycle' : healthInfo.label} &middot; {d.cycle_count ?? 0} cycles &middot; {d.item_id}</span>
               </div>
               <div className={styles.CardStats}>
                 <span className={styles.StatChip} title="Commits reviewed">
@@ -126,29 +171,27 @@ export function DelegatorPanel({ delegators, loading, items, onRefresh, onSendMe
               <div className={styles.CardBody}>
                 <div className={styles.MetaGrid}>
                   <div className={styles.MetaItem}>
-                    <span className={styles.MetaLabel}>Worker Session</span>
-                    <code className={styles.MetaValue}>
-                      {d.worker_session}
-                      {!d.session_alive && d.status !== 'completed' && (
-                        <span className={styles.DeadBadge}>dead</span>
-                      )}
-                    </code>
+                    <span className={styles.MetaLabel}>Health</span>
+                    <span className={styles.MetaValue}>
+                      {healthInfo.label}
+                      {d.health?.consecutive_errors > 0 && ` (${d.health.consecutive_errors} errors)`}
+                    </span>
                   </div>
                   <div className={styles.MetaItem}>
                     <span className={styles.MetaLabel}>Branch</span>
                     <code className={styles.MetaValue}>{d.branch}</code>
                   </div>
                   <div className={styles.MetaItem}>
-                    <span className={styles.MetaLabel}>Started</span>
-                    <span className={styles.MetaValue}>{timeAgo(d.started_at)}</span>
+                    <span className={styles.MetaLabel}>Created</span>
+                    <span className={styles.MetaValue}>{timeAgo(d.created_at)}</span>
                   </div>
                   <div className={styles.MetaItem}>
-                    <span className={styles.MetaLabel}>Last Check</span>
-                    <span className={styles.MetaValue}>{d.last_check ? timeAgo(d.last_check) : 'Never'}</span>
+                    <span className={styles.MetaLabel}>Last Cycle</span>
+                    <span className={styles.MetaValue}>{d.last_cycle_at ? timeAgo(d.last_cycle_at) : 'Never'}</span>
                   </div>
                   <div className={styles.MetaItem}>
-                    <span className={styles.MetaLabel}>Last Commit</span>
-                    <code className={styles.MetaValue}>{d.last_seen_commit?.slice(0, 8) || 'None'}</code>
+                    <span className={styles.MetaLabel}>Total Cycles</span>
+                    <span className={styles.MetaValue}>{d.cycle_count ?? 0}</span>
                   </div>
                   <div className={styles.MetaItem}>
                     <span className={styles.MetaLabel}>PR Reviewed</span>
@@ -204,15 +247,23 @@ export function DelegatorPanel({ delegators, loading, items, onRefresh, onSendMe
                   </div>
                 )}
 
-                {onSendMessage && d.worker_session && (
-                  <div className={styles.MessageSection}>
-                    <SendToWorker
-                      sessionId={d.worker_session}
-                      label="Message worker"
-                      onSend={onSendMessage}
-                    />
+                {d.cycle_log && d.cycle_log.length > 0 && (
+                  <div className={styles.Section}>
+                    <h4 className={styles.SectionTitle}>Recent Cycles ({d.cycle_log.length})</h4>
+                    <div className={styles.ReviewList}>
+                      {d.cycle_log.slice(-5).map((entry, i) => (
+                        <div key={i} className={styles.ReviewItem}>
+                          <span className={styles.CommitHash}>{entry.result}</span>
+                          <span className={styles.CommitMsg}>{entry.message || ''}</span>
+                          <span className={styles.CommitAssessment}>{timeAgo(entry.timestamp)}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
+
+                <CollapsibleJson label="Last Cycle Payload" data={d.lastCyclePayload} />
+                <CollapsibleJson label="Last Triage Output" data={d.lastTriageOutput} />
               </div>
             )}
           </div>
@@ -222,37 +273,3 @@ export function DelegatorPanel({ delegators, loading, items, onRefresh, onSendMe
   )
 }
 
-function SendToWorker({ sessionId, label, onSend }: { sessionId: string; label: string; onSend: (id: string, text: string) => void }) {
-  const [text, setText] = useState('')
-  return (
-    <div className={styles.SendRow}>
-      <input
-        className={styles.SendInput}
-        type="text"
-        value={text}
-        onChange={e => setText(e.target.value)}
-        onKeyDown={e => {
-          if (e.key === 'Enter' && text.trim()) {
-            onSend(sessionId, text.trim())
-            setText('')
-          }
-        }}
-        placeholder={`${label}...`}
-        onClick={e => e.stopPropagation()}
-      />
-      <button
-        className={styles.SendButton}
-        onClick={e => {
-          e.stopPropagation()
-          if (text.trim()) {
-            onSend(sessionId, text.trim())
-            setText('')
-          }
-        }}
-        disabled={!text.trim()}
-      >
-        Send
-      </button>
-    </div>
-  )
-}

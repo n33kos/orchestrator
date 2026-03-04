@@ -25,10 +25,13 @@ JSON_OUTPUT=false
 [[ "${1:-}" == "--json" ]] && JSON_OUTPUT=true
 
 # Queue summary
-QUEUE_SUMMARY="$(python3 -c "
-import json
-with open('$QUEUE_FILE') as f:
-    data = json.load(f)
+QUEUE_SUMMARY="$(cd "$SCRIPT_DIR" && python3 -c "
+import json, sys
+sys.path.insert(0, '.')
+from lib.queue import locked_queue
+
+with locked_queue() as ctx:
+    data = ctx['data']
 
 items = data['items']
 by_status = {}

@@ -21,7 +21,7 @@ export interface WorkItem {
   pr_url: string | null
   worktree_path: string | null
   session_id: string | null
-  delegator_id: string | null
+  delegator_id?: string | null
   delegator_enabled: boolean
   blockers: Blocker[]
   created_at: string

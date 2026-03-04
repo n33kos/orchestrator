@@ -192,19 +192,16 @@ export function AnalyticsView({ items, sessions, delegators = [], events = [] }:
           <div className={styles.Card}>
             <h3 className={styles.CardTitle}>Delegator Performance</h3>
             <div className={styles.DelegatorGrid}>
-              {delegators.map(d => {
-                const unresolved = (d.issues_found || []).filter(i => !(i as unknown as Record<string, unknown>).resolved).length
-                return (
-                  <div key={d.item_id} className={styles.DelegatorRow}>
-                    <span className={styles.DelegatorId}>{d.item_id}</span>
-                    <div className={styles.DelegatorStats}>
-                      <span>{d.commits_reviewed} reviewed</span>
-                      <span className={unresolved > 0 ? styles.DelegatorAlert : ''}>{(d.issues_found || []).length} issues</span>
-                      <span data-status={d.status}>{d.status}</span>
-                    </div>
+              {delegators.map(d => (
+                <div key={d.item_id} className={styles.DelegatorRow}>
+                  <span className={styles.DelegatorId}>{d.item_id}</span>
+                  <div className={styles.DelegatorStats}>
+                    <span>{d.cycle_count ?? 0} cycles</span>
+                    <span data-status={d.health?.status}>{d.health?.status || 'unknown'}</span>
+                    {d.cycle_running && <span>running</span>}
                   </div>
-                )
-              })}
+                </div>
+              ))}
             </div>
           </div>
         )}

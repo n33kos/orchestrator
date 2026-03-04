@@ -20,6 +20,7 @@ VMUX="$CONFIG_TOOL_VMUX"
 MAX_ACTIVE="$CONFIG_MAX_ACTIVE_PROJECTS"
 STALL_THRESHOLD_MIN="${CONFIG_STALL_THRESHOLD_MIN:-30}"
 STALL_THRESHOLD_HOURS="$(python3 -c "print($STALL_THRESHOLD_MIN / 60)")"
+QUEUE_PY="python3 -m lib.queue"
 
 # shellcheck source=validate-env.sh
 source "$SCRIPT_DIR/validate-env.sh"
@@ -54,37 +55,34 @@ while IFS= read -r line; do
     fi
 done <<< "$SESSIONS_RAW"
 
-# Get queue health
-QUEUE_HEALTH="$(python3 -c "
-import json
+# Get queue health (with file locking)
+QUEUE_HEALTH="$(cd "$SCRIPT_DIR" && python3 -c "
+import json, sys
+sys.path.insert(0, '.')
+from lib.queue import locked_queue
 from datetime import datetime, timezone
 
-with open('$QUEUE_FILE') as f:
-    data = json.load(f)
-
-active = [i for i in data['items'] if i['status'] == 'active']
-stalled = []
-for item in active:
-    # Use last_activity (set by delegator/worker) or activated_at as fallback
-    last_ts = item.get('metadata', {}).get('last_activity') or item.get('activated_at')
-    if last_ts:
-        ts = datetime.fromisoformat(last_ts.replace('Z', '+00:00'))
-        if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
-        now = datetime.now(timezone.utc)
-        hours = (now - ts).total_seconds() / 3600
-        if hours > $STALL_THRESHOLD_HOURS:
-            stalled.append({'id': item['id'], 'title': item['title'], 'hours': round(hours, 1)})
-
-blocked = [i for i in data['items'] if any(not b.get('resolved', False) for b in i.get('blockers', []))]
-
-print(json.dumps({
-    'active_count': len(active),
-    'max_concurrent': $MAX_ACTIVE,
-    'stalled': stalled,
-    'blocked': [{'id': i['id'], 'title': i['title']} for i in blocked],
-    'total_items': len(data['items']),
-}))
+with locked_queue() as ctx:
+    data = ctx['data']
+    active = [i for i in data['items'] if i['status'] == 'active']
+    stalled = []
+    for item in active:
+        last_ts = (item.get('metadata') or {}).get('last_activity') or item.get('activated_at')
+        if last_ts:
+            ts = datetime.fromisoformat(last_ts.replace('Z', '+00:00'))
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            hours = (datetime.now(timezone.utc) - ts).total_seconds() / 3600
+            if hours > $STALL_THRESHOLD_HOURS:
+                stalled.append({'id': item['id'], 'title': item['title'], 'hours': round(hours, 1)})
+    blocked = [i for i in data['items'] if any(not b.get('resolved', False) for b in i.get('blockers', []))]
+    print(json.dumps({
+        'active_count': len(active),
+        'max_concurrent': $MAX_ACTIVE,
+        'stalled': stalled,
+        'blocked': [{'id': i['id'], 'title': i['title']} for i in blocked],
+        'total_items': len(data['items']),
+    }))
 ")"
 
 # Check delegator health
@@ -103,27 +101,28 @@ if delegators_dir.exists():
     for item_dir in delegators_dir.iterdir():
         if not item_dir.is_dir():
             continue
-        status_file = item_dir / 'status.json'
-        if not status_file.exists():
+        state_file = item_dir / 'state.json'
+        if not state_file.exists():
             continue
         total += 1
         try:
-            with open(status_file) as f:
-                status = json.load(f)
-            last_check = status.get('last_check_at') or status.get('started_at', '')
-            if last_check:
-                ts = datetime.fromisoformat(last_check.replace('Z', '+00:00'))
-                if ts.tzinfo is None:
-                    ts = ts.replace(tzinfo=timezone.utc)
-                hours = (datetime.now(timezone.utc) - ts).total_seconds() / 3600
-                if hours > $STALL_THRESHOLD_HOURS:
-                    stalled.append({
-                        'item_id': status.get('item_id', item_dir.name),
-                        'hours': round(hours, 1),
-                        'status': status.get('status', 'unknown'),
-                    })
-                else:
-                    healthy += 1
+            with open(state_file) as f:
+                state = json.load(f)
+            health = state.get('health', {})
+            health_status = health.get('status', 'unknown')
+            if health_status in ('stale', 'error'):
+                last_cycle = health.get('last_cycle_at') or state.get('created_at', '')
+                hours = 0
+                if last_cycle:
+                    ts = datetime.fromisoformat(last_cycle.replace('Z', '+00:00'))
+                    if ts.tzinfo is None:
+                        ts = ts.replace(tzinfo=timezone.utc)
+                    hours = round((datetime.now(timezone.utc) - ts).total_seconds() / 3600, 1)
+                stalled.append({
+                    'item_id': state.get('item_id', item_dir.name),
+                    'hours': hours,
+                    'status': health_status,
+                })
             else:
                 healthy += 1
         except (json.JSONDecodeError, KeyError):
@@ -184,9 +183,8 @@ if [[ ${#ZOMBIES[@]} -gt 0 ]]; then
     done
 fi
 
-STALLED_COUNT="$(echo "$QUEUE_HEALTH" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['stalled']))")"
-BLOCKED_COUNT="$(echo "$QUEUE_HEALTH" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['blocked']))")"
-ACTIVE_COUNT="$(echo "$QUEUE_HEALTH" | python3 -c "import json,sys; print(json.load(sys.stdin)['active_count'])")"
+IFS=$'\t' read -r STALLED_COUNT BLOCKED_COUNT ACTIVE_COUNT <<< \
+    "$(echo "$QUEUE_HEALTH" | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'{len(d[\"stalled\"])}\t{len(d[\"blocked\"])}\t{d[\"active_count\"]}')")"
 
 echo ""
 echo "Queue: $ACTIVE_COUNT active"
@@ -214,11 +212,10 @@ for b in data['blocked']:
 fi
 
 # Delegator health
-DELEGATOR_TOTAL="$(echo "$DELEGATOR_HEALTH" | python3 -c "import json,sys; print(json.load(sys.stdin)['total'])")"
-DELEGATOR_STALLED_COUNT="$(echo "$DELEGATOR_HEALTH" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['stalled']))")"
+IFS=$'\t' read -r DELEGATOR_TOTAL DELEGATOR_STALLED_COUNT DELEGATOR_HEALTHY <<< \
+    "$(echo "$DELEGATOR_HEALTH" | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'{d[\"total\"]}\t{len(d[\"stalled\"])}\t{d[\"healthy\"]}')")"
 
 if [[ "$DELEGATOR_TOTAL" -gt 0 ]]; then
-    DELEGATOR_HEALTHY="$(echo "$DELEGATOR_HEALTH" | python3 -c "import json,sys; print(json.load(sys.stdin)['healthy'])")"
     echo ""
     echo "Delegators: $DELEGATOR_TOTAL total, $DELEGATOR_HEALTHY healthy, $DELEGATOR_STALLED_COUNT stalled"
     if [[ "$DELEGATOR_STALLED_COUNT" -gt 0 ]]; then

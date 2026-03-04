@@ -70,16 +70,23 @@ export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange
   const titleRef = useRef<HTMLInputElement>(null)
   const descRef = useRef<HTMLTextAreaElement>(null)
 
+  // Sync state when item prop changes (e.g. after refresh or navigating to different item)
+  useEffect(() => { if (!editingTitle) setTitleText(item.title) }, [item.title, editingTitle])
+  useEffect(() => { if (!editingDescription) setDescriptionText(item.description) }, [item.description, editingDescription])
+  useEffect(() => { if (!editingNotes) setNotesText((item.metadata?.notes as string) || '') }, [item.metadata?.notes, editingNotes])
+
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
+        if (editingTitle) { setTitleText(item.title); setEditingTitle(false); return }
+        if (editingDescription) { setDescriptionText(item.description); setEditingDescription(false); return }
         if (editingNotes) { setEditingNotes(false); return }
         onClose()
       }
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [onClose, editingNotes])
+  }, [onClose, editingNotes, editingTitle, editingDescription, item.title, item.description])
 
   // Fetch PR status if pr_url is set
   useEffect(() => {
@@ -136,9 +143,10 @@ export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ itemId: item.id, approved: !planApproved }),
-    }).then(() => {
+    }).then(res => {
+      if (!res.ok) console.error('Failed to toggle plan approval:', res.status)
       onRefresh?.()
-    }).catch(() => {})
+    }).catch(err => console.error('Failed to toggle plan approval:', err))
   }
 
   const nextAction = getNextAction(item.status)
@@ -255,7 +263,7 @@ export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange
                 ) : null}
                 <span className={styles.MetaValue}>
                   {delegator
-                    ? `${delegator.status} (${delegator.commits_reviewed} commits, ${delegator.issues_found.length} issues)`
+                    ? `${delegator.health?.status || 'unknown'} (${delegator.cycle_count ?? 0} cycles${delegator.cycle_running ? ', running' : ''})`
                     : item.delegator_enabled ? 'Enabled' : 'Off'}
                 </span>
               </div>

@@ -38,21 +38,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Read item from queue
-ITEM_JSON="$(python3 -c "
-import json, sys
-with open('$QUEUE_FILE') as f:
-    data = json.load(f)
-item = next((i for i in data['items'] if i['id'] == '$ITEM_ID'), None)
-if not item:
-    print('ERROR: Item $ITEM_ID not found', file=sys.stderr)
-    sys.exit(1)
-print(json.dumps(item))
-")"
-
-ITEM_BRANCH="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['branch'])")"
-ITEM_TITLE="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['title'])")"
-SESSION_ID="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('session_id', '') or '')")"
-DELEGATOR_ID="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('delegator_id', '') or '')")"
+QUEUE_PY="python3 -m lib.queue"
+IFS=$'\t' read -r ITEM_BRANCH ITEM_TITLE SESSION_ID DELEGATOR_ID \
+    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" branch title session_id delegator_id)
 
 echo "Tearing down: $ITEM_TITLE ($ITEM_ID)"
 echo "  Branch: $ITEM_BRANCH"
@@ -99,27 +87,8 @@ fi
 # Step 4: Update queue item
 echo ""
 echo "Step 4: Updating queue..."
-python3 -c "
-import json
-from datetime import datetime
-
-with open('$QUEUE_FILE') as f:
-    data = json.load(f)
-
-for item in data['items']:
-    if item['id'] == '$ITEM_ID':
-        if item['status'] != 'completed':
-            item['status'] = 'completed'
-        item['completed_at'] = datetime.now().isoformat()
-        item['session_id'] = None
-        item['delegator_id'] = None
-        item['worktree_path'] = None
-        break
-
-with open('$QUEUE_FILE', 'w') as f:
-    json.dump(data, f, indent=2)
-    f.write('\n')
-"
+cd "$SCRIPT_DIR" && $QUEUE_PY update "$ITEM_ID" \
+    status=completed completed_at=NOW session_id=NULL delegator_id=NULL worktree_path=NULL
 echo "  Status: completed"
 
 # Step 5: Auto-train profile from the session transcript

@@ -62,9 +62,11 @@ import { useZoom } from './hooks/useZoom.ts'
 import { useScrollRestore } from './hooks/useScrollRestore.ts'
 import { usePageVisibility } from './hooks/usePageVisibility.ts'
 import { useBeforeUnload } from './hooks/useBeforeUnload.ts'
+import { useOrchestratorPolling } from './hooks/useOrchestratorPolling.ts'
+import { useStreamActions } from './hooks/useStreamActions.ts'
 import { playNotificationSound } from './utils/sound.ts'
 import { exportWorkItemsCsv, downloadCsv } from './utils/csv.ts'
-import type { WorkItemStatus, MessageEntry } from './types.ts'
+import type { WorkItemStatus } from './types.ts'
 
 export function App() {
   const { settings, update: updateSetting, reset: resetSettings, open: settingsOpen, setOpen: setSettingsOpen } = useSettings()
@@ -111,7 +113,32 @@ export function App() {
   })
   useFaviconBadge(queue.blockedItems.length > 0 || zombieCount > 0)
   useBeforeUnload(queue.activeItems.length > 0 || sessions.filter(s => s.state === 'thinking' || s.state === 'responding').length > 0)
-  const [messagesBySession, setMessagesBySession] = useState<Record<string, MessageEntry[]>>({})
+
+  // Orchestrator polling (health checks, pause state, auto-scheduler, PR status)
+  const { orchestratorPaused, healthIssues, handlePauseToggle } = useOrchestratorPolling({
+    autoActivate: settings.autoActivate,
+    items: queue.items,
+    refresh: queue.refresh,
+    refreshSessions,
+    updateItem: queue.updateItem,
+    addToast,
+  })
+
+  // Stream actions (status changes, activate, teardown, messaging, etc.)
+  const actions = useStreamActions({
+    items: queue.items,
+    sessions,
+    updateItem: queue.updateItem,
+    deleteItem: queue.deleteItem,
+    addBlocker: queue.addBlocker,
+    resolveBlocker: queue.resolveBlocker,
+    reorderItems: queue.reorderItems,
+    refresh: queue.refresh,
+    refreshSessions,
+    sendMessage,
+    addToast,
+  })
+
   const [activeTab, setActiveTab] = useHashParam('tab', 'projects')
   const [showAddForm, setShowAddForm] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -128,7 +155,6 @@ export function App() {
   const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [showSessions, setShowSessions] = useState(false)
   const [showActivityFeed, setShowActivityFeed] = useState(false)
-  const [orchestratorPaused, setOrchestratorPaused] = useState(false)
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null)
@@ -142,110 +168,12 @@ export function App() {
   const searchRef = useRef<HTMLInputElement>(null)
   const mainRef = useRef<HTMLElement>(null)
   useScrollRestore(activeTab, mainRef.current)
-  const [confirmAction, setConfirmAction] = useState<{
-    title: string
-    message: string
-    confirmLabel: string
-    danger?: boolean
-    onConfirm: () => void
-  } | null>(null)
-  const [activatingIds, setActivatingIds] = useState<Set<string>>(new Set())
-  const [tearingDownIds, setTearingDownIds] = useState<Set<string>>(new Set())
-  const [healthIssues, setHealthIssues] = useState(0)
   const [showHealthPanel, setShowHealthPanel] = useState(false)
   const [showDiscoverPanel, setShowDiscoverPanel] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showGlobalSearch, setShowGlobalSearch] = useState(false)
   const [welcomeDismissed, setWelcomeDismissed] = usePersistedState('welcomeDismissed', false)
 
-  // Periodic health check for issue count
-  useEffect(() => {
-    async function checkHealth() {
-      try {
-        const res = await fetch('/api/health')
-        if (res.ok) {
-          const data = await res.json()
-          setHealthIssues(data.issues?.length ?? 0)
-        }
-      } catch { /* ignore */ }
-    }
-    checkHealth()
-    const interval = setInterval(checkHealth, 60000)
-    return () => clearInterval(interval)
-  }, [])
-
-  // Fetch pause state on mount
-  useEffect(() => {
-    fetch('/api/orchestrator/pause')
-      .then(r => r.json())
-      .then(data => setOrchestratorPaused(data.paused))
-      .catch(() => {})
-  }, [])
-
-  async function handlePauseToggle() {
-    try {
-      const res = await fetch('/api/orchestrator/pause', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paused: !orchestratorPaused }),
-      })
-      const data = await res.json()
-      setOrchestratorPaused(data.paused)
-      addToast(data.message || (data.paused ? 'Paused' : 'Resumed'), data.paused ? 'warning' : 'success')
-      // Refresh settings to reflect auto_activate change
-      updateSetting('autoActivate', !data.paused)
-    } catch {
-      addToast('Failed to toggle pause', 'error')
-    }
-  }
-
-  // Auto-scheduler: when auto-activate is enabled, periodically run the scheduler
-  useEffect(() => {
-    if (!settings.autoActivate) return
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch('/api/scheduler/run', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        })
-        if (res.ok) {
-          const data = await res.json()
-          const output = data.output?.trim() || ''
-          if (output.includes('Activated') || output.includes('activated')) {
-            queue.refresh()
-            refreshSessions()
-            addToast(output.split('\n').pop() || 'Auto-activated work item', 'success')
-          }
-        }
-      } catch { /* ignore */ }
-    }, 30000) // Check every 30 seconds
-    return () => clearInterval(interval)
-  }, [settings.autoActivate, queue, refreshSessions, addToast])
-
-  // PR status polling: auto-complete work items when their PR is merged
-  useEffect(() => {
-    const itemsWithPr = queue.items.filter(i => i.pr_url && i.status === 'active')
-    if (itemsWithPr.length === 0) return
-    const interval = setInterval(async () => {
-      for (const item of itemsWithPr) {
-        try {
-          const url = encodeURIComponent(item.pr_url!)
-          const res = await fetch(`/api/pr-status?url=${url}`)
-          if (res.ok) {
-            const data = await res.json()
-            if (data.state === 'MERGED' && item.status !== 'completed') {
-              queue.updateItem(item.id, { status: 'completed' })
-              addToast(`"${item.title}" auto-completed — PR merged`, 'success')
-            }
-          }
-        } catch { /* ignore */ }
-      }
-    }, 120000) // Check every 2 minutes
-    return () => clearInterval(interval)
-  }, [queue, addToast])
-
-  const projectBlockers = queue.projects.filter(i => i.blockers.some(b => !b.resolved)).length
   const tabs = [
     { id: 'projects', label: 'Projects', count: queue.items.length, alertCount: queue.blockedItems.length },
     { id: 'delegators', label: 'Delegators', count: delegatorData.count || undefined, alertCount: delegatorData.alertCount || undefined },
@@ -287,11 +215,11 @@ export function App() {
       if (showActivityFeed) { setShowActivityFeed(false); return }
       if (showSessions) { setShowSessions(false); return }
       if (settingsOpen) { setSettingsOpen(false); return }
-      if (confirmAction) { setConfirmAction(null); return }
+      if (actions.confirmAction) { actions.setConfirmAction(null); return }
       if (selectionMode) { setSelectedIds(new Set()); setSelectionMode(false); return }
       if (showAddForm) { setShowAddForm(false); return }
       if (searchQuery) { setSearchQuery(''); return }
-    }, [showGlobalSearch, showShortcuts, showCommandPalette, showHealthPanel, showDiscoverPanel, detailItemId, showActivityFeed, showSessions, settingsOpen, confirmAction, selectionMode, showAddForm, searchQuery, setSettingsOpen]),
+    }, [showGlobalSearch, showShortcuts, showCommandPalette, showHealthPanel, showDiscoverPanel, detailItemId, showActivityFeed, showSessions, settingsOpen, actions.confirmAction, selectionMode, showAddForm, searchQuery, setSettingsOpen]),
     onRefresh: useCallback(() => {
       queue.refresh()
       addToast('Queue refreshed', 'info')
@@ -346,28 +274,6 @@ export function App() {
     onSettingsPanel: useCallback(() => setSettingsOpen(prev => !prev), [setSettingsOpen]),
   })
 
-  async function handleDuplicate(id: string) {
-    const item = queue.items.find(i => i.id === id)
-    if (!item) return
-    try {
-      await fetch('/api/queue/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: `${item.title} (copy)`,
-          description: item.description,
-          type: item.type,
-          priority: item.priority + 1,
-          branch: '',
-        }),
-      })
-      queue.refresh()
-      addToast('Work item duplicated', 'success')
-    } catch {
-      addToast('Failed to duplicate work item', 'error')
-    }
-  }
-
   async function handleAddItem(item: NewWorkItem) {
     try {
       await fetch('/api/queue/add', {
@@ -381,134 +287,6 @@ export function App() {
     } catch {
       addToast('Failed to add work item', 'error')
     }
-  }
-
-  function handleStatusChange(id: string, status: WorkItemStatus) {
-    const item = queue.items.find(i => i.id === id)
-    const previousStatus = item?.status
-    const hasSession = !!item?.session_id
-    const labels: Record<string, string> = {
-      active: 'activated',
-      paused: 'paused',
-      completed: 'completed',
-      queued: 'queued',
-      review: 'moved to review',
-      planning: 'moved to planning',
-    }
-
-    // Suspend session when moving active -> review or active -> paused (stop burning tokens)
-    if ((status === 'review' || status === 'paused') && previousStatus === 'active' && hasSession) {
-      const label = status === 'review' ? 'review' : 'paused'
-      addToast(`Suspending session (${label})...`, 'info')
-      // Suspend script kills session + delegator and sets the target status atomically
-      fetch('/api/stream/suspend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemId: id, targetStatus: status }),
-      }).then(res => {
-        if (res.ok) {
-          queue.refresh()
-          addToast(`${status === 'review' ? 'Moved to review' : 'Paused'} — session suspended`, 'success')
-        } else {
-          queue.updateItem(id, { status })
-          addToast(`${status === 'review' ? 'Moved to review' : 'Paused'} (session suspend failed)`, 'warning')
-        }
-      }).catch(() => {
-        queue.updateItem(id, { status })
-      })
-      return
-    }
-
-    // Resume session when moving review -> active (respawn session + delegator)
-    if (status === 'active' && (previousStatus === 'review' || previousStatus === 'paused') && item?.worktree_path && !hasSession) {
-      addToast('Resuming session...', 'info')
-      fetch('/api/stream/resume', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemId: id }),
-      }).then(res => {
-        if (res.ok) {
-          queue.refresh()
-          addToast('Resumed — session respawned', 'success')
-        } else {
-          queue.updateItem(id, { status })
-          addToast('Resumed (session respawn failed)', 'warning')
-        }
-      }).catch(() => {
-        queue.updateItem(id, { status })
-      })
-      return
-    }
-
-    // Default: just update the status
-    queue.updateItem(id, { status })
-    addToast(
-      `Work item ${labels[status] || status}`,
-      'success',
-      previousStatus ? {
-        label: 'Undo',
-        onClick: () => {
-          queue.updateItem(id, { status: previousStatus })
-          addToast('Status change reverted', 'info')
-        },
-      } : undefined,
-    )
-  }
-
-  function handlePriorityChange(id: string, priority: number) {
-    queue.updateItem(id, { priority })
-  }
-
-  function handleEdit(id: string, updates: { title?: string; description?: string }) {
-    queue.updateItem(id, updates)
-    addToast('Work item updated', 'success')
-  }
-
-  function handleAddBlocker(id: string, description: string) {
-    queue.addBlocker(id, description)
-    addToast('Blocker added', 'info')
-  }
-
-  function handleResolveBlocker(id: string, blockerId: string) {
-    queue.resolveBlocker(id, blockerId, true)
-    addToast('Blocker resolved', 'success')
-  }
-
-  function handleUnresolveBlocker(id: string, blockerId: string) {
-    queue.resolveBlocker(id, blockerId, false)
-    addToast('Blocker reopened', 'info')
-  }
-
-  async function handleDelegatorToggle(id: string, enabled: boolean) {
-    queue.updateItem(id, { delegator_enabled: enabled })
-    const item = queue.items.find(i => i.id === id)
-    if (item?.status === 'active' && enabled && !item.delegator_id) {
-      addToast('Spawning delegator...', 'info')
-      try {
-        const res = await fetch('/api/delegators/spawn', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ itemId: id }),
-        })
-        if (res.ok) {
-          queue.refresh()
-          addToast('Delegator spawned', 'success')
-        } else {
-          addToast('Delegator spawn failed', 'error')
-        }
-      } catch {
-        addToast('Delegator spawn failed', 'error')
-      }
-    } else {
-      addToast(`Delegator ${enabled ? 'enabled' : 'disabled'}`, 'info')
-    }
-  }
-
-  function handleReorder(dragId: string, dropId: string) {
-    const dragItem = queue.items.find(i => i.id === dragId)
-    if (!dragItem) return
-    queue.reorderItems(dragId, dropId)
-    addToast(`Reordered "${dragItem.title}"`, 'info')
   }
 
   const sessionsWithItems = useMemo(() => {
@@ -525,25 +303,6 @@ export function App() {
     }
     return refs
   }, [queue.items, sessions])
-
-  async function handleSendMessage(sessionId: string, text: string) {
-    const entry: MessageEntry = {
-      id: `msg-${Date.now()}`,
-      text,
-      timestamp: new Date().toISOString(),
-      direction: 'sent',
-    }
-    setMessagesBySession(prev => ({
-      ...prev,
-      [sessionId]: [...(prev[sessionId] ?? []), entry],
-    }))
-    const ok = await sendMessage(sessionId, text)
-    if (ok) {
-      addToast('Message sent', 'success')
-    } else {
-      addToast('Failed to send message', 'error')
-    }
-  }
 
   function handleToggleSelect(id: string) {
     setSelectedIds(prev => {
@@ -577,7 +336,7 @@ export function App() {
   }
 
   function handleBatchDelete() {
-    setConfirmAction({
+    actions.setConfirmAction({
       title: 'Remove Selected Items',
       message: `Are you sure you want to remove ${selectedIds.size} item${selectedIds.size !== 1 ? 's' : ''}? This cannot be undone.`,
       confirmLabel: 'Remove All',
@@ -589,49 +348,10 @@ export function App() {
         }
         setSelectedIds(new Set())
         setSelectionMode(false)
-        setConfirmAction(null)
+        actions.setConfirmAction(null)
         addToast(`${count} item${count !== 1 ? 's' : ''} removed`, 'success')
       },
     })
-  }
-
-  async function handleKillSession(sessionId: string) {
-    try {
-      const res = await fetch('/api/sessions/kill', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId }),
-      })
-      if (res.ok) {
-        addToast('Session killed', 'success')
-      } else {
-        addToast('Failed to kill session', 'error')
-      }
-    } catch {
-      addToast('Failed to kill session', 'error')
-    }
-  }
-
-  async function handleReconnectSession(sessionId: string) {
-    const session = sessions.find(s => s.id === sessionId)
-    if (!session) {
-      addToast('Session not found', 'error')
-      return
-    }
-    try {
-      const res = await fetch('/api/sessions/reconnect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cwd: session.cwd }),
-      })
-      if (res.ok) {
-        addToast('Session reconnecting...', 'info')
-      } else {
-        addToast('Failed to reconnect session', 'error')
-      }
-    } catch {
-      addToast('Failed to reconnect session', 'error')
-    }
   }
 
   function handleNavigateToItem(id: string) {
@@ -693,107 +413,6 @@ export function App() {
     const csv = exportWorkItemsCsv(queue.items)
     downloadCsv(csv, `orchestrator-queue-${new Date().toISOString().slice(0, 10)}.csv`)
     addToast('Queue exported as CSV', 'success')
-  }
-
-  function handleDelete(id: string) {
-    const item = queue.items.find(i => i.id === id)
-    setConfirmAction({
-      title: 'Remove Work Item',
-      message: `Are you sure you want to remove "${item?.title || id}"? This cannot be undone.`,
-      confirmLabel: 'Remove',
-      danger: true,
-      onConfirm: () => {
-        queue.deleteItem(id)
-        setConfirmAction(null)
-        addToast('Work item removed', 'success')
-      },
-    })
-  }
-
-  function handlePrUrlChange(id: string, prUrl: string) {
-    queue.updateItem(id, { pr_url: prUrl || null })
-    addToast('PR URL updated', 'success')
-  }
-
-  async function handleGeneratePlan(id: string) {
-    addToast('Generating plan...', 'info')
-    try {
-      const res = await fetch('/api/plan/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemId: id }),
-      })
-      if (res.ok) {
-        queue.refresh()
-        addToast('Plan generated — review and approve to activate', 'success')
-      } else {
-        const data = await res.json()
-        addToast(`Plan generation failed: ${data.error || 'Unknown error'}`, 'error')
-      }
-    } catch {
-      addToast('Failed to generate plan', 'error')
-    }
-  }
-
-  async function handleActivateStream(id: string) {
-    const item = queue.items.find(i => i.id === id)
-    if (!item) return
-    setActivatingIds(prev => new Set(prev).add(id))
-    addToast(`Activating "${item.title}" — creating worktree and session...`, 'info')
-    try {
-      const res = await fetch('/api/stream/activate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemId: id }),
-      })
-      if (res.ok) {
-        addToast(`"${item.title}" activated — worktree and session ready`, 'success')
-        queue.refresh()
-        refreshSessions()
-      } else {
-        const data = await res.json()
-        addToast(`Activation failed: ${data.error || 'Unknown error'}`, 'error')
-      }
-    } catch {
-      addToast('Failed to activate stream', 'error')
-    } finally {
-      setActivatingIds(prev => { const next = new Set(prev); next.delete(id); return next })
-    }
-  }
-
-  function handleTeardownStream(id: string) {
-    const item = queue.items.find(i => i.id === id)
-    if (!item) return
-    setConfirmAction({
-      title: 'Tear Down Work Stream',
-      message: `This will kill the session, remove the worktree, and mark "${item.title}" as completed. The git branch will be preserved.`,
-      confirmLabel: 'Tear Down',
-      danger: true,
-      onConfirm: async () => {
-        setConfirmAction(null)
-        setTearingDownIds(prev => new Set(prev).add(id))
-        addToast(`Tearing down "${item.title}"...`, 'info')
-        try {
-          const res = await fetch('/api/stream/teardown', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ itemId: id }),
-          })
-          if (res.ok) {
-            addToast(`"${item.title}" torn down`, 'success')
-            queue.refresh()
-            refreshSessions()
-          } else {
-            const data = await res.json()
-            addToast(`Teardown failed: ${data.error || 'Unknown error'}`, 'error')
-          }
-        } catch {
-          addToast('Failed to tear down stream', 'error')
-        } finally {
-          setTearingDownIds(prev => { const next = new Set(prev); next.delete(id); return next })
-        }
-      },
-    })
   }
 
   function handleDiscoverWork() {
@@ -912,16 +531,16 @@ export function App() {
             loading={delegatorData.loading}
             items={queue.items}
             onRefresh={delegatorData.refresh}
-            onSendMessage={handleSendMessage}
+            onSendMessage={actions.handleSendMessage}
           />
         ) : activeTab === 'sessions' ? (
           <SessionsView
             sessions={sessions}
             items={queue.items}
-            messagesBySession={messagesBySession}
-            onSendMessage={handleSendMessage}
-            onKillSession={handleKillSession}
-            onReconnectSession={handleReconnectSession}
+            messagesBySession={actions.messagesBySession}
+            onSendMessage={actions.handleSendMessage}
+            onKillSession={actions.handleKillSession}
+            onReconnectSession={actions.handleReconnectSession}
             onRefreshSessions={() => { refreshSessions(); addToast('Sessions refreshed', 'info') }}
           />
         ) : (
@@ -1071,18 +690,18 @@ export function App() {
                 selectable={selectionMode}
                 selectedIds={selectedIds}
                 onSelect={handleToggleSelect}
-                onStatusChange={handleStatusChange}
-                onActivateStream={handleActivateStream}
-                activatingIds={activatingIds}
+                onStatusChange={actions.handleStatusChange}
+                onActivateStream={actions.handleActivateStream}
+                activatingIds={actions.activatingIds}
                 focusedItemId={focusedItemId}
                 onNavigate={id => setDetailItemId(id)}
-                onReorder={handleReorder}
-                onEdit={handleEdit}
+                onReorder={actions.handleReorder}
+                onEdit={actions.handleEdit}
               />
             ) : viewMode === 'grouped' ? (
               <GroupedList
                 items={filteredItems}
-                onStatusChange={handleStatusChange}
+                onStatusChange={actions.handleStatusChange}
                 onNavigate={id => setDetailItemId(id)}
               />
             ) : viewMode === 'kanban' ? (
@@ -1091,7 +710,7 @@ export function App() {
                   items={filteredItems}
                   sortField={sortField}
                   sortDirection={sortDirection}
-                  onStatusChange={handleStatusChange}
+                  onStatusChange={actions.handleStatusChange}
                   onNavigate={id => setDetailItemId(id)}
                 />
               </div>
@@ -1103,7 +722,7 @@ export function App() {
               sortField={sortField}
               sortDirection={sortDirection}
               sessions={sessions}
-              messagesBySession={messagesBySession}
+              messagesBySession={actions.messagesBySession}
               selectable={selectionMode}
               selectedIds={selectedIds}
               onSelect={handleToggleSelect}
@@ -1116,23 +735,23 @@ export function App() {
               }
               emptyTab={activeTab}
               onAddClick={() => setShowAddForm(true)}
-              onStatusChange={handleStatusChange}
-              onPriorityChange={handlePriorityChange}
-              onDelegatorToggle={handleDelegatorToggle}
-              onEdit={handleEdit}
-              onAddBlocker={handleAddBlocker}
-              onResolveBlocker={handleResolveBlocker}
-              onUnresolveBlocker={handleUnresolveBlocker}
-              onDelete={handleDelete}
-              onDuplicate={handleDuplicate}
-              onActivateStream={handleActivateStream}
-              onTeardownStream={handleTeardownStream}
-              activatingIds={activatingIds}
-              tearingDownIds={tearingDownIds}
-              onPrUrlChange={handlePrUrlChange}
-              onGeneratePlan={handleGeneratePlan}
-              onReorder={handleReorder}
-              onSendMessage={handleSendMessage}
+              onStatusChange={actions.handleStatusChange}
+              onPriorityChange={actions.handlePriorityChange}
+              onDelegatorToggle={actions.handleDelegatorToggle}
+              onEdit={actions.handleEdit}
+              onAddBlocker={actions.handleAddBlocker}
+              onResolveBlocker={actions.handleResolveBlocker}
+              onUnresolveBlocker={actions.handleUnresolveBlocker}
+              onDelete={actions.handleDelete}
+              onDuplicate={actions.handleDuplicate}
+              onActivateStream={actions.handleActivateStream}
+              onTeardownStream={actions.handleTeardownStream}
+              activatingIds={actions.activatingIds}
+              tearingDownIds={actions.tearingDownIds}
+              onPrUrlChange={actions.handlePrUrlChange}
+              onGeneratePlan={actions.handleGeneratePlan}
+              onReorder={actions.handleReorder}
+              onSendMessage={actions.handleSendMessage}
             />
             )}
             </div>
@@ -1179,14 +798,14 @@ export function App() {
       />
       <ScrollToTop scrollContainer={mainRef.current} />
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
-      {confirmAction && (
+      {actions.confirmAction && (
         <ConfirmDialog
-          title={confirmAction.title}
-          message={confirmAction.message}
-          confirmLabel={confirmAction.confirmLabel}
-          danger={confirmAction.danger}
-          onConfirm={confirmAction.onConfirm}
-          onCancel={() => setConfirmAction(null)}
+          title={actions.confirmAction.title}
+          message={actions.confirmAction.message}
+          confirmLabel={actions.confirmAction.confirmLabel}
+          danger={actions.confirmAction.danger}
+          onConfirm={actions.confirmAction.onConfirm}
+          onCancel={() => actions.setConfirmAction(null)}
         />
       )}
       {settingsOpen && (
@@ -1232,9 +851,9 @@ export function App() {
       {showSessions && (
         <SessionsPanel
           sessions={sessions}
-          messagesBySession={messagesBySession}
+          messagesBySession={actions.messagesBySession}
           onClose={() => setShowSessions(false)}
-          onSendMessage={handleSendMessage}
+          onSendMessage={actions.handleSendMessage}
         />
       )}
       {detailItemId && (() => {
@@ -1246,9 +865,9 @@ export function App() {
             sessions={sessions}
             delegator={delegatorData.delegators.find(d => d.item_id === detailItemId)}
             onClose={() => setDetailItemId(null)}
-            onStatusChange={(id, status) => { handleStatusChange(id, status); setDetailItemId(null) }}
-            onDelete={(id) => { handleDelete(id); setDetailItemId(null) }}
-            onDuplicate={(id) => { handleDuplicate(id); setDetailItemId(null) }}
+            onStatusChange={(id, status) => { actions.handleStatusChange(id, status); setDetailItemId(null) }}
+            onDelete={(id) => { actions.handleDelete(id); setDetailItemId(null) }}
+            onDuplicate={(id) => { actions.handleDuplicate(id); setDetailItemId(null) }}
             onUpdate={async (id, fields) => {
               try {
                 await fetch('/api/queue/update', {
@@ -1275,11 +894,11 @@ export function App() {
                 addToast('Failed to save notes', 'error')
               }
             }}
-            onActivateStream={handleActivateStream}
-            onTeardownStream={handleTeardownStream}
-            onSendMessage={handleSendMessage}
-            onDelegatorToggle={handleDelegatorToggle}
-            onGeneratePlan={handleGeneratePlan}
+            onActivateStream={actions.handleActivateStream}
+            onTeardownStream={actions.handleTeardownStream}
+            onSendMessage={actions.handleSendMessage}
+            onDelegatorToggle={actions.handleDelegatorToggle}
+            onGeneratePlan={actions.handleGeneratePlan}
             onRefresh={() => queue.refresh()}
           />
         )
@@ -1290,7 +909,7 @@ export function App() {
           sessionsWithItems={sessionsWithItems}
           onClose={() => setShowCommandPalette(false)}
           onNavigateToItem={handleNavigateToItem}
-          onStatusChange={handleStatusChange}
+          onStatusChange={actions.handleStatusChange}
           onAddItem={() => setShowAddForm(true)}
           onOpenSettings={() => setSettingsOpen(true)}
           onRefresh={() => { queue.refresh(); addToast('Queue refreshed', 'info') }}
@@ -1298,13 +917,13 @@ export function App() {
           onMessageSession={(sessionId) => {
             setShowCommandPalette(false)
             const text = prompt(`Message to session ${sessionId.slice(0, 8)}:`)
-            if (text) handleSendMessage(sessionId, text)
+            if (text) actions.handleSendMessage(sessionId, text)
           }}
           onGoToSessions={() => setActiveTab('sessions')}
           onToggleViewMode={() => setViewMode(prev => prev === 'cards' ? 'compact' : prev === 'compact' ? 'grouped' : prev === 'grouped' ? 'kanban' : 'cards')}
           onDiscoverWork={handleDiscoverWork}
           onHealthCheck={() => setShowHealthPanel(true)}
-          onActivateStream={handleActivateStream}
+          onActivateStream={actions.handleActivateStream}
           onRunScheduler={handleRunScheduler}
           onTrainProfile={handleTrainProfile}
         />

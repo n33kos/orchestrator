@@ -45,6 +45,10 @@ delegator:
   training_mode: true
   communication: text
   cycle_interval: 900  # seconds between monitoring cycle triggers
+  default_model: haiku
+  review_model: opus
+  transcript_lines_triage: 100
+  transcript_lines_deep: 500
 
 # Branch Naming
 branches:

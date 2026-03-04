@@ -33,20 +33,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Read item
-ITEM_JSON="$(python3 -c "
-import json, sys
-with open('$QUEUE_FILE') as f:
-    data = json.load(f)
-item = next((i for i in data['items'] if i['id'] == '$ITEM_ID'), None)
-if not item:
-    print('ERROR: Item $ITEM_ID not found', file=sys.stderr)
-    sys.exit(1)
-print(json.dumps(item))
-")"
-
-ITEM_TITLE="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['title'])")"
-SESSION_ID="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('session_id', '') or '')")"
-DELEGATOR_ID="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('delegator_id', '') or '')")"
+QUEUE_PY="python3 -m lib.queue"
+IFS=$'\t' read -r ITEM_TITLE SESSION_ID DELEGATOR_ID \
+    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" title session_id delegator_id)
 
 echo "Suspending: $ITEM_TITLE ($ITEM_ID)"
 
@@ -69,22 +58,8 @@ if [[ -n "$SESSION_ID" ]]; then
     $VMUX kill "$SESSION_ID" 2>&1 || echo "  Session already stopped"
 fi
 
-# Update queue: move to review, clear session/delegator IDs but keep worktree_path
-python3 -c "
-import json
-with open('$QUEUE_FILE') as f:
-    data = json.load(f)
-for item in data['items']:
-    if item['id'] == '$ITEM_ID':
-        item['status'] = '$TARGET_STATUS'
-        item['session_id'] = None
-        item['delegator_id'] = None
-        # worktree_path is preserved so we can resume later
-        break
-with open('$QUEUE_FILE', 'w') as f:
-    json.dump(data, f, indent=2)
-    f.write('\n')
-"
+# Update queue: move to target status, clear session/delegator IDs but keep worktree_path
+cd "$SCRIPT_DIR" && $QUEUE_PY update "$ITEM_ID" status="$TARGET_STATUS" session_id=NULL delegator_id=NULL
 
 echo "  Status: $TARGET_STATUS (session + delegator killed, worktree preserved)"
 emit_event "stream.suspended" "Suspended ($TARGET_STATUS): $ITEM_TITLE" --item-id "$ITEM_ID"

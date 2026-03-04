@@ -10,10 +10,11 @@ interface HealthIssue {
 }
 
 interface DelegatorInfo {
-  id: string
   item_id: string
-  status: string
-  last_check?: string
+  health: { status: string }
+  cycle_count: number
+  last_cycle_at: string | null
+  cycle_running: boolean
 }
 
 interface HealthData {
@@ -204,11 +205,14 @@ export function HealthPanel({ onClose, onAutoRecover }: HealthPanelProps) {
                 </h3>
                 {delegators.map(d => (
                   <div key={d.item_id} className={styles.DelegatorRow}>
-                    <span className={`${styles.DelegatorDot} ${styles[`deleg_${d.status}`] || ''}`} />
+                    <span className={`${styles.DelegatorDot} ${styles[`deleg_${d.health?.status}`] || ''}`} />
                     <span className={styles.DelegatorId}>{d.item_id}</span>
-                    <span className={styles.DelegatorStatus}>{d.status}</span>
-                    {d.last_check && (
-                      <span className={styles.DelegatorTime}>{new Date(d.last_check).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className={styles.DelegatorStatus}>
+                      {d.cycle_running ? 'Running' : d.health?.status || 'unknown'}
+                      {d.cycle_count > 0 ? ` (${d.cycle_count} cycles)` : ''}
+                    </span>
+                    {d.last_cycle_at && (
+                      <span className={styles.DelegatorTime}>{new Date(d.last_cycle_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     )}
                   </div>
                 ))}
