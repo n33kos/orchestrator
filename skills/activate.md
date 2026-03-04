@@ -24,7 +24,7 @@ Options:
 4. If activation fails due to concurrency limits, tell the user which items are active and ask if they want to pause one
 
 ## Important
-- Respect the concurrency limit (default: 2 active projects)
-- Quick fixes bypass the concurrency limit
-- The item must have a branch name configured before activation
+- Respect the unified concurrency limit (`max_active` in config)
+- The item must have a branch name configured before activation (for Graphite stacks, this is the branch prefix)
 - If the branch name is empty, ask the user for one and update the item first
+- Graphite stack items (`metadata.pr_type: graphite_stack`) use Rostrum with `--quick` and discover the worktree path via `git worktree list` — the script handles this automatically

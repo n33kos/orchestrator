@@ -12,12 +12,13 @@ When activating a work item or when the user asks to spin up a new environment:
 
 1. **Create the worktree** (must run from the main repo directory):
    - **Standard items**: `cd $CONFIG_REPO_PATH && rostrum setup <branch-name>` (use `--quick` to skip dependency install and build)
-   - **Graphite stacks** (`metadata.pr_type: graphite_stack`): `git worktree add <path> main` — Rostrum is NOT used; the worktree starts on main and `gt create` handles branching per step
+   - **Graphite stacks** (`metadata.pr_type: graphite_stack`): `cd $CONFIG_REPO_PATH && rostrum setup <branch-prefix> --quick` — Rostrum creates the worktree on a branch matching the prefix (e.g., `nas/heartbeat/npm-extraction`), then `gt create` handles per-step branching from there
 
 2. **Spawn a session** in the new worktree:
    ```bash
-   vmux spawn $CONFIG_WORKTREE_PREFIX<branch-name>
+   vmux spawn <worktree-path>
    ```
+   The worktree path is discovered via `git worktree list --porcelain` after Rostrum creates it. NEVER construct the path manually — Rostrum may hash directory names.
 
 3. **Initialize delegator** (if `delegator_enabled` for this item) — creates state directory and `state.json`
 
@@ -27,7 +28,9 @@ When activating a work item or when the user asks to spin up a new environment:
 
 Items with `metadata.pr_type: graphite_stack` and `metadata.stack_steps` follow a special flow:
 
-- Worktree is created from `main` (not from a feature branch)
+- Worktree is created via Rostrum: `rostrum setup <branch-prefix> --quick` from the main repo directory
+- The branch prefix (e.g., `nas/heartbeat/npm-extraction`) is passed to Rostrum, which creates the worktree and checks out a branch with that name
+- Rostrum handles path naming and hashing — NEVER construct worktree paths manually; use `git worktree list --porcelain` to discover the actual path
 - The task message includes per-step instructions with branch names derived from `branch/{position}/{suffix}`
 - Worker uses `gt create <branch> --message "<desc>"` for each step
 - After all steps: `gt submit --stack` to push and create PRs
@@ -96,6 +99,6 @@ Delegators are **not** persistent sessions. They are stateless `claude --print` 
 
 ## Important Notes
 
-- Worktree branch names become directory suffixes: branch `my-feature` creates `<worktree_prefix>my-feature`
+- Rostrum manages worktree paths (which may be hashed) — always use `git worktree list --porcelain` to discover actual paths rather than constructing them from the prefix
 - If a branch is already checked out in another worktree, setup will fail — use the open command instead
 - The relay session ID is derived from the working directory, so each worktree gets a unique session
