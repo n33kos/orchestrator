@@ -96,8 +96,10 @@ if [[ -n "$LOCAL_DIR" ]]; then
         echo "  Already exists: $LOCAL_DIR"
     fi
     WORKTREE_PATH="$LOCAL_DIR"
-# Cross-repo items use the custom repo path directly (no worktree)
-elif [[ -n "$CUSTOM_REPO" ]]; then
+# Cross-repo items use the custom repo path directly (no worktree).
+# Only applies when repo_path differs from the main configured repo —
+# if they match, fall through to the standard/graphite worktree flow.
+elif [[ -n "$CUSTOM_REPO" && "$(cd "$CUSTOM_REPO" 2>/dev/null && pwd -P)" != "$(cd "$REPO_PATH" 2>/dev/null && pwd -P)" ]]; then
     if [[ ! -d "$CUSTOM_REPO" ]]; then
         echo "ERROR: Custom repo path does not exist: $CUSTOM_REPO" >&2
         exit 1
