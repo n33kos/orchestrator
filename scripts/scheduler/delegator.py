@@ -383,8 +383,8 @@ def trigger_delegator_cycles(cfg: Config, dry_run: bool) -> None:
 import json, sys, re
 try:
     text = open('$TRIAGE_OUTPUT').read().strip()
-    # Extract JSON from markdown code fences if present
-    m = re.search(r'\x60\x60\x60(?:json)?\s*\n(.*?)\n\x60\x60\x60', text, re.DOTALL)
+    fence = chr(96)*3
+    m = re.search(fence + r'(?:json)?\s*\n(.*?)\n' + fence, text, re.DOTALL)
     if m:
         text = m.group(1).strip()
     data = json.loads(text)
