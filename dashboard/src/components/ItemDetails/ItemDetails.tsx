@@ -53,7 +53,6 @@ function formatItemSummary(item: WorkItem): string {
     `ID: ${item.id}`,
     `Status: ${item.status}`,
     `Priority: ${item.priority}`,
-    `Type: ${item.type}`,
     item.branch ? `Branch: ${item.branch}` : '',
     item.pr_url ? `PR: ${item.pr_url}` : '',
     item.description ? `\nDescription:\n${item.description}` : '',
@@ -713,10 +712,6 @@ export function ItemDetails({
           </div>
         </div>
         <div className={styles.MetaGridItem}>
-          <span className={styles.MetaGridLabel}>Type</span>
-          <span className={styles.MetaGridValue}>{item.type === 'project' ? 'Project' : 'Quick Fix'}</span>
-        </div>
-        <div className={styles.MetaGridItem}>
           <span className={styles.MetaGridLabel}>Source</span>
           <span className={styles.MetaGridValue}>{item.source}</span>
         </div>
@@ -848,7 +843,7 @@ export function ItemDetails({
               {activating ? 'Activating...' : onActivateStream ? 'Activate Stream' : 'Activate'}
             </button>
           )}
-          {item.status === 'planning' && !planApproved && item.type === 'quick_fix' && (
+          {item.status === 'planning' && !planApproved && (
             <button
               className={styles.ActionButtonText}
               onClick={() => onActivateStream ? onActivateStream(item.id) : onStatusChange(item.id, 'active')}

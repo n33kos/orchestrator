@@ -105,6 +105,11 @@ emit('CONFIG_PROFILE_FILE', expand(values.get('state.profile_file', '')))
 # Concurrency
 emit('CONFIG_MAX_ACTIVE_PROJECTS', values.get('concurrency.max_active_projects', '2'))
 emit('CONFIG_QUICK_FIX_LIMIT', values.get('concurrency.quick_fix_limit', 'unlimited'))
+# Unified limit: explicit max_active or sum of legacy values
+_max_p = int(values.get('concurrency.max_active_projects', '2'))
+_qf = values.get('concurrency.quick_fix_limit', 'unlimited')
+_qf_n = 999 if _qf == 'unlimited' else int(_qf)
+emit('CONFIG_MAX_ACTIVE', values.get('concurrency.max_active', str(_max_p + _qf_n)))
 
 # Autonomy
 emit('CONFIG_AUTO_ACTIVATE', values.get('autonomy.auto_activate', 'false'))

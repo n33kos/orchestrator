@@ -9,6 +9,7 @@ With --dry-run, shows what would be activated without doing it.
 """
 
 import argparse
+import fcntl
 import os
 import shutil
 import signal
@@ -36,9 +37,27 @@ from scripts.scheduler.delegator import (
 )
 
 PID_FILE = os.path.expanduser("~/.claude/orchestrator/scheduler.pid")
+LOCK_FILE = os.path.expanduser("~/.claude/orchestrator/scheduler.lock")
 LOG_FILE = os.path.expanduser("~/.claude/orchestrator/logs/scheduler.log")
 LOG_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
 LOG_BACKUP_COUNT = 3
+
+# Held for process lifetime; released automatically on exit (even SIGKILL).
+_lock_fd = None
+
+
+def acquire_instance_lock():
+    """Acquire an exclusive file lock to prevent duplicate scheduler instances."""
+    global _lock_fd
+    Path(LOCK_FILE).parent.mkdir(parents=True, exist_ok=True)
+    _lock_fd = open(LOCK_FILE, "w")
+    try:
+        fcntl.flock(_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _lock_fd.write(str(os.getpid()))
+        _lock_fd.flush()
+    except BlockingIOError:
+        print("[scheduler] Another instance is already running. Exiting.")
+        sys.exit(0)
 
 
 def rotate_scheduler_log():
@@ -114,6 +133,7 @@ def main():
     # Derive project root from this file's location
     project_root = str(Path(__file__).resolve().parent.parent.parent)
 
+    acquire_instance_lock()
     write_pid()
     signal.signal(signal.SIGUSR1, _sigusr1_handler)
     signal.signal(signal.SIGTERM, _shutdown_handler)
@@ -155,7 +175,7 @@ def main():
             f"[scheduler] Poll interval: {cfg.poll_interval}s | "
             f"Delegator cycle: {cfg.delegator_cycle_interval}s "
             f"(every {delegator_trigger_every} cycles) | "
-            f"Max active: {cfg.max_active_projects} | "
+            f"Max active: {cfg.max_active} | "
             f"Auto-activate: {cfg.auto_activate}"
         )
         print()

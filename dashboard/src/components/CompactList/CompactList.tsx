@@ -178,7 +178,6 @@ export function CompactList({ items, selectable, selectedIds, onSelect, onStatus
                   {blockedByCount}
                 </span>
               )}
-              <span className={styles.TypeTag}>{item.type === 'project' ? 'P' : 'QF'}</span>
             </span>
             <span className={styles.ColStatus}>
               <StatusBadge status={item.status} />

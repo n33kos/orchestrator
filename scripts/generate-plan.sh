@@ -57,7 +57,6 @@ CUSTOM_REPO="$(echo "$CUSTOM_REPO" | sed "s|~|$HOME|")"
 TARGET_REPO="${CUSTOM_REPO:-$REPO_PATH}"
 
 echo "Generating plan for: $ITEM_TITLE ($ITEM_ID)"
-echo "  Type: $ITEM_TYPE"
 echo "  Repo: $TARGET_REPO"
 echo "  Plans dir: $PLANS_DIR"
 echo ""
@@ -70,7 +69,6 @@ Work item:
 - ID: $ITEM_ID
 - Title: $ITEM_TITLE
 - Description: $ITEM_DESC
-- Type: $ITEM_TYPE
 - Branch: $ITEM_BRANCH
 - Repository: $TARGET_REPO
 
@@ -78,8 +76,7 @@ Generate a plan document with:
 1. A title header matching the work item title
 2. A "Summary" section with 1-3 sentences describing the implementation approach
 3. A "Steps" section with concrete, actionable steps as a numbered checklist (use - [ ] format)
-   - Projects: 3-8 steps
-   - Quick fixes: 1-3 steps
+   - Scale the number of steps to the scope of the work (1-8 steps)
 4. Each step should be completable by a single Claude Code session
 5. Reference specific file paths or patterns when possible
 

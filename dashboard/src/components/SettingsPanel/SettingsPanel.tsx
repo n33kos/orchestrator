@@ -134,8 +134,8 @@ export function SettingsPanel({
           <div className={styles.Group}>
             <h3 className={styles.GroupTitle}>Concurrency</h3>
             <SettingRow
-              label="Max projects"
-              description="Maximum concurrent project work streams"
+              label="Max active"
+              description="Maximum concurrent work streams"
             >
               <div className={styles.NumberControl}>
                 <button
@@ -158,44 +158,10 @@ export function SettingsPanel({
                   onClick={() =>
                     onUpdate(
                       "maxConcurrentProjects",
-                      Math.min(8, settings.maxConcurrentProjects + 1),
+                      Math.min(16, settings.maxConcurrentProjects + 1),
                     )
                   }
-                  disabled={settings.maxConcurrentProjects >= 8}
-                >
-                  +
-                </button>
-              </div>
-            </SettingRow>
-            <SettingRow
-              label="Max quick fixes"
-              description="Maximum concurrent quick fix work streams"
-            >
-              <div className={styles.NumberControl}>
-                <button
-                  className={styles.NumberButton}
-                  onClick={() =>
-                    onUpdate(
-                      "maxConcurrentQuickFixes",
-                      Math.max(1, settings.maxConcurrentQuickFixes - 1),
-                    )
-                  }
-                  disabled={settings.maxConcurrentQuickFixes <= 1}
-                >
-                  -
-                </button>
-                <span className={styles.NumberValue}>
-                  {settings.maxConcurrentQuickFixes}
-                </span>
-                <button
-                  className={styles.NumberButton}
-                  onClick={() =>
-                    onUpdate(
-                      "maxConcurrentQuickFixes",
-                      Math.min(16, settings.maxConcurrentQuickFixes + 1),
-                    )
-                  }
-                  disabled={settings.maxConcurrentQuickFixes >= 16}
+                  disabled={settings.maxConcurrentProjects >= 16}
                 >
                   +
                 </button>

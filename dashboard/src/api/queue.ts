@@ -23,7 +23,7 @@ export function registerQueueRoutes(server: ViteDevServer) {
         source: 'manual',
         title: body.title,
         description: body.description || '',
-        type: body.type || 'project',
+        type: body.type || 'work_item',
         priority: body.priority || data.items.length + 1,
         status: 'planning',
         branch: body.branch || '',

@@ -394,7 +394,6 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
             </span>
-            <span className={styles.TypeBadge}>{item.type === 'project' ? 'Project' : 'Quick Fix'}</span>
             {quickAction && (
               <button
                 className={classnames(styles.QuickAction, isBusy && styles.QuickActionBusy)}

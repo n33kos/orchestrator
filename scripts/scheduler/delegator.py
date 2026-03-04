@@ -398,8 +398,10 @@ def trigger_delegator_cycles(cfg: Config, dry_run: bool) -> None:
 
                     echo "  [triage] Invoking Haiku for $ITEM_ID..."
                     claude --print --model haiku \
+                        --settings '{{"hooks":{{}}}}' \
+                        --strict-mcp-config \
                         --system-prompt "$(cat "$TRIAGE_INSTRUCTIONS")" \
-                        < "$CYCLE_JSON" > "$TRIAGE_OUTPUT" 2>/dev/null || exit 1
+                        < "$CYCLE_JSON" > "$TRIAGE_OUTPUT" 2>"$DELEGATOR_DIR/haiku-stderr.log" || exit 1
 
                     # Check decision — extract JSON from potential markdown code fences
                     DECISION=$(python3 -c "
@@ -424,8 +426,10 @@ except Exception:
                         REVIEW_INSTRUCTIONS="$PROJECT_ROOT/delegator/review-instructions.md"
                         ESCALATION_OUTPUT="$DELEGATOR_DIR/escalation-$ITEM_ID.json"
                         claude --print --model opus \
+                            --settings '{{"hooks":{{}}}}' \
+                            --strict-mcp-config \
                             --system-prompt "$(cat "$REVIEW_INSTRUCTIONS")" \
-                            < "$CYCLE_JSON" > "$ESCALATION_OUTPUT" 2>/dev/null && \
+                            < "$CYCLE_JSON" > "$ESCALATION_OUTPUT" 2>"$DELEGATOR_DIR/opus-stderr.log" && \
                             cp "$ESCALATION_OUTPUT" "$TRIAGE_OUTPUT" || true
                         MODEL_FLAG="--model opus"
                     fi

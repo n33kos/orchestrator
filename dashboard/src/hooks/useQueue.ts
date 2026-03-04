@@ -125,8 +125,6 @@ export function useQueue(pollIntervalMs = 5000) {
     }
   }, [fetchQueue])
 
-  const projects = items.filter(i => i.type === 'project')
-  const quickFixes = items.filter(i => i.type === 'quick_fix')
   const activeItems = items.filter(i => i.status === 'active')
   const queuedItems = items.filter(i => i.status === 'queued')
   const planningItems = items.filter(i => i.status === 'planning')
@@ -140,8 +138,6 @@ export function useQueue(pollIntervalMs = 5000) {
 
   return {
     items,
-    projects,
-    quickFixes,
     activeItems,
     queuedItems,
     planningItems,

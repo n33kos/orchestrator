@@ -22,7 +22,7 @@ REPO_PATH="$CONFIG_REPO_PATH"
 WORKTREE_PREFIX="$CONFIG_WORKTREE_PREFIX"
 ROSTRUM="$CONFIG_TOOL_ROSTRUM"
 VMUX="$CONFIG_TOOL_VMUX"
-MAX_ACTIVE="$CONFIG_MAX_ACTIVE_PROJECTS"
+MAX_ACTIVE="$CONFIG_MAX_ACTIVE"
 DELEGATOR_DEFAULT="$CONFIG_DELEGATOR_ENABLED"
 
 # shellcheck source=validate-env.sh
@@ -76,20 +76,17 @@ if [[ "$ITEM_STATUS" != "queued" && "$ITEM_STATUS" != "planning" ]]; then
     exit 1
 fi
 
-# Check concurrency for projects
-if [[ "$ITEM_TYPE" == "project" ]]; then
-    ACTIVE_COUNT="$(cd "$SCRIPT_DIR" && $QUEUE_PY count --status active --type project)"
-    if [[ "$ACTIVE_COUNT" -ge "$MAX_ACTIVE" ]]; then
-        echo "ERROR: Concurrency limit reached ($ACTIVE_COUNT/$MAX_ACTIVE active projects)" >&2
-        exit 1
-    fi
+# Check concurrency (unified limit)
+ACTIVE_COUNT="$(cd "$SCRIPT_DIR" && $QUEUE_PY count --status active)"
+if [[ "$ACTIVE_COUNT" -ge "$MAX_ACTIVE" ]]; then
+    echo "ERROR: Concurrency limit reached ($ACTIVE_COUNT/$MAX_ACTIVE active items)" >&2
+    exit 1
 fi
 
 # Local directory items: no worktree, just spawn session in the directory
 if [[ -n "$LOCAL_DIR" ]]; then
     echo "Activating: $ITEM_TITLE ($ITEM_ID)"
-    echo "  Type: $ITEM_TYPE (local directory)"
-    echo "  Directory: $LOCAL_DIR"
+    echo "  Directory: $LOCAL_DIR (local)"
     echo ""
     echo "Step 1: Preparing local directory..."
     if [[ ! -d "$LOCAL_DIR" ]]; then
@@ -107,8 +104,7 @@ elif [[ -n "$CUSTOM_REPO" ]]; then
     fi
     WORKTREE_PATH="$CUSTOM_REPO"
     echo "Activating: $ITEM_TITLE ($ITEM_ID)"
-    echo "  Type: $ITEM_TYPE (cross-repo)"
-    echo "  Repo: $CUSTOM_REPO"
+    echo "  Repo: $CUSTOM_REPO (cross-repo)"
     echo ""
     echo "Step 1: Using existing repo (no worktree needed)"
     echo "  Path: $WORKTREE_PATH"
@@ -128,8 +124,7 @@ print(json.dumps(steps))
 " <<< "$ITEM_JSON")"
 
     echo "Activating: $ITEM_TITLE ($ITEM_ID)"
-    echo "  Type: $ITEM_TYPE (graphite_stack)"
-    echo "  Branch prefix: $ITEM_BRANCH"
+    echo "  Branch prefix: $ITEM_BRANCH (graphite_stack)"
     echo "  Stack steps: $(echo "$STACK_STEPS_JSON" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")"
 
     # Step 1: Create worktree from main
@@ -164,7 +159,6 @@ else
     fi
 
     echo "Activating: $ITEM_TITLE ($ITEM_ID)"
-    echo "  Type: $ITEM_TYPE"
     echo "  Branch: $ITEM_BRANCH"
 
     # Step 1: Create worktree
@@ -366,7 +360,7 @@ if [[ "$NO_DELEGATOR" == "false" && "$DELEGATOR_ENABLED" != "False" ]]; then
     }
 else
     echo ""
-    echo "Step 4: Delegator skipped (type=$ITEM_TYPE, no_delegator=$NO_DELEGATOR, enabled=$DELEGATOR_ENABLED)"
+    echo "Step 4: Delegator skipped (no_delegator=$NO_DELEGATOR, enabled=$DELEGATOR_ENABLED)"
 fi
 
 echo ""

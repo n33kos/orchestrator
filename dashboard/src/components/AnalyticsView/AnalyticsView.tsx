@@ -43,10 +43,6 @@ export function AnalyticsView({
     completed: items.filter((i) => i.status === "completed").length,
   };
 
-  // Type distribution
-  const projects = items.filter((i) => i.type === "project").length;
-  const quickFixes = items.filter((i) => i.type === "quick_fix").length;
-
   // Priority distribution
   const priorityBuckets = [
     {
@@ -209,20 +205,6 @@ export function AnalyticsView({
         <div className={styles.Card}>
           <h3 className={styles.CardTitle}>Priority Distribution</h3>
           <BarChart bars={priorityBuckets} height={100} />
-        </div>
-
-        <div className={styles.Card}>
-          <h3 className={styles.CardTitle}>Type Breakdown</h3>
-          <div className={styles.TypeRow}>
-            <div className={styles.TypeItem}>
-              <span className={styles.TypeValue}>{projects}</span>
-              <span className={styles.TypeLabel}>Projects</span>
-            </div>
-            <div className={styles.TypeItem}>
-              <span className={styles.TypeValue}>{quickFixes}</span>
-              <span className={styles.TypeLabel}>Quick Fixes</span>
-            </div>
-          </div>
         </div>
 
         <div className={styles.Card}>

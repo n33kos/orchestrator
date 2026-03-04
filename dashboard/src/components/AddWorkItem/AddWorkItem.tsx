@@ -1,7 +1,5 @@
 import { useState } from 'react'
-import classnames from 'classnames'
 import styles from './AddWorkItem.module.scss'
-import type { WorkItemType } from '../../types.ts'
 
 interface AddWorkItemProps {
   onAdd: (item: NewWorkItem) => void
@@ -11,7 +9,7 @@ interface AddWorkItemProps {
 export interface NewWorkItem {
   title: string
   description: string
-  type: WorkItemType
+  type: string
   priority: number
   branch: string
   prType?: 'graphite_stack'
@@ -21,7 +19,6 @@ export interface NewWorkItem {
 export function AddWorkItem({ onAdd, onCancel }: AddWorkItemProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [type, setType] = useState<WorkItemType>('project')
   const [priority, setPriority] = useState(1)
   const [branch, setBranch] = useState('')
   const [isGraphiteStack, setIsGraphiteStack] = useState(false)
@@ -36,8 +33,7 @@ export function AddWorkItem({ onAdd, onCancel }: AddWorkItemProps) {
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
       .slice(0, 50)
-    const prefix = type === 'quick_fix' ? 'fix' : 'feat'
-    setBranch(`${prefix}/${slug}`)
+    setBranch(`feat/${slug}`)
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -46,7 +42,7 @@ export function AddWorkItem({ onAdd, onCancel }: AddWorkItemProps) {
     onAdd({
       title: title.trim(),
       description: description.trim(),
-      type,
+      type: 'work_item',
       priority,
       branch: branch.trim(),
       ...(isGraphiteStack ? { prType: 'graphite_stack' } : {}),
@@ -81,38 +77,16 @@ export function AddWorkItem({ onAdd, onCancel }: AddWorkItemProps) {
         />
       </div>
 
-      <div className={styles.Row}>
-        <div className={styles.Field}>
-          <label className={styles.Label}>Type</label>
-          <div className={styles.TypeToggle}>
-            <button
-              type="button"
-              className={classnames(styles.TypeButton, type === 'project' && styles.TypeActive)}
-              onClick={() => setType('project')}
-            >
-              Project
-            </button>
-            <button
-              type="button"
-              className={classnames(styles.TypeButton, type === 'quick_fix' && styles.TypeActive)}
-              onClick={() => setType('quick_fix')}
-            >
-              Quick Fix
-            </button>
-          </div>
-        </div>
-
-        <div className={styles.Field}>
-          <label className={styles.Label}>Priority</label>
-          <input
-            className={styles.Input}
-            type="number"
-            min={1}
-            max={99}
-            value={priority}
-            onChange={e => setPriority(Number(e.target.value))}
-          />
-        </div>
+      <div className={styles.Field}>
+        <label className={styles.Label}>Priority</label>
+        <input
+          className={styles.Input}
+          type="number"
+          min={1}
+          max={99}
+          value={priority}
+          onChange={e => setPriority(Number(e.target.value))}
+        />
       </div>
 
       <div className={styles.Field}>

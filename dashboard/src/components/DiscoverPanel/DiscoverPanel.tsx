@@ -154,9 +154,6 @@ export function DiscoverPanel({ onClose, onQueueRefresh }: DiscoverPanelProps) {
               <div className={styles.PreviewList}>
                 {preview.map((item, i) => (
                   <div key={i} className={styles.PreviewItem}>
-                    <span className={styles.PreviewType} data-type={item.type}>
-                      {item.type === 'quick_fix' ? 'QF' : 'PRJ'}
-                    </span>
                     <span className={styles.PreviewPriority}>P{item.priority}</span>
                     <span className={styles.PreviewTitle}>{item.title}</span>
                   </div>

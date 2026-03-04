@@ -22,7 +22,7 @@ VMUX="$CONFIG_TOOL_VMUX"
 REPO_PATH="$CONFIG_REPO_PATH"
 ROSTRUM="$CONFIG_TOOL_ROSTRUM"
 WORKTREE_PREFIX="$CONFIG_WORKTREE_PREFIX"
-MAX_ACTIVE="$CONFIG_MAX_ACTIVE_PROJECTS"
+MAX_ACTIVE="$CONFIG_MAX_ACTIVE"
 
 # shellcheck source=validate-env.sh
 source "$SCRIPT_DIR/validate-env.sh"
@@ -54,13 +54,11 @@ LOCAL_DIR="${LOCAL_DIR/#\~/$HOME}"
 
 echo "Resuming: $ITEM_TITLE ($ITEM_ID)"
 
-# Check concurrency
-if [[ "$ITEM_TYPE" == "project" ]]; then
-    ACTIVE_COUNT="$(cd "$SCRIPT_DIR" && $QUEUE_PY count --status active --type project)"
-    if [[ "$ACTIVE_COUNT" -ge "$MAX_ACTIVE" ]]; then
-        echo "ERROR: Concurrency limit reached ($ACTIVE_COUNT/$MAX_ACTIVE active projects)" >&2
-        exit 1
-    fi
+# Check concurrency (unified limit)
+ACTIVE_COUNT="$(cd "$SCRIPT_DIR" && $QUEUE_PY count --status active)"
+if [[ "$ACTIVE_COUNT" -ge "$MAX_ACTIVE" ]]; then
+    echo "ERROR: Concurrency limit reached ($ACTIVE_COUNT/$MAX_ACTIVE active items)" >&2
+    exit 1
 fi
 
 # Resolve worktree path: prefer local_directory, then stored worktree_path, then branch prefix
@@ -144,8 +142,8 @@ if [[ "$MESSAGE_SENT" == "false" ]]; then
     echo "  WARNING: Could not send task instructions after 60s (worker may not have entered standby)" >&2
 fi
 
-# Optionally spawn delegator
-if [[ "$ITEM_TYPE" == "project" && "$NO_DELEGATOR" == "false" && "$DELEGATOR_ENABLED" == "True" ]]; then
+# Optionally spawn delegator (driven by item's delegator_enabled field, not type)
+if [[ "$NO_DELEGATOR" == "false" && "$DELEGATOR_ENABLED" == "True" ]]; then
     echo "  Spawning delegator..."
     "$SCRIPT_DIR/spawn-delegator.sh" "$ITEM_ID" || {
         echo "  WARNING: Failed to spawn delegator" >&2

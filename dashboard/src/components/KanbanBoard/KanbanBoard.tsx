@@ -138,7 +138,6 @@ export function KanbanBoard({ items, sortField = 'priority', sortDirection = 'as
                 </div>
                 <div className={styles.CardMeta}>
                   <span className={styles.CardType}>{item.id.toUpperCase()}</span>
-                  <span className={styles.CardType}>{item.type === 'project' ? 'P' : 'QF'}</span>
                   {(() => {
                     const spendUsd = (item.metadata.spend as { total_usd?: number } | undefined)?.total_usd
                     return spendUsd != null && spendUsd > 0 ? (

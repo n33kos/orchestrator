@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect } from 'react'
 
 export interface OrchestratorSettings {
   maxConcurrentProjects: number
-  maxConcurrentQuickFixes: number
   pollIntervalMs: number
   autoActivate: boolean
   requireApprovedPlan: boolean
@@ -20,7 +19,6 @@ const STORAGE_KEY = 'orchestrator-settings-config'
 // Keys that are synced to environment.yml via the config API
 const CONFIG_SYNCED_KEYS = new Set<keyof OrchestratorSettings>([
   'maxConcurrentProjects',
-  'maxConcurrentQuickFixes',
   'autoActivate',
   'requireApprovedPlan',
   'plansDirectory',
@@ -32,8 +30,7 @@ const CONFIG_SYNCED_KEYS = new Set<keyof OrchestratorSettings>([
 ])
 
 const DEFAULTS: OrchestratorSettings = {
-  maxConcurrentProjects: 2,
-  maxConcurrentQuickFixes: 4,
+  maxConcurrentProjects: 6,
   pollIntervalMs: 5000,
   autoActivate: false,
   requireApprovedPlan: false,

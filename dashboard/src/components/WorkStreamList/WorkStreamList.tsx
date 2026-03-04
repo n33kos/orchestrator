@@ -83,23 +83,11 @@ export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab
             <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
           </svg>
         ),
-        title: 'No projects',
-        description: 'Projects are larger work items that get their own worktree, Claude session, and optional delegator. Add one manually or configure a source to discover them.',
+        title: 'No work items',
+        description: 'Work items get their own worktree, Claude session, and optional delegator. Add one manually or configure a source to discover them.',
         hints: [
-          { label: 'Add a project', desc: 'Press N or click the + button to create one' },
+          { label: 'Add a work item', desc: 'Press N or click the + button to create one' },
           { label: 'Configure sources', desc: 'Set up Jira, GitHub Issues, or Slack as work sources' },
-        ],
-      },
-      quick_fixes: {
-        icon: (
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-          </svg>
-        ),
-        title: 'No quick fixes',
-        description: 'Quick fixes are small, fast tasks that bypass concurrency limits and skip the delegator. They are ideal for one-off bug fixes or minor changes.',
-        hints: [
-          { label: 'Add a quick fix', desc: 'Press N, then select "Quick Fix" as the type' },
         ],
       },
       all: {

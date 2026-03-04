@@ -61,8 +61,7 @@ def check_and_activate(cfg: Config, dry_run: bool) -> None:
     with locked_queue() as ctx:
         data = ctx["data"]
 
-    active_projects = [i for i in data["items"] if i["status"] == "active" and i["type"] == "project"]
-    active_qf = [i for i in data["items"] if i["status"] == "active" and i["type"] == "quick_fix"]
+    active_items = [i for i in data["items"] if i["status"] == "active"]
 
     ready = []
     for i in data["items"]:
@@ -71,7 +70,7 @@ def check_and_activate(cfg: Config, dry_run: bool) -> None:
         has_branch = bool(i.get("branch"))
         has_local_dir = bool(i.get("metadata", {}).get("local_directory"))
         has_repo_path = bool(i.get("metadata", {}).get("repo_path"))
-        if i["type"] == "project" and not (has_branch or has_local_dir or has_repo_path):
+        if not (has_branch or has_local_dir or has_repo_path):
             continue
         # Skip if any blocked_by dependency is not completed
         blocked_by = i.get("blocked_by", [])
@@ -87,12 +86,10 @@ def check_and_activate(cfg: Config, dry_run: bool) -> None:
         ready.append(i)
 
     ready.sort(key=lambda x: x["priority"])
-    slots = max(0, cfg.max_active_projects - len(active_projects))
-    qf_slots = max(0, cfg.quick_fix_limit - len(active_qf))
+    slots = max(0, cfg.max_active - len(active_items))
 
     print(
-        f"[scheduler] Projects: {len(active_projects)}/{cfg.max_active_projects} | "
-        f"Quick fixes: {len(active_qf)}/{cfg.quick_fix_limit} | "
+        f"[scheduler] Active: {len(active_items)}/{cfg.max_active} | "
         f"Ready: {len(ready)} | Slots: {slots}"
     )
 
@@ -101,22 +98,16 @@ def check_and_activate(cfg: Config, dry_run: bool) -> None:
         return
 
     for item in ready:
-        item_id, item_type, item_title = item["id"], item["type"], item["title"]
-        if item_type == "project":
-            if slots <= 0:
-                print(f"[scheduler] Skipping {item_id}: {item_title} (no project slots)")
-                continue
-            slots -= 1
-        elif item_type == "quick_fix":
-            if qf_slots <= 0:
-                print(f"[scheduler] Skipping {item_id}: {item_title} (no quick fix slots)")
-                continue
-            qf_slots -= 1
+        item_id, item_title = item["id"], item["title"]
+        if slots <= 0:
+            print(f"[scheduler] Skipping {item_id}: {item_title} (no slots)")
+            break
+        slots -= 1
 
         if dry_run:
-            print(f"[scheduler] Would activate: {item_id} — {item_title} ({item_type})")
+            print(f"[scheduler] Would activate: {item_id} — {item_title}")
         else:
-            print(f"[scheduler] Activating: {item_id} — {item_title} ({item_type})")
+            print(f"[scheduler] Activating: {item_id} — {item_title}")
             emit_event("scheduler.activating", f"Auto-activating: {item_title}", item_id=item_id)
             try:
                 result = subprocess.run(
@@ -148,26 +139,25 @@ def generate_plans(cfg: Config, dry_run: bool) -> None:
         data = ctx["data"]
 
     for item in data["items"]:
-        if item["status"] == "queued" and item["type"] == "project":
-            if not item.get("metadata", {}).get("plan"):
-                item_id, item_title = item["id"], item["title"]
-                if dry_run:
-                    print(f"[scheduler] Would generate plan for: {item_id} — {item_title}")
-                else:
-                    print(f"[scheduler] Generating plan for: {item_id} — {item_title}")
-                    args = ["bash", os.path.join(SCRIPTS_DIR, "generate-plan.sh"), item_id]
-                    if cfg.auto_approve_plans:
-                        args.append("--auto-approve")
-                    try:
-                        result = subprocess.run(args, capture_output=True, text=True, timeout=60, env=EXEC_ENV)
-                        if result.stdout:
-                            for line in result.stdout.strip().split("\n"):
-                                print(f"  {line}")
-                        if result.returncode != 0:
-                            print(f"[scheduler] ERROR: Failed to generate plan for {item_id}", file=sys.stderr)
-                            emit_event("scheduler.error", f"Failed to generate plan for {item_id}", item_id=item_id, severity="error")
-                    except subprocess.TimeoutExpired:
-                        pass
+        if item["status"] == "queued" and not item.get("metadata", {}).get("plan"):
+            item_id, item_title = item["id"], item["title"]
+            if dry_run:
+                print(f"[scheduler] Would generate plan for: {item_id} — {item_title}")
+            else:
+                print(f"[scheduler] Generating plan for: {item_id} — {item_title}")
+                args = ["bash", os.path.join(SCRIPTS_DIR, "generate-plan.sh"), item_id]
+                if cfg.auto_approve_plans:
+                    args.append("--auto-approve")
+                try:
+                    result = subprocess.run(args, capture_output=True, text=True, timeout=60, env=EXEC_ENV)
+                    if result.stdout:
+                        for line in result.stdout.strip().split("\n"):
+                            print(f"  {line}")
+                    if result.returncode != 0:
+                        print(f"[scheduler] ERROR: Failed to generate plan for {item_id}", file=sys.stderr)
+                        emit_event("scheduler.error", f"Failed to generate plan for {item_id}", item_id=item_id, severity="error")
+                except subprocess.TimeoutExpired:
+                    pass
 
 
 def check_planning_timeouts(cfg: Config) -> None:
@@ -523,7 +513,8 @@ def _send_task_instructions(cfg: Config, item_id: str, session_id: str) -> None:
         title = parts[0] if len(parts) > 0 else ""
         branch = parts[1] if len(parts) > 1 else ""
         plan_file = parts[2] if len(parts) > 2 else ""
-        plan_file = plan_file.replace("~", os.path.expanduser("~"))
+        if plan_file.startswith("~"):
+            plan_file = os.path.expanduser(plan_file)
 
         if not plan_file or plan_file == "None":
             plan_file = os.path.expanduser(f"~/.claude/orchestrator/plans/{item_id}.md")
@@ -536,8 +527,10 @@ def _send_task_instructions(cfg: Config, item_id: str, session_id: str) -> None:
             f"Status: Activating now — follow the plan steps in order."
         )
 
-        # Retry sending until the session enters standby (up to 12 × 5s = 60s)
-        for attempt in range(1, 13):
+        # Retry sending until the session enters standby (up to 3 × 5s = 15s).
+        # Keep retries short to avoid blocking the scheduler cycle — if the
+        # session isn't ready yet, the next reconciliation cycle will retry.
+        for attempt in range(1, 4):
             try:
                 send_result = subprocess.run(
                     [cfg.tool_vmux, "send", session_id, task_message],
@@ -548,9 +541,9 @@ def _send_task_instructions(cfg: Config, item_id: str, session_id: str) -> None:
                     return
             except Exception:
                 pass
-            if attempt < 12:
+            if attempt < 3:
                 time.sleep(5)
 
-        print(f"[reconcile] WARNING: Could not send task instructions to {item_id} after 60s", file=sys.stderr)
+        print(f"[reconcile] WARNING: Could not send task instructions to {item_id} after 15s (will retry next cycle)", file=sys.stderr)
     except Exception as e:
         print(f"[reconcile] WARNING: Failed to send task instructions to {item_id}: {e}", file=sys.stderr)
