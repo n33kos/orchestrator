@@ -26,18 +26,55 @@ def _path_to_session_id(path: str) -> str:
     return expanded.replace("/", "-").replace(".", "-")
 
 
+_PRICING_STAMP = os.path.expanduser("~/.claude/orchestrator/.ccusage-last-online")
+_PRICING_REFRESH_SECONDS = 86400  # 24 hours
+
+
+def _needs_pricing_refresh() -> bool:
+    """Check if we should run ccusage without --offline to refresh pricing."""
+    try:
+        mtime = os.path.getmtime(_PRICING_STAMP)
+        age = datetime.now(timezone.utc).timestamp() - mtime
+        return age >= _PRICING_REFRESH_SECONDS
+    except FileNotFoundError:
+        return True
+
+
+def _mark_pricing_refreshed() -> None:
+    """Touch the stamp file to record a successful pricing refresh."""
+    os.makedirs(os.path.dirname(_PRICING_STAMP), exist_ok=True)
+    with open(_PRICING_STAMP, "w") as f:
+        f.write(datetime.now(timezone.utc).isoformat())
+
+
 def _fetch_ccusage_sessions() -> list[dict]:
-    """Run ccusage and return list of session objects."""
+    """Run ccusage and return list of session objects.
+
+    Uses --offline by default. Once per day, runs without --offline to
+    refresh the pricing cache from the network.
+    """
+    use_offline = not _needs_pricing_refresh()
+    cmd = ["npx", "ccusage", "session", "--json"]
+    if use_offline:
+        cmd.append("--offline")
+    else:
+        print("[spend] Refreshing pricing data (daily online fetch)")
+
     try:
         result = subprocess.run(
-            ["npx", "ccusage", "session", "--json", "--offline"],
-            capture_output=True, text=True, timeout=30,
+            cmd,
+            capture_output=True, text=True, timeout=60 if not use_offline else 30,
             env={**os.environ, "HOME": os.path.expanduser("~")},
         )
         if result.returncode != 0:
             print(f"[spend] ccusage failed (rc={result.returncode}): {result.stderr[:200]}")
             return []
         data = json.loads(result.stdout)
+
+        # Mark pricing refreshed on successful online fetch
+        if not use_offline:
+            _mark_pricing_refreshed()
+
         return data.get("sessions", [])
     except subprocess.TimeoutExpired:
         print("[spend] ccusage timed out")
