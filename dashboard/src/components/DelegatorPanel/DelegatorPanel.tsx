@@ -31,6 +31,43 @@ const statusLabels: Record<string, { label: string; cls: string }> = {
   completed: { label: 'Completed', cls: 'statusDone' },
 }
 
+function parseTriageOutput(raw: unknown): { decision: string; reason: string } | null {
+  if (raw == null) return null
+
+  let obj: Record<string, unknown> | null = null
+
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    obj = raw as Record<string, unknown>
+  } else if (typeof raw === 'string') {
+    // May be raw JSON or wrapped in markdown code fences
+    let trimmed = raw.trim()
+    const fenceMatch = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)```/)
+    if (fenceMatch) {
+      trimmed = fenceMatch[1].trim()
+    }
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+        obj = parsed
+      }
+    } catch {
+      return null
+    }
+  }
+
+  if (!obj || !obj.decision) return null
+  return {
+    decision: String(obj.decision),
+    reason: obj.reason ? String(obj.reason) : '',
+  }
+}
+
+const decisionStyles: Record<string, string> = {
+  no_action: 'decisionMuted',
+  handle: 'decisionHandle',
+  escalate: 'decisionEscalate',
+}
+
 function CollapsibleJson({ label, data }: { label: string; data: unknown }) {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -261,6 +298,24 @@ export function DelegatorPanel({ delegators, loading, items, onRefresh }: Delega
                     </div>
                   </div>
                 )}
+
+                {(() => {
+                  const triage = parseTriageOutput(d.lastTriageOutput)
+                  if (!triage) return null
+                  const cls = decisionStyles[triage.decision] || 'decisionMuted'
+                  return (
+                    <div className={styles.TriageRow}>
+                      <span className={styles.TriageLabel}>Decision:</span>
+                      <span className={classnames(styles.TriageBadge, styles[cls])}>{triage.decision}</span>
+                      {triage.reason && (
+                        <>
+                          <span className={styles.TriageLabel}>Reason:</span>
+                          <span className={styles.TriageReason}>{triage.reason}</span>
+                        </>
+                      )}
+                    </div>
+                  )
+                })()}
 
                 <CollapsibleJson label="Last Cycle Payload" data={d.lastCyclePayload} />
                 <CollapsibleJson label="Last Triage Output" data={d.lastTriageOutput} />

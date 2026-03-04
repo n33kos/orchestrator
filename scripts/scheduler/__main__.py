@@ -10,6 +10,7 @@ With --dry-run, shows what would be activated without doing it.
 
 import argparse
 import os
+import shutil
 import signal
 import sys
 import time
@@ -34,6 +35,43 @@ from scripts.scheduler.delegator import (
 )
 
 PID_FILE = os.path.expanduser("~/.claude/orchestrator/scheduler.pid")
+LOG_FILE = os.path.expanduser("~/.claude/orchestrator/logs/scheduler.log")
+LOG_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
+LOG_BACKUP_COUNT = 3
+
+
+def rotate_scheduler_log():
+    """Rotate the scheduler log file if it exceeds LOG_MAX_BYTES.
+
+    Keeps up to LOG_BACKUP_COUNT rotated copies:
+      scheduler.log.1, scheduler.log.2, scheduler.log.3
+    """
+    log_path = Path(LOG_FILE)
+    if not log_path.exists():
+        return
+    try:
+        size = log_path.stat().st_size
+    except OSError:
+        return
+    if size < LOG_MAX_BYTES:
+        return
+
+    # Shift existing backups: .3 is deleted, .2 -> .3, .1 -> .2
+    for i in range(LOG_BACKUP_COUNT, 0, -1):
+        src = Path(f"{LOG_FILE}.{i}")
+        if i == LOG_BACKUP_COUNT:
+            src.unlink(missing_ok=True)
+        elif src.exists():
+            dst = Path(f"{LOG_FILE}.{i + 1}")
+            shutil.move(str(src), str(dst))
+
+    # Move current log to .1
+    shutil.move(str(log_path), f"{LOG_FILE}.1")
+
+    # Create a fresh empty log file
+    log_path.touch()
+    print(f"[scheduler] Rotated log file ({size / 1024 / 1024:.1f} MB exceeded limit)")
+
 
 # Global flags for signal handling
 _config_changed = False
@@ -80,6 +118,9 @@ def main():
     signal.signal(signal.SIGINT, _shutdown_handler)
 
     try:
+        # Rotate log at startup
+        rotate_scheduler_log()
+
         cfg = load_config(project_root)
 
         if args.cleanup:
@@ -144,6 +185,7 @@ def main():
             if cycle % cfg.cleanup_every == 0:
                 cleanup_completed(cfg)
                 rotate_event_log(cfg)
+                rotate_scheduler_log()
 
             print(f"[scheduler] Next check in {cfg.poll_interval}s...")
 

@@ -18,3 +18,4 @@ scripts/__pycache__/
 # User-specific config overrides
 config/environment.local.yml
 config/sources.local.yml
+__pycache__/

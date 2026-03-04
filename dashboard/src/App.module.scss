@@ -3,7 +3,6 @@
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  margin-top: 16px;
 }
 
 .Main {
@@ -126,6 +125,38 @@
   &:hover {
     background: var(--color-surface-hover);
     color: var(--color-text);
+  }
+}
+
+.AddButton {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+  }
+}
+
+.AddButtonActive {
+  background: var(--color-accent);
+  color: #fff;
+  border-color: var(--color-accent);
+
+  &:hover {
+    opacity: 0.9;
   }
 }
 

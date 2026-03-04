@@ -36,6 +36,7 @@ import { GlobalSearch } from './components/GlobalSearch/GlobalSearch.tsx'
 import { AnalyticsView } from './components/AnalyticsView/AnalyticsView.tsx'
 import { DelegatorPanel } from './components/DelegatorPanel/DelegatorPanel.tsx'
 import { DiscoverPanel } from './components/DiscoverPanel/DiscoverPanel.tsx'
+import { SchedulerLog } from './components/SchedulerLog/SchedulerLog.tsx'
 import { useDelegators } from './hooks/useDelegators.ts'
 import { useEvents } from './hooks/useEvents.ts'
 import { BreakpointIndicator } from './components/BreakpointIndicator/BreakpointIndicator.tsx'
@@ -179,6 +180,7 @@ export function App() {
     { id: 'delegators', label: 'Delegators', count: delegatorData.count || undefined, alertCount: delegatorData.alertCount || undefined },
     { id: 'sessions', label: 'Sessions', count: sessions.length, alertCount: zombieCount },
     { id: 'analytics', label: 'Analytics' },
+    { id: 'scheduler-log', label: 'Scheduler Log' },
   ]
 
   const filteredItems = useMemo(() => {
@@ -226,7 +228,7 @@ export function App() {
     }, [queue, addToast]),
     onCommandPalette: useCallback(() => setShowCommandPalette(prev => !prev), []),
     onTabSwitch: useCallback((index: number) => {
-      const tabIds = ['projects', 'delegators', 'sessions', 'analytics']
+      const tabIds = ['projects', 'delegators', 'sessions', 'analytics', 'scheduler-log']
       if (index >= 0 && index < tabIds.length) {
         setActiveTab(tabIds[index])
       }
@@ -508,8 +510,6 @@ export function App() {
         notificationHistory={history}
         orchestratorEvents={orchestratorEvents}
         onClearNotifications={clearHistory}
-        onAddClick={() => setShowAddForm(!showAddForm)}
-        showingAddForm={showAddForm}
         theme={theme}
         onThemeToggle={toggleTheme}
         onSettingsClick={() => setSettingsOpen(true)}
@@ -523,7 +523,9 @@ export function App() {
       <main ref={mainRef} id="main-content" className={`${styles.Main}${viewMode === 'kanban' && activeTab === 'projects' ? ` ${styles.MainNoScroll}` : ''}`}>
         <ErrorBoundary fallbackLabel="The main content area crashed. Try refreshing the page.">
         <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
-        {activeTab === 'analytics' ? (
+        {activeTab === 'scheduler-log' ? (
+          <SchedulerLog />
+        ) : activeTab === 'analytics' ? (
           <AnalyticsView items={queue.items} sessions={sessions} delegators={delegatorData.delegators} events={orchestratorEvents} />
         ) : activeTab === 'delegators' ? (
           <DelegatorPanel
@@ -662,6 +664,17 @@ export function App() {
                     <rect x="3" y="14" width="7" height="7" />
                   </svg>
                 )}
+              </button>
+              <button
+                className={`${styles.AddButton} ${showAddForm ? styles.AddButtonActive : ''}`}
+                onClick={() => setShowAddForm(!showAddForm)}
+                title={showAddForm ? 'Cancel adding' : 'Add work item'}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                Add
               </button>
             </div>
             {showAddForm && (
