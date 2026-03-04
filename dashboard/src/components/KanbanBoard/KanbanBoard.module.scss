@@ -126,13 +126,29 @@
   border-radius: 3px;
 }
 
-.CardBranch {
+.SpendBadge {
   font-size: 10px;
-  color: var(--color-text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
   white-space: nowrap;
-  max-width: 120px;
+  flex-shrink: 0;
+}
+
+.SpendGreen {
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.1);
+}
+
+.SpendYellow {
+  color: #ca8a04;
+  background: rgba(202, 138, 4, 0.1);
+}
+
+.SpendRed {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.1);
 }
 
 .CardTime {

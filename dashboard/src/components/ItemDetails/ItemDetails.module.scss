@@ -1,0 +1,825 @@
+/* ── ItemDetails shared component ── */
+
+.Root {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  &.inline {
+    border-top: 1px solid var(--color-border-subtle);
+    margin-top: 10px;
+    padding-top: 12px;
+    animation: detailsIn 0.2s ease;
+  }
+
+  &.panel {
+    /* Panel variant has no extra chrome — the outer DetailPanel provides that */
+  }
+}
+
+@keyframes detailsIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Section ── */
+.Section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.SectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.SectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+.SectionLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.SectionCount {
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--color-error-muted);
+  color: var(--color-error);
+  padding: 0 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+}
+
+/* ── Edit/Action Buttons ── */
+.EditButton {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-family);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+
+  &:hover {
+    background: var(--color-primary-muted);
+  }
+}
+
+/* ── Dependencies ── */
+.DepList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.DepItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-secondary);
+}
+
+.DepDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-error);
+  flex-shrink: 0;
+  margin-top: 5px;
+
+  &.DepResolved {
+    background: var(--color-success);
+  }
+}
+
+.DepText {
+  flex: 1;
+  min-width: 0;
+}
+
+.DepRemove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-left: auto;
+
+  &:hover {
+    background: var(--color-error-muted);
+    color: var(--color-error);
+  }
+}
+
+/* ── Inline Forms ── */
+.InlineForm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.FormInput {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: 12px;
+
+  &::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-muted);
+  }
+}
+
+.FormTextarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-secondary);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-muted);
+  }
+}
+
+.FormActions {
+  display: flex;
+  gap: 6px;
+}
+
+.SaveButton {
+  padding: 4px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: white;
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    filter: brightness(1.1);
+  }
+}
+
+.CancelButton {
+  padding: 4px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+  }
+}
+
+/* ── Implementation Notes ── */
+.NotesList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.NoteItem {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+  padding: 4px 8px;
+  padding-left: 20px;
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-sm);
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 11px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--color-text-muted);
+  }
+}
+
+.NotesText {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+  padding: 6px 8px;
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-sm);
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+.DescriptionText {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+.EmptyText {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* ── Delegator Assessment ── */
+.AssessmentText {
+  font-size: 13px;
+  color: var(--color-text);
+  line-height: 1.5;
+  margin: 0;
+  padding: 8px 12px;
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--color-primary);
+}
+
+/* ── Plan ── */
+.PlanActions {
+  display: flex;
+  gap: 4px;
+}
+
+.PlanApprovalRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.ApproveButton {
+  padding: 4px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-success);
+  color: white;
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    filter: brightness(1.1);
+  }
+}
+
+.UnapproveButton {
+  padding: 4px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+  }
+}
+
+.PlanFilePath {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.PlanEmpty {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-style: italic;
+  padding: 6px 0;
+}
+
+/* ── PR Section ── */
+.PrSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.PrHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.PrLink {
+  font-size: 13px;
+  font-family: var(--font-mono);
+  color: var(--color-primary);
+  text-decoration: none;
+  word-break: break-all;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.PrLoading {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.PrStatusGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.PrBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--color-surface-hover);
+  color: var(--color-text-secondary);
+
+  &.pr_open {
+    background: var(--color-success-muted, rgba(34, 197, 94, 0.15));
+    color: var(--color-success);
+  }
+
+  &.pr_merged {
+    background: rgba(139, 92, 246, 0.15);
+    color: #8b5cf6;
+  }
+
+  &.pr_closed {
+    background: var(--color-error-muted, rgba(239, 68, 68, 0.15));
+    color: var(--color-error);
+  }
+
+  &.pr_review_approved {
+    background: var(--color-success-muted, rgba(34, 197, 94, 0.15));
+    color: var(--color-success);
+  }
+
+  &.pr_review_changes_requested {
+    background: var(--color-error-muted, rgba(239, 68, 68, 0.15));
+    color: var(--color-error);
+  }
+
+  &.pr_review_review_required {
+    background: var(--color-warning-muted, rgba(234, 179, 8, 0.15));
+    color: var(--color-warning);
+  }
+
+  &.pr_checks_pass {
+    background: var(--color-success-muted, rgba(34, 197, 94, 0.15));
+    color: var(--color-success);
+  }
+
+  &.pr_checks_fail {
+    background: var(--color-error-muted, rgba(239, 68, 68, 0.15));
+    color: var(--color-error);
+  }
+
+  &.pr_checks_pending {
+    background: var(--color-warning-muted, rgba(234, 179, 8, 0.15));
+    color: var(--color-warning);
+  }
+}
+
+.PrStats {
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.PrAdditions {
+  color: var(--color-success);
+}
+
+.PrDeletions {
+  color: var(--color-error);
+}
+
+.PrFiles {
+  color: var(--color-text-secondary);
+}
+
+.PrReviewers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.PrReviewer {
+  font-size: 12px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--color-surface-hover);
+  color: var(--color-text-secondary);
+
+  &.pr_reviewer_approved {
+    color: var(--color-success);
+  }
+
+  &.pr_reviewer_changes_requested {
+    color: var(--color-error);
+  }
+}
+
+.PrEmpty {
+  padding: 4px 0;
+}
+
+.PrUrlInput {
+  font-size: 13px;
+  width: 100%;
+}
+
+/* ── Stack PRs ── */
+.StackList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.StackItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-sm);
+  border-left: 2px solid var(--color-border);
+
+  &:first-child {
+    border-left-color: var(--color-primary);
+  }
+}
+
+.StackItemHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.StackPrLink {
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--color-primary);
+  text-decoration: none;
+  flex-shrink: 0;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.StackPrTitle {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.StackItemMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+/* ── Metadata Grid ── */
+.MetaGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.MetaGridItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  &.MetaGridWide {
+    grid-column: 1 / -1;
+  }
+}
+
+.MetaGridLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.MetaGridValue {
+  font-size: 13px;
+  font-family: var(--font-mono);
+  color: var(--color-text);
+  word-break: break-all;
+}
+
+.BranchRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.CopyButton {
+  display: flex;
+  align-items: center;
+  padding: 2px 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+    border-color: var(--color-primary);
+  }
+}
+
+/* ── Delegator Toggle ── */
+.DelegatorRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.Toggle {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  background: var(--color-surface-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+  flex-shrink: 0;
+
+  &.ToggleOn {
+    background: var(--color-success);
+    border-color: var(--color-success);
+  }
+}
+
+.ToggleKnob {
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 12px;
+  background: var(--color-text-muted);
+  border-radius: 50%;
+  transition: all 0.2s ease;
+
+  .ToggleOn & {
+    left: 16px;
+    background: white;
+  }
+}
+
+/* ── Session ── */
+.SessionCard {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-subtle);
+}
+
+.SessionDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--color-text-muted);
+
+  &.session_standby { background: var(--color-success); }
+  &.session_thinking, &.session_responding { background: var(--color-primary); animation: pulse 1.5s infinite; }
+  &.session_zombie { background: var(--color-error); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.SessionInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.SessionState {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.SessionId {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+.SessionCwd {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  background: var(--color-surface-hover);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Action Bar ── */
+.ActionBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border-subtle);
+
+  @media (max-width: 480px) {
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+}
+
+.PriorityActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.PriorityLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  min-width: 72px;
+  text-align: center;
+}
+
+.ActionButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+  }
+
+  &:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+}
+
+.StatusActions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ActionButtonText {
+  padding: 5px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+  }
+
+  &.ActionDanger {
+    &:hover {
+      background: var(--color-error-muted);
+      color: var(--color-error);
+      border-color: var(--color-error);
+    }
+  }
+
+  &.ActionPrimary {
+    background: var(--color-primary-muted);
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+    font-weight: 600;
+
+    &:hover {
+      background: var(--color-primary);
+      color: white;
+    }
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: wait;
+  }
+}

@@ -1,13 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import styles from './DetailPanel.module.scss'
-import { StatusBadge } from '../StatusBadge/StatusBadge.tsx'
-import { PriorityBadge } from '../PriorityBadge/PriorityBadge.tsx'
-import { ItemNotes } from '../ItemNotes/ItemNotes.tsx'
-import { timeAgo, formatDate } from '../../utils/time.ts'
 import { useFocusTrap } from '../../hooks/useFocusTrap.ts'
-import { usePrStack } from '../../hooks/usePrStatus.ts'
-import type { StackPr } from '../../hooks/usePrStatus.ts'
-import type { WorkItem, WorkItemStatus, SessionInfo, QueueData } from '../../types.ts'
+import { ItemDetails } from '../ItemDetails/ItemDetails.tsx'
+import type { WorkItem, WorkItemStatus, SessionInfo } from '../../types.ts'
 import type { DelegatorStatus } from '../../hooks/useDelegators.ts'
 
 interface DetailPanelProps {
@@ -30,83 +25,25 @@ interface DetailPanelProps {
   onUpdateBlockedBy?: (id: string, blocked_by: string[]) => void
 }
 
-function getNextAction(status: WorkItemStatus): { label: string; nextStatus: WorkItemStatus } | null {
-  if (status === 'queued' || status === 'planning') return { label: 'Activate', nextStatus: 'active' }
-  if (status === 'active') return { label: 'Move to Review', nextStatus: 'review' }
-  if (status === 'review') return { label: 'Complete', nextStatus: 'completed' }
-  if (status === 'paused') return { label: 'Resume', nextStatus: 'active' }
-  return null
-}
-
-function formatItemSummary(item: WorkItem): string {
-  const lines = [
-    `# ${item.title}`,
-    `ID: ${item.id}`,
-    `Status: ${item.status}`,
-    `Priority: ${item.priority}`,
-    `Type: ${item.type}`,
-    item.branch ? `Branch: ${item.branch}` : '',
-    item.pr_url ? `PR: ${item.pr_url}` : '',
-    item.description ? `\nDescription:\n${item.description}` : '',
-    item.blocked_by.length > 0
-      ? `\nBlocked by: ${item.blocked_by.join(', ')}`
-      : '',
-  ]
-  return lines.filter(Boolean).join('\n')
-}
-
 export function DetailPanel({ item, allItems = [], sessions, delegator, onClose, onStatusChange, onUpdate, onDelete, onDuplicate, onNotesChange, onActivateStream, onTeardownStream, onSendMessage, onDelegatorToggle, onGeneratePlan, onRefresh, onUpdateBlockedBy }: DetailPanelProps) {
   const panelRef = useFocusTrap<HTMLDivElement>()
-  const [copied, setCopied] = useState(false)
-  const [editingNotes, setEditingNotes] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
-  const [editingDescription, setEditingDescription] = useState(false)
   const [titleText, setTitleText] = useState(item.title)
-  const [descriptionText, setDescriptionText] = useState(item.description)
-  const [notesText, setNotesText] = useState((item.metadata?.notes as string) || '')
-  const [prStatus, setPrStatus] = useState<{ state?: string; reviewDecision?: string; checks?: string; url?: string } | null>(null)
-  const [messageText, setMessageText] = useState('')
-  const isStack = item.metadata?.pr_type === 'graphite_stack'
-  const { stack: prStack } = usePrStack(item.pr_url, isStack)
-  const notesRef = useRef<HTMLTextAreaElement>(null)
   const titleRef = useRef<HTMLInputElement>(null)
-  const descRef = useRef<HTMLTextAreaElement>(null)
 
-  // Sync state when item prop changes (e.g. after refresh or navigating to different item)
+  // Sync title when item changes
   useEffect(() => { if (!editingTitle) setTitleText(item.title) }, [item.title, editingTitle])
-  useEffect(() => { if (!editingDescription) setDescriptionText(item.description) }, [item.description, editingDescription])
-  useEffect(() => { if (!editingNotes) setNotesText((item.metadata?.notes as string) || '') }, [item.metadata?.notes, editingNotes])
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         if (editingTitle) { setTitleText(item.title); setEditingTitle(false); return }
-        if (editingDescription) { setDescriptionText(item.description); setEditingDescription(false); return }
-        if (editingNotes) { setEditingNotes(false); return }
         onClose()
       }
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [onClose, editingNotes, editingTitle, editingDescription, item.title, item.description])
-
-  // Fetch PR status if pr_url is set
-  useEffect(() => {
-    if (!item.pr_url) return
-    const url = encodeURIComponent(item.pr_url)
-    fetch(`/api/pr-status?url=${url}`)
-      .then(res => res.ok ? res.json() : null)
-      .then(data => { if (data) setPrStatus(data) })
-      .catch(() => {})
-  }, [item.pr_url])
-
-  // Focus inputs when entering edit mode
-  useEffect(() => {
-    if (editingNotes && notesRef.current) {
-      notesRef.current.focus()
-      notesRef.current.selectionStart = notesRef.current.value.length
-    }
-  }, [editingNotes])
+  }, [onClose, editingTitle, item.title])
 
   useEffect(() => {
     if (editingTitle && titleRef.current) {
@@ -115,66 +52,11 @@ export function DetailPanel({ item, allItems = [], sessions, delegator, onClose,
     }
   }, [editingTitle])
 
-  useEffect(() => {
-    if (editingDescription && descRef.current) {
-      descRef.current.focus()
-      descRef.current.selectionStart = descRef.current.value.length
-    }
-  }, [editingDescription])
-
+  // Find linked session
   const linkedSession = sessions?.find(s =>
     (item.session_id && s.id === item.session_id) ||
     (item.worktree_path && (s.cwd === item.worktree_path || item.worktree_path!.startsWith(s.cwd)))
   )
-
-  const planSummary = (item.metadata?.plan as { summary?: string } | undefined)?.summary
-  const planFile = item.metadata?.plan_file as string | undefined
-  const planApproved = !!((item.metadata?.plan as { approved?: boolean } | undefined)?.approved)
-  const implNotes = (item.metadata?.implementation_notes as string) || ''
-
-  function handleOpenPlanFile() {
-    fetch('/api/plan/open', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ itemId: item.id }),
-    }).catch(err => console.error('Failed to open plan file:', err))
-  }
-
-  function handleTogglePlanApproval() {
-    fetch('/api/plan/approve', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ itemId: item.id, approved: !planApproved }),
-    }).then(res => {
-      if (!res.ok) console.error('Failed to toggle plan approval:', res.status)
-      onRefresh?.()
-    }).catch(err => console.error('Failed to toggle plan approval:', err))
-  }
-
-  const nextAction = getNextAction(item.status)
-  const [depInput, setDepInput] = useState('')
-  const [showDepForm, setShowDepForm] = useState(false)
-
-  function saveNotes() {
-    if (onNotesChange) {
-      onNotesChange(item.id, notesText)
-    }
-    setEditingNotes(false)
-  }
-
-  const stateLabels: Record<string, string> = {
-    standby: 'Ready',
-    thinking: 'Thinking',
-    responding: 'Responding',
-    zombie: 'Disconnected',
-    unknown: 'Unknown',
-  }
-
-  const prStateLabels: Record<string, { label: string; cls: string }> = {
-    OPEN: { label: 'Open', cls: 'prOpen' },
-    CLOSED: { label: 'Closed', cls: 'prClosed' },
-    MERGED: { label: 'Merged', cls: 'prMerged' },
-  }
 
   return (
     <>
@@ -221,491 +103,26 @@ export function DetailPanel({ item, allItems = [], sessions, delegator, onClose,
         </div>
 
         <div className={styles.Content}>
-          <div className={styles.MetaGrid}>
-            <div className={styles.MetaItem}>
-              <span className={styles.MetaLabel}>Status</span>
-              <StatusBadge status={item.status} />
-            </div>
-            <div className={styles.MetaItem}>
-              <span className={styles.MetaLabel}>Priority</span>
-              <PriorityBadge priority={item.priority} size="md" />
-            </div>
-            <div className={styles.MetaItem}>
-              <span className={styles.MetaLabel}>Type</span>
-              <span className={styles.MetaValue}>{item.type === 'project' ? 'Project' : 'Quick Fix'}</span>
-            </div>
-            <div className={styles.MetaItem}>
-              <span className={styles.MetaLabel}>Created</span>
-              <span className={styles.MetaValue} title={formatDate(item.created_at)}>{timeAgo(item.created_at)}</span>
-            </div>
-            {item.activated_at && (
-              <div className={styles.MetaItem}>
-                <span className={styles.MetaLabel}>Activated</span>
-                <span className={styles.MetaValue} title={formatDate(item.activated_at)}>{timeAgo(item.activated_at)}</span>
-              </div>
-            )}
-            {item.completed_at && (
-              <div className={styles.MetaItem}>
-                <span className={styles.MetaLabel}>Completed</span>
-                <span className={styles.MetaValue} title={formatDate(item.completed_at)}>{timeAgo(item.completed_at)}</span>
-              </div>
-            )}
-            <div className={styles.MetaItem}>
-              <span className={styles.MetaLabel}>Delegator</span>
-              <div className={styles.DelegatorRow}>
-                {onDelegatorToggle ? (
-                  <button
-                    className={`${styles.DelegatorToggle} ${item.delegator_enabled ? styles.DelegatorToggleOn : ''}`}
-                    onClick={() => onDelegatorToggle(item.id, !item.delegator_enabled)}
-                    role="switch"
-                    aria-checked={item.delegator_enabled}
-                  >
-                    <span className={styles.DelegatorToggleKnob} />
-                  </button>
-                ) : null}
-                <span className={styles.MetaValue}>
-                  {delegator
-                    ? `${delegator.health?.status || 'unknown'} (${delegator.cycle_count ?? 0} cycles${delegator.cycle_running ? ', running' : ''})`
-                    : item.delegator_enabled ? 'Enabled' : 'Off'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className={styles.Section}>
-            <div className={styles.SectionHeader}>
-              <span className={styles.SectionLabel}>Description</span>
-              {onUpdate && !editingDescription && (
-                <button className={styles.EditNotesButton} onClick={() => setEditingDescription(true)}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                  </svg>
-                  Edit
-                </button>
-              )}
-            </div>
-            {editingDescription ? (
-              <div className={styles.NotesEdit}>
-                <textarea
-                  ref={descRef}
-                  className={styles.NotesTextarea}
-                  value={descriptionText}
-                  onChange={e => setDescriptionText(e.target.value)}
-                  placeholder="Describe this work item..."
-                  rows={6}
-                />
-                <div className={styles.NotesActions}>
-                  <button
-                    className={styles.NotesSave}
-                    onClick={() => {
-                      if (onUpdate) onUpdate(item.id, { description: descriptionText })
-                      setEditingDescription(false)
-                    }}
-                  >
-                    Save
-                  </button>
-                  <button
-                    className={styles.NotesCancel}
-                    onClick={() => { setEditingDescription(false); setDescriptionText(item.description) }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                {item.description ? (
-                  <p className={styles.Description}>{item.description}</p>
-                ) : (
-                  <span className={styles.EmptyDescription}>
-                    {onUpdate ? 'Click edit to add a description' : 'No description'}
-                  </span>
-                )}
-              </>
-            )}
-          </div>
-
-          {item.branch && (
-            <div className={styles.Section}>
-              <span className={styles.SectionLabel}>Branch</span>
-              <div className={styles.BranchRow}>
-                <code className={styles.BranchCode}>{item.branch}</code>
-                <button
-                  className={styles.CopyButton}
-                  onClick={() => navigator.clipboard.writeText(item.branch)}
-                  aria-label="Copy branch name"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="9" y="9" width="13" height="13" rx="2" />
-                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                  </svg>
-                  Copy
-                </button>
-              </div>
-            </div>
-          )}
-
-          {item.worktree_path && (
-            <div className={styles.Section}>
-              <span className={styles.SectionLabel}>Worktree Path</span>
-              <code className={styles.BranchCode}>{item.worktree_path}</code>
-            </div>
-          )}
-
-          {/* Linked Session */}
-          {linkedSession && (
-            <div className={styles.Section}>
-              <span className={styles.SectionLabel}>Linked Session</span>
-              <div className={styles.SessionCard}>
-                <span className={`${styles.SessionDot} ${styles[`session_${linkedSession.state}`]}`} />
-                <div className={styles.SessionInfo}>
-                  <span className={styles.SessionState}>{stateLabels[linkedSession.state] || linkedSession.state}</span>
-                  <code className={styles.SessionId}>{linkedSession.id.slice(0, 12)}</code>
-                </div>
-                <code className={styles.SessionCwd}>{linkedSession.cwd.split('/').pop()}</code>
-              </div>
-              {onSendMessage && linkedSession.state !== 'zombie' && (
-                <form
-                  className={styles.SessionMessageForm}
-                  onSubmit={e => {
-                    e.preventDefault()
-                    if (messageText.trim()) {
-                      onSendMessage(linkedSession.id, messageText.trim())
-                      setMessageText('')
-                    }
-                  }}
-                >
-                  <input
-                    className={styles.SessionMessageInput}
-                    type="text"
-                    value={messageText}
-                    onChange={e => setMessageText(e.target.value)}
-                    placeholder="Send message to worker..."
-                    aria-label="Message to worker session"
-                  />
-                  <button
-                    type="submit"
-                    className={styles.SessionMessageSend}
-                    disabled={!messageText.trim()}
-                    aria-label="Send message"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <line x1="22" y1="2" x2="11" y2="13" />
-                      <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                    </svg>
-                  </button>
-                </form>
-              )}
-            </div>
-          )}
-
-          {/* PR Status */}
-          {item.pr_url && (
-            <div className={styles.Section}>
-              <span className={styles.SectionLabel}>
-                {isStack ? 'PR Stack (Graphite)' : 'Pull Request'}
-              </span>
-              {isStack && prStack ? (
-                <div className={styles.PrCard}>
-                  {prStack.graphiteStackUrl && (
-                    <a href={prStack.graphiteStackUrl} target="_blank" rel="noopener noreferrer" className={styles.PrLink}>
-                      View full stack on Graphite
-                    </a>
-                  )}
-                  {prStack.prs.map((pr: StackPr) => (
-                    <div key={pr.number} className={styles.StackItem}>
-                      <a href={pr.url} target="_blank" rel="noopener noreferrer" className={styles.PrLink}>
-                        #{pr.number}
-                      </a>
-                      <span className={styles.StackPrTitle}>{pr.title}</span>
-                      <span className={`${styles.PrBadge} ${styles[`pr_${pr.state.toLowerCase()}`] || ''}`}>
-                        {pr.state}
-                      </span>
-                      {pr.checksPass && <span className={`${styles.PrBadge} ${styles.pr_pass}`}>Pass</span>}
-                      {pr.checksFail && <span className={`${styles.PrBadge} ${styles.pr_fail}`}>Fail</span>}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className={styles.PrCard}>
-                  <a href={item.pr_url} target="_blank" rel="noopener noreferrer" className={styles.PrLink}>
-                    {item.pr_url.replace(/^https:\/\/github\.com\//, '')}
-                  </a>
-                  {prStatus && (
-                    <div className={styles.PrMeta}>
-                      {prStatus.state && (
-                        <span className={`${styles.PrBadge} ${styles[prStateLabels[prStatus.state]?.cls || '']}`}>
-                          {prStateLabels[prStatus.state]?.label || prStatus.state}
-                        </span>
-                      )}
-                      {prStatus.reviewDecision && (
-                        <span className={styles.PrReview}>
-                          {prStatus.reviewDecision === 'APPROVED' ? 'Approved' :
-                           prStatus.reviewDecision === 'CHANGES_REQUESTED' ? 'Changes requested' :
-                           prStatus.reviewDecision === 'REVIEW_REQUIRED' ? 'Review needed' :
-                           prStatus.reviewDecision}
-                        </span>
-                      )}
-                      {prStatus.checks && (
-                        <span className={styles.PrChecks}>
-                          {prStatus.checks === 'SUCCESS' ? 'Checks passing' :
-                           prStatus.checks === 'FAILURE' ? 'Checks failing' :
-                           prStatus.checks === 'PENDING' ? 'Checks running' :
-                           prStatus.checks}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Implementation Plan */}
-          {(planFile || onGeneratePlan || item.status === 'planning' || item.status === 'queued') && (
-            <div className={styles.Section}>
-              <div className={styles.SectionHeader}>
-                <span className={styles.SectionLabel}>
-                  Implementation Plan
-                  {planApproved ? ' (Approved)' : planFile ? ' (Draft)' : ''}
-                </span>
-                <div className={styles.PlanActions}>
-                  {onGeneratePlan && !planFile && (
-                    <button className={styles.EditNotesButton} onClick={() => onGeneratePlan(item.id)}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                        <path d="M2 17l10 5 10-5" />
-                        <path d="M2 12l10 5 10-5" />
-                      </svg>
-                      Auto-Generate
-                    </button>
-                  )}
-                  {planFile && (
-                    <button className={styles.EditNotesButton} onClick={handleOpenPlanFile} title="Open plan file in editor">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
-                        <polyline points="15 3 21 3 21 9" />
-                        <line x1="10" y1="14" x2="21" y2="3" />
-                      </svg>
-                      Open File
-                    </button>
-                  )}
-                </div>
-              </div>
-              {planFile && (
-                <>
-                  <div className={styles.PlanApprovalRow}>
-                    {item.status !== 'completed' && (
-                      <button
-                        className={planApproved ? styles.UnapproveButton : styles.ApproveButton}
-                        onClick={handleTogglePlanApproval}
-                      >
-                        {planApproved ? 'Revoke Approval' : 'Approve Plan'}
-                      </button>
-                    )}
-                    <span className={styles.PlanFilePath} title={planFile}>
-                      {planFile.split('/').pop()}
-                    </span>
-                  </div>
-                  {planSummary && <div className={styles.PlanSummary}>{planSummary}</div>}
-                </>
-              )}
-              {!planFile && <div className={styles.PlanEmpty}>No plan file yet. Generate one or create manually.</div>}
-            </div>
-          )}
-
-          {/* Notes */}
-          <div className={styles.Section}>
-            <div className={styles.SectionHeader}>
-              <span className={styles.SectionLabel}>Notes</span>
-              {onNotesChange && !editingNotes && (
-                <button className={styles.EditNotesButton} onClick={() => setEditingNotes(true)}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                  </svg>
-                  Edit
-                </button>
-              )}
-            </div>
-            {editingNotes ? (
-              <div className={styles.NotesEdit}>
-                <textarea
-                  ref={notesRef}
-                  className={styles.NotesTextarea}
-                  value={notesText}
-                  onChange={e => setNotesText(e.target.value)}
-                  placeholder="Add notes about this work item..."
-                  rows={4}
-                />
-                <div className={styles.NotesActions}>
-                  <button className={styles.NotesSave} onClick={saveNotes}>Save</button>
-                  <button className={styles.NotesCancel} onClick={() => { setEditingNotes(false); setNotesText((item.metadata?.notes as string) || '') }}>Cancel</button>
-                </div>
-              </div>
-            ) : (
-              <>
-                {notesText ? (
-                  <p className={styles.Description}>{notesText}</p>
-                ) : (
-                  <span className={styles.EmptyDescription}>
-                    {onNotesChange ? 'Click edit to add notes' : 'No notes'}
-                  </span>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Implementation Notes (read-only, from metadata) */}
-          {implNotes && (
-            <div className={styles.Section}>
-              <span className={styles.SectionLabel}>Implementation Notes</span>
-              <p className={styles.Description}>{implNotes}</p>
-            </div>
-          )}
-
-          <div className={styles.Section}>
-            <ItemNotes itemId={item.id} />
-          </div>
-
-          <div className={styles.Section}>
-            <div className={styles.SectionHeader}>
-              <span className={styles.SectionLabel}>
-                Blocked By ({item.blocked_by.length})
-              </span>
-              {onUpdateBlockedBy && !showDepForm && (
-                <button className={styles.EditNotesButton} onClick={() => setShowDepForm(true)}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                  Add
-                </button>
-              )}
-            </div>
-            {item.blocked_by.length === 0 && !showDepForm ? (
-              <span className={styles.EmptyDescription} style={{ fontStyle: 'italic' }}>No dependencies</span>
-            ) : (
-              <div className={styles.DepList}>
-                {item.blocked_by.map(depId => {
-                  const dep = allItems.find(i => i.id === depId)
-                  const isResolved = dep?.status === 'completed'
-                  return (
-                    <div key={depId} className={styles.DepItem}>
-                      <span className={`${styles.DepDot} ${isResolved ? styles.DepResolved : ''}`} />
-                      <span className={styles.DepText}>
-                        <strong>{depId}</strong>
-                        {dep ? ` — ${dep.title}` : ' (unknown)'}
-                        {isResolved ? ' (completed)' : ''}
-                      </span>
-                      {onUpdateBlockedBy && (
-                        <button
-                          className={styles.DepRemove}
-                          onClick={e => { e.stopPropagation(); onUpdateBlockedBy(item.id, item.blocked_by.filter(id => id !== depId)) }}
-                          title="Remove dependency"
-                        >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <line x1="18" y1="6" x2="6" y2="18" />
-                            <line x1="6" y1="6" x2="18" y2="18" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-            {showDepForm && onUpdateBlockedBy && (
-              <div className={styles.NotesEdit} onClick={e => e.stopPropagation()}>
-                <input
-                  className={styles.SessionMessageInput}
-                  type="text"
-                  list="dep-items-list"
-                  value={depInput}
-                  onChange={e => setDepInput(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && depInput.trim()) {
-                      const id = depInput.trim()
-                      if (!item.blocked_by.includes(id)) {
-                        onUpdateBlockedBy(item.id, [...item.blocked_by, id])
-                      }
-                      setDepInput('')
-                      setShowDepForm(false)
-                    }
-                    if (e.key === 'Escape') { setDepInput(''); setShowDepForm(false) }
-                  }}
-                  placeholder="Type work item ID (e.g. ws-005)..."
-                  autoFocus
-                />
-                <datalist id="dep-items-list">
-                  {allItems
-                    .filter(i => i.id !== item.id && !item.blocked_by.includes(i.id))
-                    .map(i => (
-                      <option key={i.id} value={i.id}>{i.title}</option>
-                    ))}
-                </datalist>
-                <div className={styles.NotesActions}>
-                  <button className={styles.NotesSave} onClick={() => {
-                    if (depInput.trim() && !item.blocked_by.includes(depInput.trim())) {
-                      onUpdateBlockedBy(item.id, [...item.blocked_by, depInput.trim()])
-                    }
-                    setDepInput('')
-                    setShowDepForm(false)
-                  }}>Add</button>
-                  <button className={styles.NotesCancel} onClick={() => { setDepInput(''); setShowDepForm(false) }}>Cancel</button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className={styles.Footer}>
-          {item.status === 'queued' && onActivateStream && (
-            <button
-              className={`${styles.FooterButton} ${styles.FooterPrimary}`}
-              onClick={() => onActivateStream(item.id)}
-            >
-              Activate Stream
-            </button>
-          )}
-          {item.status === 'active' && onTeardownStream && (
-            <button
-              className={`${styles.FooterButton} ${styles.FooterDanger}`}
-              onClick={() => onTeardownStream(item.id)}
-            >
-              Tear Down
-            </button>
-          )}
-          {nextAction && !(item.status === 'queued' && onActivateStream) && (
-            <button
-              className={`${styles.FooterButton} ${styles.FooterPrimary}`}
-              onClick={() => onStatusChange(item.id, nextAction.nextStatus)}
-            >
-              {nextAction.label}
-            </button>
-          )}
-          <button
-            className={styles.FooterButton}
-            onClick={() => {
-              navigator.clipboard.writeText(formatItemSummary(item))
-              setCopied(true)
-              setTimeout(() => setCopied(false), 2000)
-            }}
-          >
-            {copied ? 'Copied!' : 'Copy Summary'}
-          </button>
-          {onDuplicate && (
-            <button className={styles.FooterButton} onClick={() => onDuplicate(item.id)}>
-              Duplicate
-            </button>
-          )}
-          <button
-            className={`${styles.FooterButton} ${styles.FooterDanger}`}
-            onClick={() => onDelete(item.id)}
-          >
-            Remove
-          </button>
+          <ItemDetails
+            item={item}
+            variant="panel"
+            allItems={allItems}
+            sessions={sessions}
+            sessionInfo={linkedSession}
+            delegator={delegator}
+            onStatusChange={onStatusChange}
+            onEdit={onUpdate}
+            onDelete={onDelete}
+            onDuplicate={onDuplicate}
+            onActivateStream={onActivateStream}
+            onTeardownStream={onTeardownStream}
+            onSendMessage={onSendMessage}
+            onDelegatorToggle={onDelegatorToggle}
+            onGeneratePlan={onGeneratePlan}
+            onNotesChange={onNotesChange}
+            onRefresh={onRefresh}
+            onUpdateBlockedBy={onUpdateBlockedBy}
+          />
         </div>
       </div>
     </>

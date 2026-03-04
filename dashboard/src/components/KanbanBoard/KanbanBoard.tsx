@@ -139,7 +139,22 @@ export function KanbanBoard({ items, sortField = 'priority', sortDirection = 'as
                 <div className={styles.CardMeta}>
                   <span className={styles.CardType}>{item.id.toUpperCase()}</span>
                   <span className={styles.CardType}>{item.type === 'project' ? 'P' : 'QF'}</span>
-                  {item.branch && <code className={styles.CardBranch}>{item.branch}</code>}
+                  {(() => {
+                    const spendUsd = (item.metadata.spend as { total_usd?: number } | undefined)?.total_usd
+                    return spendUsd != null && spendUsd > 0 ? (
+                      <span
+                        className={classnames(
+                          styles.SpendBadge,
+                          spendUsd < 5 && styles.SpendGreen,
+                          spendUsd >= 5 && spendUsd <= 20 && styles.SpendYellow,
+                          spendUsd > 20 && styles.SpendRed,
+                        )}
+                        title={`Token spend: $${spendUsd.toFixed(2)}`}
+                      >
+                        ${spendUsd.toFixed(2)}
+                      </span>
+                    ) : null
+                  })()}
                   <span className={styles.CardTime}>{timeAgo(item.activated_at || item.created_at)}</span>
                 </div>
                 {(item.blocked_by || []).length > 0 && (
