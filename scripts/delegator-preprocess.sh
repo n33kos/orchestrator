@@ -9,7 +9,7 @@
 #   ./scripts/delegator-preprocess.sh <item-id> [state-file-path]
 #
 # Output:
-#   /tmp/delegator-cycle-<item-id>.json
+#   ~/.claude/orchestrator/delegators/<item-id>/cycle-<item-id>.json
 
 set -euo pipefail
 
@@ -30,7 +30,7 @@ PROFILE_FILE="${CONFIG_PROFILE_FILE:-}"
 ITEM_ID="${1:?Usage: delegator-preprocess.sh <item-id> [state-file-path]}"
 DELEGATOR_DIR="$HOME/.claude/orchestrator/delegators/$ITEM_ID"
 STATE_FILE="${2:-$DELEGATOR_DIR/state.json}"
-OUTPUT_FILE="/tmp/delegator-cycle-${ITEM_ID}.json"
+OUTPUT_FILE="$DELEGATOR_DIR/cycle-${ITEM_ID}.json"
 
 # Write running PID for liveness detection
 mkdir -p "$DELEGATOR_DIR"

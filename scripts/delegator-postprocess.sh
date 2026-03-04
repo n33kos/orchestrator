@@ -35,7 +35,7 @@ done
 
 DELEGATOR_DIR="$HOME/.claude/orchestrator/delegators/$ITEM_ID"
 STATE_FILE="$DELEGATOR_DIR/state.json"
-CYCLE_FILE="/tmp/delegator-cycle-${ITEM_ID}.json"
+CYCLE_FILE="$DELEGATOR_DIR/cycle-${ITEM_ID}.json"
 
 # Read Claude's output
 if [[ ! -f "$CLAUDE_OUTPUT_FILE" ]]; then

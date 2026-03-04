@@ -33,10 +33,13 @@ sed -e "s|\$HOME/orchestrator|$PROJECT_ROOT|g" \
 launchctl unload "$PLIST_DST" 2>/dev/null || true
 launchctl load "$PLIST_DST"
 
+# Ensure log directory exists
+mkdir -p "$HOME/.claude/orchestrator/logs"
+
 echo "Scheduler daemon installed and started."
 echo "  Plist: $PLIST_DST"
-echo "  Logs:  /tmp/orchestrator-scheduler.log"
-echo "  Errors: /tmp/orchestrator-scheduler.err"
+echo "  Logs:  $HOME/.claude/orchestrator/logs/orchestrator-scheduler.log"
+echo "  Errors: $HOME/.claude/orchestrator/logs/orchestrator-scheduler.err"
 echo ""
 echo "To check status: launchctl list | grep orchestrator"
 echo "To stop:  launchctl unload $PLIST_DST"

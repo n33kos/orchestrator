@@ -19,10 +19,10 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>/tmp/orchestrator-scheduler.log</string>
+    <string>$HOME/.claude/orchestrator/logs/orchestrator-scheduler.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/tmp/orchestrator-scheduler.err</string>
+    <string>$HOME/.claude/orchestrator/logs/orchestrator-scheduler.err</string>
 
     <key>EnvironmentVariables</key>
     <dict>

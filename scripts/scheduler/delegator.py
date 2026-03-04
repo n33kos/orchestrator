@@ -388,11 +388,12 @@ def trigger_delegator_cycles(cfg: Config, dry_run: bool) -> None:
                     # Preprocess
                     "$SCRIPT_DIR/delegator-preprocess.sh" "$ITEM_ID" 2>&1 | sed 's/^/  [preprocess] /' || exit 1
 
-                    CYCLE_JSON="/tmp/delegator-cycle-$ITEM_ID.json"
+                    DELEGATOR_DIR="$HOME/.claude/orchestrator/delegators/$ITEM_ID"
+                    CYCLE_JSON="$DELEGATOR_DIR/cycle-$ITEM_ID.json"
                     [ -f "$CYCLE_JSON" ] || exit 1
 
                     # Triage via Haiku
-                    TRIAGE_OUTPUT="/tmp/delegator-triage-$ITEM_ID.json"
+                    TRIAGE_OUTPUT="$DELEGATOR_DIR/triage-$ITEM_ID.json"
                     TRIAGE_INSTRUCTIONS="$PROJECT_ROOT/delegator/triage-instructions.md"
 
                     echo "  [triage] Invoking Haiku for $ITEM_ID..."
@@ -421,7 +422,7 @@ except Exception:
                     if [ "$DECISION" = "escalate" ]; then
                         echo "  [escalate] Escalating to Opus for $ITEM_ID..."
                         REVIEW_INSTRUCTIONS="$PROJECT_ROOT/delegator/review-instructions.md"
-                        ESCALATION_OUTPUT="/tmp/delegator-escalation-$ITEM_ID.json"
+                        ESCALATION_OUTPUT="$DELEGATOR_DIR/escalation-$ITEM_ID.json"
                         claude --print --model opus \
                             --system-prompt "$(cat "$REVIEW_INSTRUCTIONS")" \
                             < "$CYCLE_JSON" > "$ESCALATION_OUTPUT" 2>/dev/null && \
@@ -430,7 +431,6 @@ except Exception:
                     fi
 
                     # Save copies for dashboard debugging (before postprocess, which deletes the files)
-                    DELEGATOR_DIR="$HOME/.claude/orchestrator/delegators/$ITEM_ID"
                     mkdir -p "$DELEGATOR_DIR"
                     [ -f "$CYCLE_JSON" ] && cp "$CYCLE_JSON" "$DELEGATOR_DIR/last-cycle-payload.json"
                     [ -f "$TRIAGE_OUTPUT" ] && cp "$TRIAGE_OUTPUT" "$DELEGATOR_DIR/last-triage-output.json"
@@ -439,7 +439,7 @@ except Exception:
                     "$SCRIPT_DIR/delegator-postprocess.sh" "$ITEM_ID" "$TRIAGE_OUTPUT" $MODEL_FLAG 2>&1 | sed 's/^/  [postprocess] /' || true
 
                     # Cleanup remaining temp files
-                    rm -f "$CYCLE_JSON" "/tmp/delegator-escalation-$ITEM_ID.json"
+                    rm -f "$CYCLE_JSON" "$DELEGATOR_DIR/escalation-$ITEM_ID.json"
                     """,
                 ],
                 stdout=subprocess.PIPE,

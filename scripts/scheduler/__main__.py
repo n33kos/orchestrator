@@ -91,6 +91,7 @@ def _shutdown_handler(signum, frame):
 
 def write_pid():
     Path(PID_FILE).parent.mkdir(parents=True, exist_ok=True)
+    Path(LOG_FILE).parent.mkdir(parents=True, exist_ok=True)
     Path(PID_FILE).write_text(str(os.getpid()))
 
 
