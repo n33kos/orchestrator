@@ -5,39 +5,40 @@ A Claude Code plugin that autonomously manages parallel development work streams
 ## Architecture
 
 ```
-┌───────────────────────────────────────────────────────────────────────┐
-│                           ORCHESTRATOR                                │
-│                                                                       │
-│  ┌──────────┐  ┌──────────────┐  ┌─────────────────────────────────┐ │
-│  │  Poller  │→ │  Work Queue  │→ │  Resource Manager               │ │
-│  │ (script) │  │  (priority   │  │  - Worktree lifecycle           │ │
-│  │          │  │   sorted)    │  │  - Voice session spawning       │ │
-│  └──────────┘  └──────────────┘  │  - Delegator management         │ │
-│       ↑                          │  - Concurrency limits           │ │
-│       │                          └─────────────────────────────────┘ │
-│  ┌──────────┐                              │                          │
-│  │  Sources │                              ↓                          │
-│  │ (config) │               ┌──────────────────────────────┐         │
-│  └──────────┘               │     Active Work Streams      │         │
-│                             │  ┌──────────┐ ┌──────────┐   │         │
-│  ┌──────────┐               │  │ Stream 1 │ │ Stream 2 │   │         │
-│  │   Web    │               │  │┌────────┐│ │┌────────┐│   │         │
-│  │Dashboard │◄──────────────│  ││ Worker ││ ││ Worker ││   │         │
-│  │  (PWA)  │               │  ││ Claude ││ ││ Claude ││   │         │
-│  └──────────┘               │  │└────────┘│ │└────────┘│   │         │
-│                             │  │┌────────┐│ │┌────────┐│   │         │
-│  ┌──────────┐               │  ││ Deleg. ││ ││ Deleg. ││   │         │
-│  │ Profile  │───────────────│  │└────────┘│ │└────────┘│   │         │
-│  │Training │               │  └──────────┘ └──────────┘   │         │
-│  └──────────┘               └──────────────────────────────┘         │
-└───────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                            ORCHESTRATOR                                  │
+│                                                                          │
+│  ┌──────────┐  ┌──────────────┐  ┌──────────────────────────────────┐   │
+│  │  Sources  │→ │  Work Queue  │→ │  Resource Manager                │   │
+│  │  (config) │  │  (priority   │  │  - Worktree lifecycle            │   │
+│  │           │  │   sorted)    │  │  - Session spawning              │   │
+│  └──────────┘  └──────────────┘  │  - Delegator management          │   │
+│                                   │  - Concurrency limits            │   │
+│  ┌──────────┐                     │  - Dependency resolution         │   │
+│  │Scheduler │─────────────────→  └──────────────────────────────────┘   │
+│  │(launchd) │                              │                             │
+│  └──────────┘                              ↓                             │
+│                             ┌──────────────────────────────┐            │
+│  ┌──────────┐               │     Active Work Streams      │            │
+│  │   Web    │               │  ┌──────────┐ ┌──────────┐   │            │
+│  │Dashboard │◄──────────────│  │ Stream 1 │ │ Stream 2 │   │            │
+│  │  (PWA)   │               │  │┌────────┐│ │┌────────┐│   │            │
+│  └──────────┘               │  ││ Worker ││ ││ Worker ││   │            │
+│                              │  │└────────┘│ │└────────┘│   │            │
+│  ┌──────────┐               │  │┌────────┐│ │┌────────┐│   │            │
+│  │ Profile  │               │  ││ Deleg. ││ ││ Deleg. ││   │            │
+│  │ Training │               │  │└────────┘│ │└────────┘│   │            │
+│  └──────────┘               │  └──────────┘ └──────────┘   │            │
+│                              └──────────────────────────────┘            │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Components
 
 - **Orchestrator (this plugin)**: Central brain. Discovers work, manages the queue, spins up/down environments, monitors progress, and coordinates between all moving parts.
+- **Scheduler**: A background Python service (launchd) that continuously reconciles queue state — auto-activates ready items, recovers zombie sessions, triggers delegator cycles, enforces planning timeouts, and cleans up completed streams.
 - **Worker Sessions**: Individual Claude Code sessions running in isolated git worktrees. These do the actual implementation work.
-- **Delegator** (sub-module): Quality assurance layer that mirrors the user's review process. Reviews worker output, checks PRs, validates implementations, and communicates with workers via text-based messaging. See [`delegator/`](delegator/).
+- **Delegator** (sub-module): Quality assurance layer that mirrors the user's review process. Uses a two-tier model — Haiku triage for routine checks, escalating to Opus for deep reviews. See [`delegator/`](delegator/).
 - **Profile Training System**: Observes user-worker interactions and distills them into a behavioral profile that instructs the delegator how to act.
 - **Web Dashboard (PWA)**: Dedicated web interface for managing work streams, priorities, delegators, and PR status.
 
@@ -53,6 +54,9 @@ mkdir -p ~/.claude/orchestrator
 # Initialize an empty queue if needed
 echo '{"version": 1, "items": []}' > ~/.claude/orchestrator/queue.json
 
+# Install the scheduler as a launchd service
+./scripts/install-scheduler.sh
+
 # Start the dashboard
 cd dashboard && npm run dev
 # → http://localhost:3201
@@ -64,61 +68,203 @@ cd dashboard && npm run dev
 orchestrator/
 ├── CLAUDE.md              # Claude Code instructions for the orchestrator agent
 ├── README.md              # This file
-├── manifest.json          # Claude Code plugin manifest with 8 skills
+├── manifest.json          # Claude Code plugin manifest (9 skills)
 ├── plan.md                # Implementation plan
-├── delegator/             # Delegator sub-module
-│   ├── CLAUDE.md          # Delegator agent instructions (monitoring loop)
-│   └── README.md          # Delegator documentation
-├── dashboard/             # Web dashboard (Vite + React + TypeScript + Sass)
-│   ├── src/
-│   │   ├── App.tsx        # Main application (1000+ lines)
-│   │   ├── components/    # 54+ UI components
-│   │   ├── hooks/         # 20+ custom hooks
-│   │   └── utils/         # Utility functions
-│   ├── public/            # PWA assets (manifest, service worker, icons)
-│   ├── vite.config.ts     # Vite config with 21 API endpoints
-│   └── index.html         # Entry point with PWA meta tags
+├── config/
+│   ├── environment.yml            # Site-specific values (paths, tools, identity)
+│   ├── environment.local.yml      # Personal overrides (gitignored)
+│   ├── sources.yml                # Work source definitions
+│   ├── sources.local.yml          # Personal source overrides (gitignored)
+│   └── com.orchestrator.scheduler.plist  # launchd service definition
 ├── skills/                # CLI skills (slash commands)
 │   ├── status.md          # /status — queue overview, sessions, health
 │   ├── add-work.md        # /add-work — add item to queue
-│   ├── activate.md        # /activate — create worktree + session
+│   ├── activate.md        # /activate — create worktree + session + delegator
 │   ├── teardown.md        # /teardown — kill session, remove worktree
 │   ├── discover.md        # /discover — scan sources for new work
 │   ├── health.md          # /health — detect zombies and stalls
-│   ├── schedule.md        # /schedule — auto-activate ready items
-│   └── train.md           # /train — update delegator profile
+│   ├── schedule.md        # /schedule — run queue scheduler
+│   ├── train.md           # /train — update delegator profile
+│   └── plan.md            # /plan — generate implementation plan
 ├── scripts/               # Backend scripts
-│   ├── activate-stream.sh # Full stream activation (worktree + session + delegator)
-│   ├── teardown-stream.sh # Full stream teardown (preserves git branch)
-│   ├── spawn-delegator.sh # Delegator session spawning
-│   ├── health-check.sh    # Zombie/stall/dependency detection
-│   ├── scheduler.sh       # Auto-activation with concurrency management
-│   ├── status.sh          # Comprehensive status report
-│   ├── delegator-status.sh# Delegator instance monitoring
-│   ├── discover-work.py   # Work discovery (markdown, GitHub, Jira)
-│   ├── train-profile.py   # Incremental profile training
-│   └── preseed-profile.py # Bootstrap profile from session history
-└── config/
-    ├── environment.yml    # Site-specific values (paths, tools, identity)
-    └── sources.yml        # Work source definitions
+│   ├── activate-stream.sh          # Full stream activation
+│   ├── suspend-stream.sh           # Suspend stream (kill session, keep worktree)
+│   ├── resume-stream.sh            # Resume suspended stream
+│   ├── teardown-stream.sh          # Full stream teardown
+│   ├── worker-complete.sh          # Worker self-reports completion
+│   ├── spawn-delegator.sh          # Delegator state initialization
+│   ├── delegator-preprocess.sh     # Gather monitoring data into JSON payload
+│   ├── delegator-postprocess.sh    # Execute actions from delegator output
+│   ├── delegator-summarize-transcript.py  # Summarize worker activity for delegator
+│   ├── delegator-status.sh         # Delegator instance monitoring
+│   ├── health-check.sh             # Zombie/stall/dependency detection
+│   ├── status.sh                   # Comprehensive status report
+│   ├── discover-work.py            # Work discovery (markdown, GitHub, Jira)
+│   ├── generate-plan.sh            # Auto-generate plan for queued item
+│   ├── migrate-plans.sh            # Migrate inline plans to markdown files
+│   ├── sync-plan-metadata.sh       # Sync metadata headers in plan files
+│   ├── read-worker-transcript.py   # Read and summarize session transcripts
+│   ├── train-profile.py            # Incremental profile training
+│   ├── preseed-profile.py          # Bootstrap profile from session history
+│   ├── next-ws-id.sh               # Atomic work stream ID generation
+│   ├── emit-event.sh               # Event emission utility
+│   ├── parse-config.sh             # Parse environment.yml and export variables
+│   ├── validate-env.sh             # Validate environment config
+│   ├── setup.sh                    # Initial setup/installation
+│   ├── install-scheduler.sh        # Install scheduler as launchd service
+│   ├── lib/
+│   │   └── queue.py                # Shared queue operations (file-locking)
+│   └── scheduler/                  # Background scheduler service
+│       ├── __main__.py             # Main loop (continuous or one-shot)
+│       ├── config.py               # Configuration loader
+│       ├── reconcile.py            # State reconciliation and auto-activation
+│       ├── activate.py             # Activation logic
+│       ├── delegator.py            # Delegator monitoring and recovery
+│       ├── cleanup.py              # Cleanup operations
+│       └── events.py               # Event logging
+├── delegator/             # Delegator sub-module
+│   ├── README.md          # Delegator documentation
+│   ├── triage-instructions.md   # Haiku triage agent instructions
+│   └── review-instructions.md  # Opus review agent instructions
+├── dashboard/             # Web dashboard (Vite + React + TypeScript + Sass)
+│   ├── src/
+│   │   ├── App.tsx        # Main application
+│   │   ├── components/    # 55 UI components
+│   │   ├── hooks/         # 32 custom hooks
+│   │   ├── api/           # 11 API endpoint modules
+│   │   └── utils/         # 7 utility modules
+│   ├── public/            # PWA assets (manifest, service worker, icons)
+│   ├── vite.config.ts     # Vite config with inline API middleware
+│   └── index.html         # Entry point with PWA meta tags
+└── knowledge/
+    └── cli-reference.md   # Rostrum and vmux command reference
 ```
+
+## Work Stream Lifecycle
+
+```
+Discover → Queue → Plan → Activate → Execute → Review → Complete
+```
+
+1. **Discover** — Poller finds new work from configured sources
+2. **Queue** — Item added to priority queue with metadata
+3. **Plan** — Create and approve an implementation plan (stored as markdown in `~/.claude/orchestrator/plans/`)
+4. **Activate** — Worktree created, worker session spawned, delegator started
+5. **Execute** — Worker implements the plan; delegator monitors and reviews
+6. **Suspend** *(optional)* — Pause execution, kill session but preserve worktree for user review
+7. **Resume** *(optional)* — Respawn session and delegator from suspended state
+8. **Review** — Delegator performs final review, surfaces PR for user sign-off
+9. **Complete** — PR merged, worktree torn down, slot freed for next item
+
+## Two Work Stream Types
+
+**Projects** — Larger-scale work requiring quality oversight:
+- Multi-file changes, feature implementations, Graphite stacks
+- Gets: worktree + worker session + delegator instance
+- Concurrency limit: 2 (configurable)
+- Full lifecycle with planning phase
+
+**Quick Fixes** — Small, self-contained changes:
+- Bug fixes, config tweaks, one-file adjustments
+- Gets: worktree + worker session (no delegator)
+- Concurrency limit: 4 (configurable)
+- Simplified lifecycle (skip planning)
+
+## Queue Schema
+
+Work items are stored in `~/.claude/orchestrator/queue.json`:
+
+```json
+{
+  "version": 1,
+  "items": [
+    {
+      "id": "ws-001",
+      "source": "manual",
+      "description": "Short description of the work",
+      "type": "project",
+      "priority": 100,
+      "status": "queued",
+      "branch": "branch-name",
+      "session_id": null,
+      "delegator_enabled": true,
+      "blocked_by": ["ws-000"],
+      "pr_url": null,
+      "metadata": {
+        "plan_file": "~/.claude/orchestrator/plans/ws-001.md",
+        "plan": {
+          "summary": "...",
+          "approved": true,
+          "approved_at": "2026-01-01T00:00:00Z"
+        },
+        "repo_path": "/path/to/target/repo"
+      }
+    }
+  ]
+}
+```
+
+**Key fields:**
+- `blocked_by` — Array of item IDs that must complete before this item can activate. The scheduler resolves dependencies automatically.
+- `delegator_enabled` — Per-item toggle for delegator quality assurance.
+- `metadata.plan_file` — Path to the markdown plan file (single source of truth for worker context).
+- `metadata.plan.approved` — Items with `require_approved_plan` enabled won't activate without approval.
+
+**Statuses:** `planning` → `queued` → `active` → `review` → `completed` (also: `paused`, `archived`)
+
+## Scheduler
+
+The scheduler is a continuous Python service managed by launchd (`com.orchestrator.scheduler`). Each cycle it:
+
+1. Recovers zombie sessions and delegators
+2. Triggers delegator monitoring cycles (at configurable intervals)
+3. Processes worker completion reports
+4. Tears down streams with merged PRs
+5. Enforces planning timeouts
+6. Generates plans for queued items needing them
+7. Reconciles queue state (resolves `blocked_by` dependencies)
+8. Auto-activates the highest priority ready item when a slot opens
+9. Periodically cleans up completed items and rotates logs
+
+**Important**: The scheduler loads Python code at startup and does NOT hot-reload. After code changes:
+
+```bash
+launchctl stop com.orchestrator.scheduler && sleep 2 && launchctl start com.orchestrator.scheduler
+```
+
+## Delegator Pipeline
+
+For each project work stream, a delegator monitors the worker through a one-shot invocation pipeline:
+
+```
+delegator-preprocess.sh → Claude (triage/review) → delegator-postprocess.sh
+```
+
+1. **Preprocess** gathers monitoring data into a JSON payload: worker transcript summary, git diff, PR status (including merge state), plan progress, and session health.
+2. **Triage** (Haiku) performs a quick assessment — is the worker on track, stalled, or done? Checks for merge conflicts before anything else.
+3. **Review** (Opus) is invoked on escalation for deep code review, PR assessment, and quality validation.
+4. **Postprocess** executes the resulting actions: send messages to workers, update queue status, trigger transitions.
+
+See [`delegator/README.md`](delegator/README.md) for the full training system and behavioral profile documentation.
 
 ## Dashboard
 
-The web dashboard is a PWA built with Vite 7, React 19, TypeScript 5.9, and Sass. It serves as the orchestrator's command center with 21 REST API endpoints that shell out to the backend scripts.
+The web dashboard is a PWA built with Vite 7, React 19, TypeScript 5.9, and Sass. It serves as the orchestrator's command center.
 
 ### Features
 
 - **Queue Management**: Add, edit, delete, reorder work items with drag-and-drop
+- **Dependency Tracking**: Visual `blocked_by` indicators with inline editing
 - **4 View Modes**: Cards, compact table, grouped by status, kanban board
 - **Planning Workflow**: Create plans with steps, approve before activation
-- **Stream Control**: One-click activate (worktree + session) and teardown
+- **Stream Control**: One-click activate, suspend, resume, and teardown
 - **Session Management**: View sessions, send messages, kill/reconnect zombies
+- **Delegator Panel**: Monitor delegator instances, view assessments, spawn/kill
 - **PR Tracking**: GitHub PR status badges with review state and check results
 - **Health Monitoring**: Zombie detection, stall alerts, auto-recovery
+- **Scheduler Log**: View scheduler events and cycle history
 - **Work Discovery**: Scan GitHub Issues and markdown plans for new work
 - **Training Controls**: Bootstrap and incrementally train the delegator profile
-- **Scheduler**: Auto-activate highest priority items when slots open
 - **Command Palette**: Cmd+K for quick access to all actions
 - **Batch Operations**: Multi-select items for bulk status changes
 - **Import/Export**: JSON and CSV export, JSON import, file drop support
@@ -153,50 +299,40 @@ The web dashboard is a PWA built with Vite 7, React 19, TypeScript 5.9, and Sass
 | `/api/training/preseed` | POST | Bootstrap initial profile |
 | `/api/scheduler/run` | POST | Run the queue scheduler |
 
-## Work Stream Lifecycle
-
-1. **Discover** — Poller finds new work from configured sources
-2. **Queue** — Item added to priority queue with metadata
-3. **Plan** — Create and approve an implementation plan
-4. **Activate** — Worktree created, worker session spawned, delegator started
-5. **Execute** — Worker implements the plan, delegator monitors and reviews
-6. **Review** — Delegator performs final review, surfaces PR for user sign-off
-7. **Complete** — PR merged, worktree torn down, slot freed for next item
-
-## Two Work Stream Types
-
-**Projects** — Larger-scale work requiring quality oversight:
-- Multi-file changes, feature implementations, Graphite stacks
-- Gets: worktree + worker session + delegator instance
-- Concurrency limit: 2 (configurable)
-- Full lifecycle with planning phase
-
-**Quick Fixes** — Small, self-contained changes:
-- Bug fixes, config tweaks, one-file adjustments
-- Gets: worktree + worker session (no delegator)
-- No concurrency limit
-- Simplified lifecycle (skip planning)
-
 ## Configuration
 
 ### `config/environment.yml`
 
-All site-specific values are defined here. The scripts and dashboard reference this config rather than hardcoding paths.
+All site-specific values. Override with `config/environment.local.yml` (gitignored). The `parse-config.sh` script merges both — local values take precedence.
 
-Key sections: identity, repository paths, CLI tool locations, state file paths, concurrency limits, autonomy settings, delegator config, branch naming patterns, and dashboard ports.
+| Section | Key Settings |
+|---------|-------------|
+| `user` | `initials`, `name` |
+| `repo` | `path`, `worktree_prefix` |
+| `tools` | `rostrum`, `vmux`, `graphite` |
+| `state` | `queue_file`, `profile_file` |
+| `concurrency` | `max_active_projects` (2), `quick_fix_limit` (4), `queue_strategy` |
+| `autonomy` | `auto_activate`, `auto_approve_plans`, `require_approved_plan`, `ask_before_teardown` |
+| `plans` | `plans_directory` |
+| `delegator` | `enabled_by_default`, `training_mode`, `cycle_interval`, `default_model` (haiku), `review_model` (opus), `transcript_lines_triage`/`_deep` |
+| `branches` | `pattern` (naming template) |
+| `dashboard` | `port` (3201) |
+| `scheduler` | `poll_interval` (120s), `cleanup_every`, `archive_after_days` |
+| `stall_detection` | `threshold_minutes` (30) |
 
 ### `config/sources.yml`
 
 Defines where the orchestrator discovers work. Supported adapters:
 - `markdown` — Parse task items from markdown plan files
 - `github` — Poll GitHub Issues via `gh` CLI
-- `jira` — Jira integration (stub, requires jira CLI/API)
+- `jira` — Jira integration (requires jira CLI/API)
 
 ## Dependencies
 
 - **Rostrum** — Git worktree lifecycle management
-- **vmux** — Claude Code session spawning and management
+- **vmux** — Claude Code session spawning and management (voice multiplexer)
 - **Claude Code** — Worker and delegator sessions
 - **gh** — GitHub CLI for PR status and issue discovery
 - **Node.js 20+** — Dashboard runtime
-- **Python 3.10+** — Discovery and training scripts
+- **Python 3.10+** — Scheduler, discovery, and training scripts
+- **launchd** — macOS service manager for the scheduler daemon
