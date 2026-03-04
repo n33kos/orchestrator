@@ -306,6 +306,23 @@ def recover_delegators(cfg: Config, dry_run: bool) -> None:
                 _update_respawn_state(state_file, respawn_count + 1, now)
 
 
+def _update_status_timestamp(item_id: str) -> None:
+    """Update status.json with current timestamp so watchdog sees recent activity."""
+    status_file = Path.home() / ".claude" / "orchestrator" / "delegators" / item_id / "status.json"
+    try:
+        if status_file.exists():
+            with open(status_file) as f:
+                status = json.load(f)
+        else:
+            status = {}
+        status["last_check_at"] = datetime.now(timezone.utc).isoformat()
+        with open(status_file, "w") as f:
+            json.dump(status, f, indent=2)
+            f.write("\n")
+    except Exception:
+        pass
+
+
 def trigger_delegator_cycles(cfg: Config, dry_run: bool) -> None:
     """Run delegator one-shot cycles for active items with delegator enabled."""
     pause_file = os.path.expanduser("~/.claude/orchestrator/paused")
@@ -421,18 +438,6 @@ except Exception:
                     # Postprocess (note: this deletes TRIAGE_OUTPUT)
                     "$SCRIPT_DIR/delegator-postprocess.sh" "$ITEM_ID" "$TRIAGE_OUTPUT" $MODEL_FLAG 2>&1 | sed 's/^/  [postprocess] /' || true
 
-                    # Update status.json so watchdog doesn't think we're stalled
-                    python3 -c "
-import json
-from datetime import datetime, timezone
-sf = '$HOME/.claude/orchestrator/delegators/$ITEM_ID/status.json'
-try:
-    with open(sf) as f: s = json.load(f)
-except: s = {}
-s['last_check_at'] = datetime.now(timezone.utc).isoformat()
-with open(sf, 'w') as f: json.dump(s, f, indent=2); f.write(chr(10))
-" 2>/dev/null || true
-
                     # Cleanup remaining temp files
                     rm -f "$CYCLE_JSON" "/tmp/delegator-escalation-$ITEM_ID.json"
                     """,
@@ -452,6 +457,8 @@ with open(sf, 'w') as f: json.dump(s, f, indent=2); f.write(chr(10))
             if stdout:
                 for line in stdout.decode("utf-8", errors="replace").strip().split("\n"):
                     print(line)
+            # Update status.json so watchdog doesn't think delegator is stalled
+            _update_status_timestamp(item_id)
         except subprocess.TimeoutExpired:
             proc.kill()
             print(f"[scheduler] ERROR: Delegator cycle timed out for {item_id}", file=sys.stderr)
