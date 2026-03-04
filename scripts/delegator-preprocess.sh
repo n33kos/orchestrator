@@ -82,6 +82,18 @@ WORKER_SESSION_ID="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json
 WORKTREE_PATH="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('worktree_path',''))" 2>/dev/null)" || WORKTREE_PATH=""
 BRANCH="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('branch',''))" 2>/dev/null)" || BRANCH=""
 
+# Resolve actual git repo path (may differ from worktree_path for workspace-based items)
+GIT_REPO_PATH="$(echo "$ITEM_JSON" | python3 -c "
+import json, sys, os
+data = json.load(sys.stdin)
+meta = data.get('metadata', {})
+repo = meta.get('actual_repo_path') or meta.get('repo_path', '')
+if repo:
+    print(os.path.expanduser(repo))
+else:
+    print(data.get('worktree_path', ''))
+" 2>/dev/null)" || GIT_REPO_PATH="$WORKTREE_PATH"
+
 # ============================================================
 # Step 3: Check if worker session is alive
 # ============================================================
@@ -136,16 +148,16 @@ NEW_COMMITS_RAW=""
 DIFF_STAT=""
 DIFF_CONTENT=""
 
-if [[ -n "$WORKTREE_PATH" && -d "$WORKTREE_PATH" ]]; then
+if [[ -n "$GIT_REPO_PATH" && -d "$GIT_REPO_PATH" ]]; then
     if [[ -n "$LAST_SEEN_HASH" ]]; then
-        NEW_COMMITS_RAW="$(cd "$WORKTREE_PATH" && git log --oneline "${LAST_SEEN_HASH}..HEAD" 2>/dev/null)" || NEW_COMMITS_RAW=""
-        DIFF_STAT="$(cd "$WORKTREE_PATH" && git diff --stat "${LAST_SEEN_HASH}..HEAD" 2>/dev/null)" || DIFF_STAT=""
-        DIFF_CONTENT="$(cd "$WORKTREE_PATH" && git diff "${LAST_SEEN_HASH}..HEAD" 2>/dev/null)" || DIFF_CONTENT=""
+        NEW_COMMITS_RAW="$(cd "$GIT_REPO_PATH" && git log --oneline "${LAST_SEEN_HASH}..HEAD" 2>/dev/null)" || NEW_COMMITS_RAW=""
+        DIFF_STAT="$(cd "$GIT_REPO_PATH" && git diff --stat "${LAST_SEEN_HASH}..HEAD" 2>/dev/null)" || DIFF_STAT=""
+        DIFF_CONTENT="$(cd "$GIT_REPO_PATH" && git diff "${LAST_SEEN_HASH}..HEAD" 2>/dev/null)" || DIFF_CONTENT=""
     else
         # No last seen hash — get the most recent commit as baseline and its diff
-        NEW_COMMITS_RAW="$(cd "$WORKTREE_PATH" && git log --oneline -1 2>/dev/null)" || NEW_COMMITS_RAW=""
-        DIFF_STAT="$(cd "$WORKTREE_PATH" && git diff --stat HEAD~1..HEAD 2>/dev/null)" || DIFF_STAT=""
-        DIFF_CONTENT="$(cd "$WORKTREE_PATH" && git diff HEAD~1..HEAD 2>/dev/null)" || DIFF_CONTENT=""
+        NEW_COMMITS_RAW="$(cd "$GIT_REPO_PATH" && git log --oneline -1 2>/dev/null)" || NEW_COMMITS_RAW=""
+        DIFF_STAT="$(cd "$GIT_REPO_PATH" && git diff --stat HEAD~1..HEAD 2>/dev/null)" || DIFF_STAT=""
+        DIFF_CONTENT="$(cd "$GIT_REPO_PATH" && git diff HEAD~1..HEAD 2>/dev/null)" || DIFF_CONTENT=""
     fi
 fi
 
@@ -153,8 +165,8 @@ fi
 # Step 8: Check for PR
 # ============================================================
 PR_JSON=""
-if [[ -n "$WORKTREE_PATH" && -d "$WORKTREE_PATH" && -n "$BRANCH" ]]; then
-    PR_JSON="$(cd "$WORKTREE_PATH" && gh pr list --head "$BRANCH" --json number,title,state,url --limit 1 2>/dev/null)" || PR_JSON="[]"
+if [[ -n "$GIT_REPO_PATH" && -d "$GIT_REPO_PATH" && -n "$BRANCH" ]]; then
+    PR_JSON="$(cd "$GIT_REPO_PATH" && gh pr list --head "$BRANCH" --json number,title,state,url --limit 1 2>/dev/null)" || PR_JSON="[]"
 fi
 
 # ============================================================
@@ -167,8 +179,8 @@ PR_NUMBER=""
 if [[ -n "$PR_JSON" && "$PR_JSON" != "[]" ]]; then
     PR_NUMBER="$(echo "$PR_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d[0]['number'] if d else '')" 2>/dev/null)" || PR_NUMBER=""
     if [[ -n "$PR_NUMBER" ]]; then
-        CI_CHECKS_RAW="$(cd "$WORKTREE_PATH" && gh pr checks "$PR_NUMBER" 2>/dev/null)" || CI_CHECKS_RAW=""
-        MERGE_STATUS_JSON="$(cd "$WORKTREE_PATH" && gh pr view "$PR_NUMBER" --json mergeable,mergeStateStatus 2>/dev/null)" || MERGE_STATUS_JSON=""
+        CI_CHECKS_RAW="$(cd "$GIT_REPO_PATH" && gh pr checks "$PR_NUMBER" 2>/dev/null)" || CI_CHECKS_RAW=""
+        MERGE_STATUS_JSON="$(cd "$GIT_REPO_PATH" && gh pr view "$PR_NUMBER" --json mergeable,mergeStateStatus 2>/dev/null)" || MERGE_STATUS_JSON=""
     fi
 fi
 
