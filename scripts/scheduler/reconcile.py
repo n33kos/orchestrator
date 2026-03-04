@@ -29,6 +29,24 @@ _worker_missing_since: dict[str, datetime] = {}
 _WORKER_GRACE_PERIOD_SECS = 180  # 3 minutes grace before respawning
 
 
+def _normalize_session_id(raw_id: str) -> str:
+    """Extract the hex session ID from vmux's named session format.
+
+    vmux sessions can report IDs in two formats:
+      - Plain hex:  "1bd9b93adf90"
+      - Named:      "ws-026-graphite-stack-suppo (1bd9b93adf90)"
+
+    activate-stream.sh stores the full named format, but reconcile_state
+    parses only the hex ID from vmux output. This mismatch caused the
+    reconciler to think workers were always missing, triggering respawns
+    that killed active sessions mid-conversation.
+    """
+    raw_id = raw_id.strip()
+    if "(" in raw_id and raw_id.endswith(")"):
+        return raw_id[raw_id.rindex("(") + 1:-1].strip()
+    return raw_id
+
+
 def check_and_activate(cfg: Config, dry_run: bool) -> None:
     """Check for available slots and auto-activate highest priority items."""
     pause_file = os.path.expanduser("~/.claude/orchestrator/paused")
@@ -300,13 +318,19 @@ def reconcile_state(cfg: Config, dry_run: bool) -> None:
             needs_respawn = False
             old_session_id = ""
 
+            # Normalize the stored session_id to match vmux's parsed format.
+            # activate-stream.sh stores "name (hex)" but vmux sessions parsing
+            # extracts just the hex ID. Without normalization, every session
+            # appears "missing" and gets respawned — killing active sessions.
+            normalized_id = _normalize_session_id(session_id) if session_id else ""
+
             if not session_id:
                 if worktree_path:
                     needs_spawn = True
-            elif session_id in zombie_sessions:
+            elif normalized_id in zombie_sessions:
                 needs_respawn = True
-                old_session_id = session_id
-            elif session_id not in live_sessions:
+                old_session_id = normalized_id
+            elif normalized_id not in live_sessions:
                 if worktree_path:
                     needs_spawn = True
 
@@ -347,11 +371,21 @@ def reconcile_state(cfg: Config, dry_run: bool) -> None:
                 if skip_for_delegator_churn:
                     pass  # Skip this cycle
                 elif needs_spawn:
-                    # Worker confirmed missing past grace period
-                    _worker_missing_since.pop(item_id, None)
-                    if dry_run:
+                    # Worker confirmed missing past grace period.
+                    # Before spawning, check if a session already exists at
+                    # this path — the stored session_id may just be stale.
+                    existing = _find_session_by_cwd(cfg, worktree_path)
+                    if existing:
+                        _worker_missing_since.pop(item_id, None)
+                        print(f"[reconcile] Found existing session {existing} at {worktree_path} — updating stored ID for {item_id}")
+                        subprocess.run(
+                            ["python3", "-m", "lib.queue", "update", item_id, f"session_id={existing}"],
+                            cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
+                        )
+                    elif dry_run:
                         print(f"[reconcile] Would spawn worker for {item_id} at {worktree_path}")
                     else:
+                        _worker_missing_since.pop(item_id, None)
                         print(f"[reconcile] Spawning missing worker session for {item_id} at {worktree_path}")
                         emit_event("reconcile.spawn_worker", f"Spawning missing worker for {item_id}", item_id=item_id, severity="warn")
                         _spawn_worker(cfg, item_id, worktree_path, session_name)
@@ -414,8 +448,30 @@ def _run_script(script_name: str, args: list[str], timeout: int = 60) -> subproc
         return subprocess.CompletedProcess(args=[], returncode=1)
 
 
+def _find_session_by_cwd(cfg: Config, worktree_path: str) -> str | None:
+    """Find a vmux session ID by its working directory."""
+    try:
+        result = subprocess.run(
+            [cfg.tool_vmux, "sessions"], capture_output=True, text=True, timeout=10
+        )
+        if result.returncode != 0:
+            return None
+        current_id = None
+        for line in result.stdout.split("\n"):
+            line = line.strip()
+            if line.startswith("[") and "]" in line:
+                bracket_end = line.index("]")
+                raw_id = line[bracket_end + 1:].strip()
+                current_id = _normalize_session_id(raw_id)
+            elif "cwd:" in line and worktree_path in line and current_id:
+                return current_id
+    except Exception:
+        pass
+    return None
+
+
 def _spawn_worker(cfg: Config, item_id: str, worktree_path: str, session_name: str) -> None:
-    """Spawn a vmux worker session and update queue."""
+    """Spawn a vmux worker session, send task instructions, and update queue."""
     # Safety: refuse to spawn at the orchestrator's own root
     if os.path.realpath(worktree_path) == os.path.realpath(PROJECT_ROOT):
         print(f"[reconcile] REFUSING to spawn worker for {item_id} at orchestrator root ({worktree_path})", file=sys.stderr)
@@ -428,19 +484,73 @@ def _spawn_worker(cfg: Config, item_id: str, worktree_path: str, session_name: s
         if result.returncode != 0:
             print(f"[reconcile] WARNING: vmux spawn failed for {item_id}: {result.stderr}", file=sys.stderr)
             return
-        # Parse actual session ID from vmux output (format: "session_id:   <id>")
-        new_id = None
-        for line in (result.stdout or "").split("\n"):
-            if "session_id:" in line:
-                new_id = line.split("session_id:")[-1].strip()
-                break
+
+        # Find the actual session ID by querying vmux sessions for the CWD.
+        # This is more reliable than parsing spawn output, which may not
+        # include the session ID in a consistent format.
+        time.sleep(2)  # Give vmux a moment to register the session
+        new_id = _find_session_by_cwd(cfg, worktree_path)
         if not new_id:
-            # Fallback to session_name if vmux output didn't include session_id
-            new_id = session_name or hashlib.sha256(worktree_path.encode()).hexdigest()[:12]
+            new_id = hashlib.sha256(worktree_path.encode()).hexdigest()[:12]
+            print(f"[reconcile] WARNING: Could not find session by CWD, using computed ID {new_id}", file=sys.stderr)
+
         subprocess.run(
             ["python3", "-m", "lib.queue", "update", item_id, f"session_id={new_id}"],
             cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
         )
         print(f"[reconcile] Worker spawned for {item_id} (session: {new_id})")
+
+        # Send task instructions to the new session.
+        # Without this, respawned workers enter standby but sit idle because
+        # they never receive their task assignment.
+        _send_task_instructions(cfg, item_id, new_id)
     except Exception as e:
         print(f"[reconcile] WARNING: Failed to spawn worker for {item_id}: {e}", file=sys.stderr)
+
+
+def _send_task_instructions(cfg: Config, item_id: str, session_id: str) -> None:
+    """Send task instructions to a worker session (retry until standby)."""
+    try:
+        # Read the plan file and title from the queue
+        result = subprocess.run(
+            ["python3", "-m", "lib.queue", "get", item_id, "title", "branch", "metadata.plan_file"],
+            cwd=SCRIPTS_DIR, capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            print(f"[reconcile] WARNING: Could not read queue item {item_id} for task message", file=sys.stderr)
+            return
+        parts = result.stdout.strip().split("\x1f")
+        title = parts[0] if len(parts) > 0 else ""
+        branch = parts[1] if len(parts) > 1 else ""
+        plan_file = parts[2] if len(parts) > 2 else ""
+        plan_file = plan_file.replace("~", os.path.expanduser("~"))
+
+        if not plan_file or plan_file == "None":
+            plan_file = os.path.expanduser(f"~/.claude/orchestrator/plans/{item_id}.md")
+
+        branch_line = f"Branch: {branch}" if branch and branch != "None" else "Branch: (none — direct commit to main)"
+        task_message = (
+            f"[Task Assignment] {title}\n\n"
+            f"Read your full implementation plan and task context at: {plan_file}\n\n"
+            f"{branch_line}\n"
+            f"Status: Activating now — follow the plan steps in order."
+        )
+
+        # Retry sending until the session enters standby (up to 12 × 5s = 60s)
+        for attempt in range(1, 13):
+            try:
+                send_result = subprocess.run(
+                    [cfg.tool_vmux, "send", session_id, task_message],
+                    capture_output=True, text=True, timeout=10,
+                )
+                if send_result.returncode == 0:
+                    print(f"[reconcile] Task instructions sent to {item_id} (session: {session_id})")
+                    return
+            except Exception:
+                pass
+            if attempt < 12:
+                time.sleep(5)
+
+        print(f"[reconcile] WARNING: Could not send task instructions to {item_id} after 60s", file=sys.stderr)
+    except Exception as e:
+        print(f"[reconcile] WARNING: Failed to send task instructions to {item_id}: {e}", file=sys.stderr)

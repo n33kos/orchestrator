@@ -62,8 +62,8 @@ done
 QUEUE_PY="python3 -m lib.queue"
 ITEM_JSON="$(cd "$SCRIPT_DIR" && $QUEUE_PY get-item "$ITEM_ID")"
 
-IFS=$'\x1f' read -r ITEM_STATUS ITEM_TYPE ITEM_BRANCH ITEM_TITLE DELEGATOR_ENABLED CUSTOM_REPO LOCAL_DIR <<< \
-    "$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" status type branch title delegator_enabled metadata.repo_path metadata.local_directory)"
+IFS=$'\x1f' read -r ITEM_STATUS ITEM_TYPE ITEM_BRANCH ITEM_TITLE DELEGATOR_ENABLED CUSTOM_REPO LOCAL_DIR PR_TYPE <<< \
+    "$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" status type branch title delegator_enabled metadata.repo_path metadata.local_directory metadata.pr_type)"
 
 # Apply defaults for delegator_enabled and expand ~ in paths
 [[ -z "$DELEGATOR_ENABLED" || "$DELEGATOR_ENABLED" == "None" ]] && DELEGATOR_ENABLED="$DELEGATOR_DEFAULT"
@@ -112,6 +112,50 @@ elif [[ -n "$CUSTOM_REPO" ]]; then
     echo ""
     echo "Step 1: Using existing repo (no worktree needed)"
     echo "  Path: $WORKTREE_PATH"
+elif [[ "$PR_TYPE" == "graphite_stack" ]]; then
+    # Graphite stack: create worktree from main — gt create will make branches
+    if [[ -z "$ITEM_BRANCH" ]]; then
+        echo "ERROR: Stack item $ITEM_ID has no branch prefix configured" >&2
+        exit 1
+    fi
+
+    # Read stack_steps for the task message later
+    STACK_STEPS_JSON="$(cd "$SCRIPT_DIR" && python3 -c "
+import json, sys
+item = json.loads(sys.stdin.read())
+steps = item.get('metadata', {}).get('stack_steps', [])
+print(json.dumps(steps))
+" <<< "$ITEM_JSON")"
+
+    echo "Activating: $ITEM_TITLE ($ITEM_ID)"
+    echo "  Type: $ITEM_TYPE (graphite_stack)"
+    echo "  Branch prefix: $ITEM_BRANCH"
+    echo "  Stack steps: $(echo "$STACK_STEPS_JSON" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")"
+
+    # Step 1: Create worktree from main
+    EXISTING_WORKTREE="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" worktree_path)"
+    if [[ -n "$EXISTING_WORKTREE" && -d "$EXISTING_WORKTREE" ]]; then
+        WORKTREE_PATH="$EXISTING_WORKTREE"
+    else
+        WORKTREE_PATH="${WORKTREE_PREFIX}${ITEM_BRANCH}"
+    fi
+    echo ""
+    echo "Step 1: Creating worktree from main..."
+    cd "$REPO_PATH"
+
+    if [[ -d "$WORKTREE_PATH" ]]; then
+        echo "  Worktree already exists at $WORKTREE_PATH"
+    else
+        # For stacks, create a detached worktree from main — gt create handles branching
+        git worktree add "$WORKTREE_PATH" main 2>/dev/null || {
+            # Fallback: try origin/main
+            git worktree add "$WORKTREE_PATH" origin/main 2>/dev/null || {
+                echo "  ERROR: Failed to create worktree from main" >&2
+                exit 1
+            }
+        }
+        echo "  Created: $WORKTREE_PATH (from main)"
+    fi
 else
     # Standard flow: validate branch and create worktree via Rostrum
     if [[ -z "$ITEM_BRANCH" ]]; then
@@ -205,7 +249,12 @@ current_id = None
 for line in lines:
     line = line.strip()
     if line.startswith('[') and ']' in line:
-        current_id = line.split(']')[1].strip()
+        raw_id = line.split(']')[1].strip()
+        # Extract hex ID from named format 'name (hex-id)' for consistency
+        if '(' in raw_id and raw_id.endswith(')'):
+            current_id = raw_id[raw_id.rindex('(') + 1:-1].strip()
+        else:
+            current_id = raw_id
     elif 'cwd:' in line and '$WORKTREE_PATH' in line and current_id:
         print(current_id)
         break
@@ -230,12 +279,49 @@ echo "Step 2b: Sending task instructions to worker..."
 PLAN_FILE="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" metadata.plan_file)"
 PLAN_FILE="${PLAN_FILE/#\~/$HOME}"
 
-TASK_MESSAGE="[Task Assignment] $ITEM_TITLE
+if [[ "$PR_TYPE" == "graphite_stack" ]]; then
+    # Build stack workflow instructions with step details
+    STACK_INSTRUCTIONS="$(cd "$SCRIPT_DIR" && python3 -c "
+import json, sys
+item = json.loads(sys.stdin.read())
+branch = item.get('branch', '')
+steps = item.get('metadata', {}).get('stack_steps', [])
+lines = []
+lines.append('')
+lines.append('## Stack Workflow')
+lines.append('')
+lines.append('This is a Graphite stack. Work through the steps below in order.')
+lines.append('')
+for s in sorted(steps, key=lambda x: x.get('position', 0)):
+    pos = s.get('position', 0)
+    suffix = s.get('branch_suffix', '')
+    desc = s.get('description', '')
+    full_branch = f'{branch}/{pos}/{suffix}'
+    lines.append(f'### Step {pos}: {desc}')
+    lines.append(f'Branch: \`{full_branch}\`')
+    lines.append(f'After implementing, run: \`gt create {full_branch} --message \"{desc}\"\`')
+    lines.append('')
+lines.append('### After all steps are complete:')
+lines.append('1. Run \`gt submit --stack\` to push all branches and create PRs')
+lines.append('2. Report completion')
+print('\n'.join(lines))
+" <<< "$ITEM_JSON")"
+
+    TASK_MESSAGE="[Task Assignment] $ITEM_TITLE
+
+Read your full implementation plan and task context at: $PLAN_FILE
+
+Branch prefix: $ITEM_BRANCH
+Status: Activating now — this is a Graphite stack. Follow the plan steps in order.
+$STACK_INSTRUCTIONS"
+else
+    TASK_MESSAGE="[Task Assignment] $ITEM_TITLE
 
 Read your full implementation plan and task context at: $PLAN_FILE
 
 Branch: $ITEM_BRANCH
 Status: Activating now — follow the plan steps in order."
+fi
 
 # Retry sending the task message until the session is in standby
 MESSAGE_SENT=false
