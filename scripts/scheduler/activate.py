@@ -19,12 +19,18 @@ SCRIPTS_DIR = os.path.join(PROJECT_ROOT, "scripts")
 EXEC_ENV = {**os.environ, "HOME": os.path.expanduser("~")}
 
 
-def _check_pr_state(pr_url: str) -> str | None:
-    """Check the state of a single GitHub PR."""
+def _parse_pr_url(pr_url: str) -> tuple[str, str, str] | None:
+    """Extract (owner, repo, number) from a GitHub PR URL."""
     match = re.search(r"github\.com/([^/]+)/([^/]+)/pull/(\d+)", pr_url)
-    if not match:
+    return match.groups() if match else None
+
+
+def _check_pr_state(pr_url: str) -> str | None:
+    """Check the state of a single GitHub PR (fallback for when batch fails)."""
+    parsed = _parse_pr_url(pr_url)
+    if not parsed:
         return None
-    owner, repo, number = match.groups()
+    owner, repo, number = parsed
     try:
         result = subprocess.run(
             ["gh", "pr", "view", number, "--repo", f"{owner}/{repo}", "--json", "state"],
@@ -37,36 +43,99 @@ def _check_pr_state(pr_url: str) -> str | None:
         return None
 
 
-def check_merged_prs(cfg: Config) -> list[dict]:
-    """Check active items with PR URLs — return list of merged items.
+def _batch_pr_states(pr_urls: list[str]) -> dict[str, dict] | None:
+    """Fetch state+merged for multiple PRs in a single GraphQL request.
+
+    Returns dict mapping "owner/repo#number" -> {"state": str, "merged": bool},
+    or None if the batch call fails (caller should fall back to individual checks).
+    """
+    # Group PRs by repo
+    repos: dict[str, list[str]] = {}
+    for url in pr_urls:
+        parsed = _parse_pr_url(url)
+        if not parsed:
+            continue
+        owner, repo, number = parsed
+        key = f"{owner}/{repo}"
+        repos.setdefault(key, []).append(number)
+
+    if not repos:
+        return None
+
+    # Build GraphQL query with aliased repositories and PRs
+    fragments = []
+    for i, (repo_key, numbers) in enumerate(repos.items()):
+        owner, repo = repo_key.split("/")
+        pr_fragments = []
+        for number in numbers:
+            pr_fragments.append(f'pr{number}: pullRequest(number: {number}) {{ state merged }}')
+        fragments.append(
+            f'repo{i}: repository(owner: "{owner}", name: "{repo}") {{ {" ".join(pr_fragments)} }}'
+        )
+    query = "query { " + " ".join(fragments) + " }"
+
+    try:
+        result = subprocess.run(
+            ["gh", "api", "graphql", "-f", f"query={query}"],
+            capture_output=True, text=True, timeout=15,
+        )
+        if result.returncode != 0:
+            print(f"[pr-check] GraphQL batch failed, falling back to individual checks")
+            return None
+
+        data = json.loads(result.stdout).get("data", {})
+        states = {}
+        for i, (repo_key, numbers) in enumerate(repos.items()):
+            repo_data = data.get(f"repo{i}", {})
+            for number in numbers:
+                pr_data = repo_data.get(f"pr{number}", {})
+                states[f"{repo_key}#{number}"] = {
+                    "state": pr_data.get("state", ""),
+                    "merged": pr_data.get("merged", False),
+                }
+        return states
+    except Exception:
+        return None
+
+
+def check_review_prs_merged(cfg: Config) -> list[dict]:
+    """Check review-status items with PR URLs — return list of merged items.
+
+    Only examines items in 'review' status (not active) to avoid unnecessary
+    API calls. Uses batched GraphQL when possible for efficiency.
 
     Returns list of dicts with 'id' and 'title' for merged items.
     """
     with locked_queue() as ctx:
         data = ctx["data"]
 
-    active_with_pr = [
+    review_with_pr = [
         i for i in data["items"]
-        if i["status"] == "active" and i.get("pr_url")
+        if i["status"] == "review" and i.get("pr_url")
     ]
 
-    if not active_with_pr:
-        print("[pr-check] No active items with PR URLs")
+    if not review_with_pr:
         return []
+
+    # Collect all PR URLs for batching
+    all_urls = []
+    for item in review_with_pr:
+        all_urls.append(item["pr_url"])
+    batch_states = _batch_pr_states(all_urls)
 
     merged = []
 
-    for item in active_with_pr:
+    for item in review_with_pr:
         pr_url = item["pr_url"]
         item_id = item["id"]
         item_title = item.get("title", "")
         is_stack = item.get("metadata", {}).get("pr_type") == "graphite_stack"
 
         if is_stack:
-            match = re.search(r"github\.com/([^/]+)/([^/]+)/pull/(\d+)", pr_url)
-            if not match:
+            parsed = _parse_pr_url(pr_url)
+            if not parsed:
                 continue
-            owner, repo, _ = match.groups()
+            owner, repo, _ = parsed
             branch = item.get("branch", "")
             if not branch:
                 continue
@@ -82,9 +151,15 @@ def check_merged_prs(cfg: Config) -> list[dict]:
                 branch_prefix = "/".join(branch.split("/")[:3])
                 stack_prs = [p for p in all_prs if p["headRefName"].startswith(branch_prefix)]
                 if not stack_prs:
-                    state = _check_pr_state(pr_url)
-                    if state == "MERGED":
-                        merged.append({"id": item_id, "title": item_title})
+                    # Fall back to single PR check
+                    key = f"{owner}/{repo}#{parsed[2]}"
+                    if batch_states and key in batch_states:
+                        if batch_states[key]["state"] == "MERGED":
+                            merged.append({"id": item_id, "title": item_title})
+                    else:
+                        state = _check_pr_state(pr_url)
+                        if state == "MERGED":
+                            merged.append({"id": item_id, "title": item_title})
                     continue
                 all_merged = all(p["state"] == "MERGED" for p in stack_prs)
                 merged_count = sum(1 for p in stack_prs if p["state"] == "MERGED")
@@ -96,6 +171,14 @@ def check_merged_prs(cfg: Config) -> list[dict]:
             except Exception:
                 continue
         else:
+            # Use batch result if available, otherwise fall back
+            parsed = _parse_pr_url(pr_url)
+            if parsed and batch_states:
+                key = f"{parsed[0]}/{parsed[1]}#{parsed[2]}"
+                if key in batch_states and batch_states[key]["state"] == "MERGED":
+                    merged.append({"id": item_id, "title": item_title})
+                    continue
+            # Fallback to individual check
             state = _check_pr_state(pr_url)
             if state == "MERGED":
                 merged.append({"id": item_id, "title": item_title})
@@ -104,8 +187,8 @@ def check_merged_prs(cfg: Config) -> list[dict]:
 
 
 def teardown_merged(cfg: Config, dry_run: bool) -> None:
-    """Check for merged PRs and tear down their work streams."""
-    merged_items = check_merged_prs(cfg)
+    """Check for merged PRs in review items and tear down their work streams."""
+    merged_items = check_review_prs_merged(cfg)
 
     for item in merged_items:
         item_id = item["id"]
