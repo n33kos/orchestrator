@@ -130,11 +130,13 @@ print(json.dumps(steps))
     echo "  Stack steps: $(echo "$STACK_STEPS_JSON" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")"
 
     # Step 1: Create worktree from main
+    # Sanitize branch name: replace / with - (matches Rostrum convention)
+    SANITIZED_BRANCH="${ITEM_BRANCH//\//-}"
     EXISTING_WORKTREE="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" worktree_path)"
     if [[ -n "$EXISTING_WORKTREE" && -d "$EXISTING_WORKTREE" ]]; then
         WORKTREE_PATH="$EXISTING_WORKTREE"
     else
-        WORKTREE_PATH="${WORKTREE_PREFIX}${ITEM_BRANCH}"
+        WORKTREE_PATH="${WORKTREE_PREFIX}${SANITIZED_BRANCH}"
     fi
     echo ""
     echo "Step 1: Creating worktree from main..."
