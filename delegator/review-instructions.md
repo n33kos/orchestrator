@@ -15,6 +15,7 @@ Same payload as triage:
 - `commits` — `{new_commits, diff_stat, diff_content}`. Note: if `item_context.metadata.no_branch` is true, commits go directly to main.
 - `pr` — `{exists, url, state, ci_checks, mergeable}`. May not exist for no-branch projects.
 - `conversation_recent` — Summary of recent worker transcript. Check for completion signals.
+- `user_profile` — User preferences, quality priorities, review patterns, and domain concerns. Use to calibrate your review focus and communication style.
 - `previous_state` — State from the last cycle
 
 ## Code Review Standards

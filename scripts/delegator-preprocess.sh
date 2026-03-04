@@ -24,6 +24,7 @@ CONFIG="$PROJECT_ROOT/config/environment.yml"
 eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
 
 VMUX="$CONFIG_TOOL_VMUX"
+PROFILE_FILE="${CONFIG_PROFILE_FILE:-}"
 
 # --- Inputs ---
 ITEM_ID="${1:?Usage: delegator-preprocess.sh <item-id> [state-file-path]}"
@@ -107,6 +108,14 @@ ACTIVITY_SUMMARY="$(python3 "$SCRIPT_DIR/delegator-summarize-transcript.py" "$WO
 CONVERSATION_RECENT="$(python3 "$SCRIPT_DIR/read-worker-transcript.py" "$WORKTREE_PATH" --lines 30 --format summary 2>/dev/null)" || CONVERSATION_RECENT=""
 
 # ============================================================
+# Step 5c: Read user profile
+# ============================================================
+PROFILE_CONTENT=""
+if [[ -n "$PROFILE_FILE" && -f "$PROFILE_FILE" ]]; then
+    PROFILE_CONTENT="$(cat "$PROFILE_FILE" 2>/dev/null)" || PROFILE_CONTENT=""
+fi
+
+# ============================================================
 # Step 6-7: Check for new commits and get diffs
 # ============================================================
 # Read the last seen commit hash from previous state
@@ -188,6 +197,7 @@ MERGE_STATUS_JSON_ENV="$MERGE_STATUS_JSON" \
 PREVIOUS_STATE_ENV="$PREVIOUS_STATE" \
 CONVERSATION_RECENT_ENV="$CONVERSATION_RECENT" \
 ITEM_JSON_ENV="$ITEM_JSON" \
+PROFILE_CONTENT_ENV="$PROFILE_CONTENT" \
 OUTPUT_FILE_ENV="$OUTPUT_FILE" \
 python3 << 'PYEOF'
 import json
@@ -208,6 +218,7 @@ merge_status_raw = os.environ["MERGE_STATUS_JSON_ENV"]
 previous_state_raw = os.environ["PREVIOUS_STATE_ENV"]
 conversation_recent = os.environ.get("CONVERSATION_RECENT_ENV", "")
 item_json_raw = os.environ.get("ITEM_JSON_ENV", "{}")
+profile_content = os.environ.get("PROFILE_CONTENT_ENV", "")
 output_file = os.environ["OUTPUT_FILE_ENV"]
 
 # Parse activity summary (may be JSON or plain text)
@@ -313,6 +324,7 @@ payload = {
     "item_id": item_id,
     "item_context": item_context,
     "plan": plan_content,
+    "user_profile": profile_content,
     "worker": {
         "session_alive": session_alive,
         "idle_check": idle_check,
