@@ -154,10 +154,10 @@ if [[ -n "$GIT_REPO_PATH" && -d "$GIT_REPO_PATH" ]]; then
         DIFF_STAT="$(cd "$GIT_REPO_PATH" && git diff --stat "${LAST_SEEN_HASH}..HEAD" 2>/dev/null)" || DIFF_STAT=""
         DIFF_CONTENT="$(cd "$GIT_REPO_PATH" && git diff "${LAST_SEEN_HASH}..HEAD" 2>/dev/null)" || DIFF_CONTENT=""
     else
-        # No last seen hash — get the most recent commit as baseline and its diff
-        NEW_COMMITS_RAW="$(cd "$GIT_REPO_PATH" && git log --oneline -1 2>/dev/null)" || NEW_COMMITS_RAW=""
-        DIFF_STAT="$(cd "$GIT_REPO_PATH" && git diff --stat HEAD~1..HEAD 2>/dev/null)" || DIFF_STAT=""
-        DIFF_CONTENT="$(cd "$GIT_REPO_PATH" && git diff HEAD~1..HEAD 2>/dev/null)" || DIFF_CONTENT=""
+        # No last seen hash — show recent commit history for context (last 20)
+        NEW_COMMITS_RAW="$(cd "$GIT_REPO_PATH" && git log --oneline -20 2>/dev/null)" || NEW_COMMITS_RAW=""
+        DIFF_STAT="$(cd "$GIT_REPO_PATH" && git diff --stat HEAD~5..HEAD 2>/dev/null)" || DIFF_STAT=""
+        DIFF_CONTENT="$(cd "$GIT_REPO_PATH" && git diff HEAD~5..HEAD 2>/dev/null | head -500)" || DIFF_CONTENT=""
     fi
 fi
 
