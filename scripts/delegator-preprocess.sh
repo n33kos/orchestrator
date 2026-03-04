@@ -133,8 +133,10 @@ if [[ -n "$WORKTREE_PATH" && -d "$WORKTREE_PATH" ]]; then
         DIFF_STAT="$(cd "$WORKTREE_PATH" && git diff --stat "${LAST_SEEN_HASH}..HEAD" 2>/dev/null)" || DIFF_STAT=""
         DIFF_CONTENT="$(cd "$WORKTREE_PATH" && git diff "${LAST_SEEN_HASH}..HEAD" 2>/dev/null)" || DIFF_CONTENT=""
     else
-        # No last seen hash — get the most recent commit as baseline
+        # No last seen hash — get the most recent commit as baseline and its diff
         NEW_COMMITS_RAW="$(cd "$WORKTREE_PATH" && git log --oneline -1 2>/dev/null)" || NEW_COMMITS_RAW=""
+        DIFF_STAT="$(cd "$WORKTREE_PATH" && git diff --stat HEAD~1..HEAD 2>/dev/null)" || DIFF_STAT=""
+        DIFF_CONTENT="$(cd "$WORKTREE_PATH" && git diff HEAD~1..HEAD 2>/dev/null)" || DIFF_CONTENT=""
     fi
 fi
 
@@ -185,6 +187,7 @@ CI_CHECKS_RAW_ENV="$CI_CHECKS_RAW" \
 MERGE_STATUS_JSON_ENV="$MERGE_STATUS_JSON" \
 PREVIOUS_STATE_ENV="$PREVIOUS_STATE" \
 CONVERSATION_RECENT_ENV="$CONVERSATION_RECENT" \
+ITEM_JSON_ENV="$ITEM_JSON" \
 OUTPUT_FILE_ENV="$OUTPUT_FILE" \
 python3 << 'PYEOF'
 import json
@@ -204,6 +207,7 @@ ci_checks_raw = os.environ["CI_CHECKS_RAW_ENV"]
 merge_status_raw = os.environ["MERGE_STATUS_JSON_ENV"]
 previous_state_raw = os.environ["PREVIOUS_STATE_ENV"]
 conversation_recent = os.environ.get("CONVERSATION_RECENT_ENV", "")
+item_json_raw = os.environ.get("ITEM_JSON_ENV", "{}")
 output_file = os.environ["OUTPUT_FILE_ENV"]
 
 # Parse activity summary (may be JSON or plain text)
@@ -276,6 +280,29 @@ try:
 except (json.JSONDecodeError, ValueError):
     previous_state = {}
 
+# Parse queue item data
+try:
+    item_data = json.loads(item_json_raw)
+except (json.JSONDecodeError, ValueError):
+    item_data = {}
+
+# Extract item context for triage
+item_context = {
+    "title": item_data.get("title", ""),
+    "description": item_data.get("description", ""),
+    "metadata": item_data.get("metadata", {}),
+}
+
+# Read plan file if specified in metadata
+plan_content = ""
+plan_file = item_data.get("metadata", {}).get("plan_file", "")
+if plan_file:
+    try:
+        with open(os.path.expanduser(plan_file)) as pf:
+            plan_content = pf.read()[:5000]  # Truncate to 5K chars
+    except (OSError, IOError):
+        pass
+
 # Compute cycle number from previous state
 cycle_number = previous_state.get("cycle_number", 0) + 1
 
@@ -284,6 +311,8 @@ payload = {
     "cycle_number": cycle_number,
     "timestamp": timestamp,
     "item_id": item_id,
+    "item_context": item_context,
+    "plan": plan_content,
     "worker": {
         "session_alive": session_alive,
         "idle_check": idle_check,
