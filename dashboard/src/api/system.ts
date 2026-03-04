@@ -171,10 +171,10 @@ export function registerSystemRoutes(server: ViteDevServer) {
     if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
     try {
       const body = req.method === 'POST' ? JSON.parse(await readBody(req)) : {}
-      const scriptPath = join(__dirname, '..', '..', '..', 'scripts', 'scheduler.sh')
-      const args = ['--once']
+      const repoRoot = join(__dirname, '..', '..', '..')
+      const args = ['-m', 'scripts.scheduler', '--once']
       if (body.dryRun) args.push('--dry-run')
-      execFile('bash', [scriptPath, ...args], { timeout: 120000, env: { ...process.env, HOME: homedir() } }, (err, stdout, stderr) => {
+      execFile('python3', args, { timeout: 120000, cwd: repoRoot, env: { ...process.env, HOME: homedir() } }, (err, stdout, stderr) => {
         res.setHeader('Content-Type', 'application/json')
         if (err) {
           res.statusCode = 500
