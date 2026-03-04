@@ -88,14 +88,20 @@ def _match_sessions(
 
 
 def update_spend(cfg: Config) -> None:
-    """Update spend metadata for all active queue items."""
-    # Read queue (non-write lock) to check if there are active items
+    """Update spend metadata for non-completed queue items."""
+    _TRACKABLE_STATUSES = {"active", "review", "paused", "planning"}
+
     with locked_queue() as ctx:
         data = ctx["data"]
         active_items = [
             i for i in data["items"]
-            if i["status"] == "active"
-            and (i.get("worktree_path") or i.get("session_id") or i.get("delegator_id"))
+            if i["status"] in _TRACKABLE_STATUSES
+            and (
+                i.get("worktree_path")
+                or i.get("session_id")
+                or i.get("delegator_id")
+                or (i.get("metadata") or {}).get("local_directory")
+            )
         ]
 
     if not active_items:
