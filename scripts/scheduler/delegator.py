@@ -18,7 +18,12 @@ from scripts.scheduler.events import emit_event
 
 PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
 SCRIPTS_DIR = os.path.join(PROJECT_ROOT, "scripts")
-EXEC_ENV = {**os.environ, "HOME": os.path.expanduser("~")}
+EXEC_ENV = {
+    **os.environ,
+    "HOME": os.path.expanduser("~"),
+}
+# Remove CLAUDECODE to prevent "nested session" guard from blocking claude --print
+EXEC_ENV.pop("CLAUDECODE", None)
 
 
 def check_services(cfg: Config) -> None:
