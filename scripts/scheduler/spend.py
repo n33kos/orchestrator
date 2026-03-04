@@ -91,32 +91,37 @@ def _match_sessions(
     """Find ccusage sessions matching a queue item. Returns {sessionId: cost}."""
     matches: dict[str, float] = {}
 
-    # Build list of path prefixes to match against
-    paths_to_match: list[str] = []
+    # Exact-match paths: session ID must match exactly (no prefix matching)
+    # This prevents a worktree at /repo from matching /repo-branch-name sessions.
+    exact_ids: set[str] = set()
 
     worktree = item.get("worktree_path")
     if worktree:
-        paths_to_match.append(_path_to_session_id(worktree))
+        exact_ids.add(_path_to_session_id(worktree))
 
-    # Also match orchestrator workspace and delegator paths
-    item_id = item.get("id", "")
-    workspace_path = os.path.expanduser(f"~/.claude/orchestrator/workspaces/{item_id}")
-    paths_to_match.append(_path_to_session_id(workspace_path))
-
-    delegator_path = os.path.expanduser(f"~/.claude/orchestrator/delegators/{item_id}")
-    paths_to_match.append(_path_to_session_id(delegator_path))
-
-    # Match local_directory if set (used by self-targeting items)
     local_dir = (item.get("metadata") or {}).get("local_directory")
     if local_dir:
-        paths_to_match.append(_path_to_session_id(os.path.expanduser(local_dir)))
+        exact_ids.add(_path_to_session_id(os.path.expanduser(local_dir)))
+
+    # Prefix-match paths: orchestrator workspace and delegator dirs may have
+    # sub-sessions (e.g. delegator one-shot invocations under the delegator dir).
+    prefix_ids: list[str] = []
+    item_id = item.get("id", "")
+    workspace_path = os.path.expanduser(f"~/.claude/orchestrator/workspaces/{item_id}")
+    prefix_ids.append(_path_to_session_id(workspace_path))
+
+    delegator_path = os.path.expanduser(f"~/.claude/orchestrator/delegators/{item_id}")
+    prefix_ids.append(_path_to_session_id(delegator_path))
 
     for session in all_sessions:
         sid = session.get("sessionId", "")
         cost = session.get("totalCost", 0.0)
         if cost <= 0:
             continue
-        for prefix in paths_to_match:
+        if sid in exact_ids:
+            matches[sid] = cost
+            continue
+        for prefix in prefix_ids:
             if sid.startswith(prefix):
                 matches[sid] = cost
                 break
