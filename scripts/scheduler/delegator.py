@@ -378,13 +378,15 @@ def trigger_delegator_cycles(cfg: Config, dry_run: bool) -> None:
                         --system-prompt "$(cat "$TRIAGE_INSTRUCTIONS")" \
                         < "$CYCLE_JSON" > "$TRIAGE_OUTPUT" 2>/dev/null || exit 1
 
-                    # Check decision
+                    # Check decision — extract JSON from potential markdown code fences
                     DECISION=$(python3 -c "
 import json, sys, re
 try:
     text = open('$TRIAGE_OUTPUT').read().strip()
     fence = chr(96)*3
-    m = re.search(fence + r'(?:json)?\s*\n(.*?)\n' + fence, text, re.DOTALL)
+    nl = chr(10)
+    pat = fence + '[^' + nl + ']*' + nl + '(.*?)' + nl + fence
+    m = re.search(pat, text, re.DOTALL)
     if m:
         text = m.group(1).strip()
     data = json.loads(text)

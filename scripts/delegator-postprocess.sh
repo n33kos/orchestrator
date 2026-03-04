@@ -52,7 +52,9 @@ with open('$CLAUDE_OUTPUT_FILE') as f:
 
 # Extract JSON from markdown code fences if present (handles trailing text after closing fence)
 fence = chr(96)*3
-m = re.search(fence + r'(?:json)?\s*\n(.*?)\n' + fence, raw, re.DOTALL)
+nl = chr(10)
+pat = fence + '[^' + nl + ']*' + nl + '(.*?)' + nl + fence
+m = re.search(pat, raw, re.DOTALL)
 if m:
     raw = m.group(1).strip()
 
