@@ -138,7 +138,12 @@ import json, sys
 try:
     with open('$STATE_FILE') as f:
         state = json.load(f)
-    print(state.get('last_seen_commit') or state.get('last_seen_hash') or '')
+    # Check both top-level and nested paths (commits.last_seen_hash)
+    h = (state.get('commits', {}).get('last_seen_hash')
+         or state.get('last_seen_commit')
+         or state.get('last_seen_hash')
+         or '')
+    print(h)
 except Exception:
     print('')
 " 2>/dev/null)" || LAST_SEEN_HASH=""

@@ -400,6 +400,7 @@ except Exception:
     print('no_action')
 " 2>/dev/null)
 
+                    MODEL_FLAG="--model haiku"
                     if [ "$DECISION" = "escalate" ]; then
                         echo "  [escalate] Escalating to Opus for $ITEM_ID..."
                         REVIEW_INSTRUCTIONS="$PROJECT_ROOT/delegator/review-instructions.md"
@@ -408,6 +409,7 @@ except Exception:
                             --system-prompt "$(cat "$REVIEW_INSTRUCTIONS")" \
                             < "$CYCLE_JSON" > "$ESCALATION_OUTPUT" 2>/dev/null && \
                             cp "$ESCALATION_OUTPUT" "$TRIAGE_OUTPUT" || true
+                        MODEL_FLAG="--model opus"
                     fi
 
                     # Save copies for dashboard debugging (before postprocess, which deletes the files)
@@ -417,7 +419,7 @@ except Exception:
                     [ -f "$TRIAGE_OUTPUT" ] && cp "$TRIAGE_OUTPUT" "$DELEGATOR_DIR/last-triage-output.json"
 
                     # Postprocess (note: this deletes TRIAGE_OUTPUT)
-                    "$SCRIPT_DIR/delegator-postprocess.sh" "$ITEM_ID" "$TRIAGE_OUTPUT" 2>&1 | sed 's/^/  [postprocess] /' || true
+                    "$SCRIPT_DIR/delegator-postprocess.sh" "$ITEM_ID" "$TRIAGE_OUTPUT" $MODEL_FLAG 2>&1 | sed 's/^/  [postprocess] /' || true
 
                     # Cleanup remaining temp files
                     rm -f "$CYCLE_JSON" "/tmp/delegator-escalation-$ITEM_ID.json"
