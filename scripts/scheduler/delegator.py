@@ -380,13 +380,13 @@ def trigger_delegator_cycles(cfg: Config, dry_run: bool) -> None:
 
                     # Check decision
                     DECISION=$(python3 -c "
-import json, sys
+import json, sys, re
 try:
     text = open('$TRIAGE_OUTPUT').read().strip()
-    if text.startswith('\`\`\`'):
-        text = text.split('\\n', 1)[1] if '\\n' in text else text
-        if text.endswith('\`\`\`'):
-            text = text[:-3].strip()
+    # Extract JSON from markdown code fences if present
+    m = re.search(r'\x60\x60\x60(?:json)?\s*\n(.*?)\n\x60\x60\x60', text, re.DOTALL)
+    if m:
+        text = m.group(1).strip()
     data = json.loads(text)
     print(data.get('decision', 'no_action'))
 except Exception:
