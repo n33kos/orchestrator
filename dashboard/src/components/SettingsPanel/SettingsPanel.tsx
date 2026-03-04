@@ -265,6 +265,29 @@ export function SettingsPanel({
               />
             </SettingRow>
             <SettingRow
+              label="Scheduler poll interval"
+              description="How often the scheduler checks for work"
+            >
+              <div className={styles.SegmentControl}>
+                {[
+                  { label: "1m", value: 60 },
+                  { label: "2m", value: 120 },
+                  { label: "3m", value: 180 },
+                  { label: "5m", value: 300 },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    className={`${styles.Segment} ${settings.schedulerPollInterval === opt.value ? styles.SegmentActive : ""}`}
+                    onClick={() =>
+                      onUpdate("schedulerPollInterval", opt.value)
+                    }
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </SettingRow>
+            <SettingRow
               label="Delegator cycle"
               description="How often delegators check on workers"
             >

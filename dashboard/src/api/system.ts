@@ -233,6 +233,7 @@ export function registerSystemRoutes(server: ViteDevServer) {
           archiveAfterDays: { key: 'archive_after_days', section: 'scheduler' },
           plansDirectory: { key: 'plans_directory', section: 'plans' },
           delegatorCycleInterval: { key: 'cycle_interval', section: 'delegator' },
+          schedulerPollInterval: { key: 'poll_interval', section: 'scheduler' },
         }
 
         // Write each setting to the local override file
@@ -300,6 +301,7 @@ export function registerSystemRoutes(server: ViteDevServer) {
         stallThresholdMinutes: parseInt(getVal('threshold_minutes') || '30', 10),
         archiveAfterDays: parseInt(getVal('archive_after_days') || '7', 10),
         delegatorCycleInterval: parseInt(getVal('cycle_interval')?.replace(/#.*/, '') || '300', 10),
+        schedulerPollInterval: parseInt(getVal('poll_interval')?.replace(/#.*/, '') || '120', 10),
       }))
     } catch (err) {
       res.statusCode = 500

@@ -13,6 +13,7 @@ export interface OrchestratorSettings {
   archiveAfterDays: number
   stallThresholdMinutes: number
   delegatorCycleInterval: number
+  schedulerPollInterval: number
 }
 
 const STORAGE_KEY = 'orchestrator-settings-config'
@@ -28,6 +29,7 @@ const CONFIG_SYNCED_KEYS = new Set<keyof OrchestratorSettings>([
   'stallThresholdMinutes',
   'archiveAfterDays',
   'delegatorCycleInterval',
+  'schedulerPollInterval',
 ])
 
 const DEFAULTS: OrchestratorSettings = {
@@ -43,6 +45,7 @@ const DEFAULTS: OrchestratorSettings = {
   archiveAfterDays: 7,
   stallThresholdMinutes: 30,
   delegatorCycleInterval: 300,
+  schedulerPollInterval: 120,
 }
 
 export function useSettings() {

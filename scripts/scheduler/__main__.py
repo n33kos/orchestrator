@@ -27,6 +27,7 @@ from scripts.scheduler.reconcile import (
 )
 from scripts.scheduler.activate import teardown_merged
 from scripts.scheduler.cleanup import cleanup_completed, rotate_event_log
+from scripts.scheduler.spend import update_spend
 from scripts.scheduler.delegator import (
     check_services,
     recover_delegators,
@@ -141,6 +142,7 @@ def main():
             generate_plans(cfg, args.dry_run)
             reconcile_state(cfg, args.dry_run)
             check_and_activate(cfg, args.dry_run)
+            update_spend(cfg)
             return
 
         # Continuous mode
@@ -171,8 +173,13 @@ def main():
             recover_sessions(cfg)
             recover_delegators(cfg, args.dry_run)
 
-            if cycle % delegator_trigger_every == 0:
+            is_delegator_cycle = cycle % delegator_trigger_every == 0
+            if is_delegator_cycle:
+                print(f"[scheduler] Cycle {cycle}: reconciliation + delegator monitoring")
                 trigger_delegator_cycles(cfg, args.dry_run)
+            else:
+                cycles_until_delegator = delegator_trigger_every - (cycle % delegator_trigger_every)
+                print(f"[scheduler] Cycle {cycle}: reconciliation (next delegator in {cycles_until_delegator} cycles)")
 
             process_worker_completions(cfg, args.dry_run)
             teardown_merged(cfg, args.dry_run)
@@ -180,6 +187,7 @@ def main():
             generate_plans(cfg, args.dry_run)
             reconcile_state(cfg, args.dry_run)
             check_and_activate(cfg, args.dry_run)
+            update_spend(cfg)
 
             cycle += 1
             if cycle % cfg.cleanup_every == 0:
