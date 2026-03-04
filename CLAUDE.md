@@ -63,6 +63,7 @@ For session debugging, stuck session recovery, and zombie recovery, see the heal
 - Always run worktree setup and teardown commands from within the main repo directory.
 - Respect the concurrency limit for projects (see `config/environment.yml` `concurrency.max_active_projects`).
 - **Never run all tests** — always target specific test files.
+- **Self-targeting items (orchestrator repo)**: When creating a work item that targets the orchestrator repo itself, ALWAYS use `metadata.local_directory` with a workspace subdirectory (e.g. `~/.claude/orchestrator/workspaces/<item-id>`). NEVER use `metadata.repo_path` pointing to the orchestrator root — this would cause vmux to spawn a worker session at the orchestrator's own directory, taking over the orchestrator's session. Also set `metadata.no_branch: true` and `metadata.commit_strategy: single_commit_to_main` since these items commit directly to main without branches or PRs.
 
 ## Work Queue Management
 

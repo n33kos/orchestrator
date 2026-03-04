@@ -260,6 +260,31 @@ def reconcile_state(cfg: Config, dry_run: bool) -> None:
             session_id = item.get("session_id") or ""
             worktree_path = item.get("worktree_path") or ""
             title = item.get("title", "")
+
+            # Items with metadata.local_directory use an isolated workspace
+            # instead of a git worktree (e.g. orchestrator self-targeting items).
+            # Always prefer local_directory as the authoritative path — worktree_path
+            # can be stale or corrupt from a failed/stale activation.
+            local_dir = (item.get("metadata") or {}).get("local_directory") or ""
+            if local_dir:
+                local_dir = os.path.expanduser(local_dir)
+                if worktree_path != local_dir:
+                    print(f"[reconcile] Correcting worktree_path for {item_id}: "
+                          f"{worktree_path!r} -> {local_dir!r}")
+                    worktree_path = local_dir
+                    # Persist the correction
+                    subprocess.run(
+                        ["python3", "-m", "lib.queue", "update", item_id,
+                         f"worktree_path={worktree_path}"],
+                        cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
+                    )
+
+            # Guard: spawning a worker at the orchestrator's own directory would
+            # take over the orchestrator's vmux session. PROJECT_ROOT is computed
+            # dynamically from the script location — not hardcoded to any path.
+            if worktree_path and os.path.realpath(worktree_path) == os.path.realpath(PROJECT_ROOT):
+                print(f"[reconcile] REFUSING to spawn worker for {item_id} at orchestrator root ({worktree_path})")
+                continue
             delegator_enabled = item.get("delegator_enabled")
             if delegator_enabled is None:
                 delegator_enabled = cfg.delegator_enabled
@@ -391,6 +416,10 @@ def _run_script(script_name: str, args: list[str], timeout: int = 60) -> subproc
 
 def _spawn_worker(cfg: Config, item_id: str, worktree_path: str, session_name: str) -> None:
     """Spawn a vmux worker session and update queue."""
+    # Safety: refuse to spawn at the orchestrator's own root
+    if os.path.realpath(worktree_path) == os.path.realpath(PROJECT_ROOT):
+        print(f"[reconcile] REFUSING to spawn worker for {item_id} at orchestrator root ({worktree_path})", file=sys.stderr)
+        return
     try:
         spawn_args = [cfg.tool_vmux, "spawn", worktree_path]
         if session_name:

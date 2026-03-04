@@ -167,6 +167,17 @@ else
     fi
 fi
 
+# Guard: spawning a worker at the orchestrator's own directory would take over
+# the orchestrator's vmux session. PROJECT_ROOT is computed dynamically from the
+# script location — not hardcoded to any specific path.
+REAL_WORKTREE="$(cd "$WORKTREE_PATH" 2>/dev/null && pwd -P)" || REAL_WORKTREE="$WORKTREE_PATH"
+REAL_PROJECT="$(cd "$PROJECT_ROOT" 2>/dev/null && pwd -P)" || REAL_PROJECT="$PROJECT_ROOT"
+if [[ "$REAL_WORKTREE" == "$REAL_PROJECT" ]]; then
+    echo "ERROR: WORKTREE_PATH resolved to the orchestrator root ($WORKTREE_PATH)" >&2
+    echo "  This would take over the orchestrator's own session. Aborting." >&2
+    exit 1
+fi
+
 # Step 2: Spawn worker session
 echo ""
 echo "Step 2: Spawning worker session..."

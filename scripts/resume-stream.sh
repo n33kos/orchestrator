@@ -46,8 +46,11 @@ if [[ "$ITEM_STATUS" != "review" && "$ITEM_STATUS" != "paused" ]]; then
     exit 1
 fi
 
-IFS=$'\x1f' read -r ITEM_TITLE ITEM_BRANCH ITEM_TYPE WORKTREE_PATH DELEGATOR_ENABLED \
-    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" title branch type worktree_path delegator_enabled)
+IFS=$'\x1f' read -r ITEM_TITLE ITEM_BRANCH ITEM_TYPE WORKTREE_PATH DELEGATOR_ENABLED LOCAL_DIR \
+    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" title branch type worktree_path delegator_enabled metadata.local_directory)
+
+# Expand ~ in local_directory
+LOCAL_DIR="${LOCAL_DIR/#\~/$HOME}"
 
 echo "Resuming: $ITEM_TITLE ($ITEM_ID)"
 
@@ -60,12 +63,29 @@ if [[ "$ITEM_TYPE" == "project" ]]; then
     fi
 fi
 
-# Ensure worktree exists (it should, but be safe)
-if [[ -z "$WORKTREE_PATH" ]]; then
+# Resolve worktree path: prefer local_directory, then stored worktree_path, then branch prefix
+if [[ -n "$LOCAL_DIR" ]]; then
+    WORKTREE_PATH="$LOCAL_DIR"
+    if [[ ! -d "$WORKTREE_PATH" ]]; then
+        mkdir -p "$WORKTREE_PATH"
+        echo "  Created local directory: $WORKTREE_PATH"
+    fi
+elif [[ -z "$WORKTREE_PATH" ]]; then
     WORKTREE_PATH="${WORKTREE_PREFIX}${ITEM_BRANCH}"
 fi
 
-if [[ ! -d "$WORKTREE_PATH" ]]; then
+# Guard: spawning a worker at the orchestrator's own directory would take over
+# the orchestrator's vmux session. PROJECT_ROOT is computed dynamically from the
+# script location — not hardcoded to any specific path.
+REAL_WORKTREE="$(cd "$WORKTREE_PATH" 2>/dev/null && pwd -P)" || REAL_WORKTREE="$WORKTREE_PATH"
+REAL_PROJECT="$(cd "$PROJECT_ROOT" 2>/dev/null && pwd -P)" || REAL_PROJECT="$PROJECT_ROOT"
+if [[ "$REAL_WORKTREE" == "$REAL_PROJECT" ]]; then
+    echo "ERROR: WORKTREE_PATH resolved to the orchestrator root ($WORKTREE_PATH)" >&2
+    echo "  This would take over the orchestrator's own session. Aborting." >&2
+    exit 1
+fi
+
+if [[ -z "$LOCAL_DIR" && ! -d "$WORKTREE_PATH" ]]; then
     echo "  Worktree missing — recreating..."
     cd "$REPO_PATH"
     $ROSTRUM setup "$ITEM_BRANCH" --quick
