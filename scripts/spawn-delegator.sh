@@ -48,7 +48,7 @@ if [[ -z "$ITEM_SESSION" ]]; then
 fi
 
 # Extract fields
-IFS=$'\t' read -r WORKER_SESSION_ID WORKTREE_PATH ITEM_TITLE ITEM_BRANCH \
+IFS=$'\x1f' read -r WORKER_SESSION_ID WORKTREE_PATH ITEM_TITLE ITEM_BRANCH \
     < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" session_id worktree_path title branch)
 
 echo "Initializing delegator for: $ITEM_TITLE ($ITEM_ID)"

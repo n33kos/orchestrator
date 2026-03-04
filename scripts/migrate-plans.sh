@@ -82,7 +82,7 @@ for item in data['items']:
             f.write(content)
         # Update queue item
         meta['plan_file'] = plan_path
-        meta['plan_approved'] = plan.get('approved', False)
+        # plan_approved is deprecated — approval lives in plan.approved only
         # Keep a minimal inline plan reference but remove the bulk data
         # The steps are now in the file
         print(f'  MIGRATED {item_id}: {title} -> {plan_path}')

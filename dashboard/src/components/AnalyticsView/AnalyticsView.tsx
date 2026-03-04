@@ -43,9 +43,14 @@ export function AnalyticsView({ items, sessions, delegators = [], events = [] }:
     { label: 'Zombie', value: sessions.filter(s => s.state === 'zombie').length, color: 'var(--color-error)' },
   ]
 
-  // Blocker stats
-  const totalBlockers = items.reduce((acc, i) => acc + i.blockers.length, 0)
-  const unresolvedBlockers = items.reduce((acc, i) => acc + i.blockers.filter(b => !b.resolved).length, 0)
+  // Dependency stats
+  const blockedItems = items.filter(i => (i.blocked_by || []).length > 0)
+  const activelyBlocked = blockedItems.filter(i =>
+    i.blocked_by.some(depId => {
+      const dep = items.find(d => d.id === depId)
+      return !dep || dep.status !== 'completed'
+    })
+  )
 
   // Average items per day (based on created_at)
   const now = Date.now()
@@ -126,19 +131,19 @@ export function AnalyticsView({ items, sessions, delegators = [], events = [] }:
         </div>
 
         <div className={styles.Card}>
-          <h3 className={styles.CardTitle}>Blockers</h3>
-          <div className={styles.BlockerStats}>
-            <div className={styles.BlockerItem}>
-              <span className={styles.BlockerValue} style={{ color: 'var(--color-error)' }}>{unresolvedBlockers}</span>
-              <span className={styles.BlockerLabel}>Open</span>
+          <h3 className={styles.CardTitle}>Dependencies</h3>
+          <div className={styles.DepStats}>
+            <div className={styles.DepStatItem}>
+              <span className={styles.DepStatValue} style={{ color: 'var(--color-error)' }}>{activelyBlocked.length}</span>
+              <span className={styles.DepStatLabel}>Blocked</span>
             </div>
-            <div className={styles.BlockerItem}>
-              <span className={styles.BlockerValue} style={{ color: 'var(--color-success)' }}>{totalBlockers - unresolvedBlockers}</span>
-              <span className={styles.BlockerLabel}>Resolved</span>
+            <div className={styles.DepStatItem}>
+              <span className={styles.DepStatValue} style={{ color: 'var(--color-success)' }}>{blockedItems.length - activelyBlocked.length}</span>
+              <span className={styles.DepStatLabel}>Resolved</span>
             </div>
-            <div className={styles.BlockerItem}>
-              <span className={styles.BlockerValue}>{totalBlockers}</span>
-              <span className={styles.BlockerLabel}>Total</span>
+            <div className={styles.DepStatItem}>
+              <span className={styles.DepStatValue}>{blockedItems.length}</span>
+              <span className={styles.DepStatLabel}>Total</span>
             </div>
           </div>
         </div>

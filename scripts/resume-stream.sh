@@ -46,7 +46,7 @@ if [[ "$ITEM_STATUS" != "review" && "$ITEM_STATUS" != "paused" ]]; then
     exit 1
 fi
 
-IFS=$'\t' read -r ITEM_TITLE ITEM_BRANCH ITEM_TYPE WORKTREE_PATH DELEGATOR_ENABLED \
+IFS=$'\x1f' read -r ITEM_TITLE ITEM_BRANCH ITEM_TYPE WORKTREE_PATH DELEGATOR_ENABLED \
     < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" title branch type worktree_path delegator_enabled)
 
 echo "Resuming: $ITEM_TITLE ($ITEM_ID)"
@@ -90,12 +90,25 @@ echo "  Status: active (session: $SESSION_ID)"
 sleep 5
 PLAN_FILE="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" metadata.plan_file)"
 
+# Check PR merge status if a branch exists
+PR_STATUS_MSG=""
+if [[ -n "$ITEM_BRANCH" ]]; then
+    PR_MERGE_JSON="$(cd "$REPO_PATH" && gh pr list --head "$ITEM_BRANCH" --json number,mergeable,mergeStateStatus --limit 1 2>/dev/null)" || PR_MERGE_JSON="[]"
+    PR_MERGEABLE="$(echo "$PR_MERGE_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d[0].get('mergeable','') if d else '')" 2>/dev/null)" || PR_MERGEABLE=""
+    PR_MERGE_STATE="$(echo "$PR_MERGE_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d[0].get('mergeStateStatus','') if d else '')" 2>/dev/null)" || PR_MERGE_STATE=""
+    if [[ "$PR_MERGEABLE" == "CONFLICTING" || "$PR_MERGE_STATE" == "DIRTY" ]]; then
+        PR_NUMBER="$(echo "$PR_MERGE_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d[0].get('number','') if d else '')" 2>/dev/null)" || PR_NUMBER=""
+        PR_STATUS_MSG="
+WARNING: PR #${PR_NUMBER} has merge conflicts (mergeStateStatus: ${PR_MERGE_STATE}). You MUST rebase onto main and resolve conflicts before any other work."
+    fi
+fi
+
 TASK_MESSAGE="[Task Resumed] $ITEM_TITLE
 
 Read your full implementation plan and task context at: $PLAN_FILE
 
 Branch: $ITEM_BRANCH
-Status: Resuming — continue where you left off, following the plan steps in order."
+Status: Resuming — continue where you left off, following the plan steps in order.${PR_STATUS_MSG}"
 
 if $VMUX send "$SESSION_ID" "$TASK_MESSAGE" 2>/dev/null; then
     echo "  Task context sent to worker"

@@ -62,7 +62,7 @@ done
 QUEUE_PY="python3 -m lib.queue"
 ITEM_JSON="$(cd "$SCRIPT_DIR" && $QUEUE_PY get-item "$ITEM_ID")"
 
-IFS=$'\t' read -r ITEM_STATUS ITEM_TYPE ITEM_BRANCH ITEM_TITLE DELEGATOR_ENABLED CUSTOM_REPO LOCAL_DIR <<< \
+IFS=$'\x1f' read -r ITEM_STATUS ITEM_TYPE ITEM_BRANCH ITEM_TITLE DELEGATOR_ENABLED CUSTOM_REPO LOCAL_DIR <<< \
     "$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" status type branch title delegator_enabled metadata.repo_path metadata.local_directory)"
 
 # Apply defaults for delegator_enabled and expand ~ in paths
@@ -173,7 +173,7 @@ echo "Step 2: Spawning worker session..."
 # Generate a short display name from the item ID and title
 SESSION_NAME="$(python3 -c "
 import re, sys, json
-item = json.loads(sys.stdin)
+item = json.loads(sys.stdin.read())
 title = item.get('title', '')
 item_id = item.get('id', 'worker')
 words = [w for w in title.split() if len(w) > 2][:3]

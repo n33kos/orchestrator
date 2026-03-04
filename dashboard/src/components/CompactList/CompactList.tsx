@@ -129,7 +129,7 @@ export function CompactList({ items, selectable, selectedIds, onSelect, onStatus
       </div>
       {sortedItems.map(item => {
         const action = getQuickAction(item.status)
-        const unresolvedBlockers = item.blockers.filter(b => !b.resolved)
+        const blockedByCount = (item.blocked_by || []).length
         return (
           <div
             key={item.id}
@@ -173,9 +173,9 @@ export function CompactList({ items, selectable, selectedIds, onSelect, onStatus
                   {item.title}
                 </span>
               )}
-              {unresolvedBlockers.length > 0 && (
-                <span className={styles.BlockerCount} title={`${unresolvedBlockers.length} blocker(s)`}>
-                  {unresolvedBlockers.length}
+              {blockedByCount > 0 && (
+                <span className={styles.DepCount} title={`Blocked by ${item.blocked_by.join(', ')}`}>
+                  {blockedByCount}
                 </span>
               )}
               <span className={styles.TypeTag}>{item.type === 'project' ? 'P' : 'QF'}</span>

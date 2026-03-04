@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import classnames from 'classnames'
 import styles from './WorkStreamCard.module.scss'
 import { StatusBadge } from '../StatusBadge/StatusBadge.tsx'
-import { BlockerManager } from '../BlockerManager/BlockerManager.tsx'
 import { InlineEdit } from '../InlineEdit/InlineEdit.tsx'
 import { ActivityLog } from '../ActivityLog/ActivityLog.tsx'
 import { MessageComposer } from '../MessageComposer/MessageComposer.tsx'
@@ -33,9 +32,6 @@ interface WorkStreamCardProps {
   onPriorityChange: (id: string, priority: number) => void
   onDelegatorToggle: (id: string, enabled: boolean) => void
   onEdit: (id: string, updates: { title?: string; description?: string }) => void
-  onAddBlocker: (id: string, description: string) => void
-  onResolveBlocker: (id: string, blockerId: string) => void
-  onUnresolveBlocker: (id: string, blockerId: string) => void
   onDelete: (id: string) => void
   onDuplicate?: (id: string) => void
   onActivateStream?: (id: string) => void
@@ -53,7 +49,7 @@ interface WorkStreamCardProps {
   onDragEnd?: () => void
 }
 
-export function WorkStreamCard({ item, index = 0, position, totalCount, isDragging, isDragOver, selectable, selected, onSelect, focused, onClearFocus, pinned, onTogglePin, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onActivateStream, onTeardownStream, onPrUrlChange, onGeneratePlan, activating, tearingDown, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
+export function WorkStreamCard({ item, index = 0, position, totalCount, isDragging, isDragOver, selectable, selected, onSelect, focused, onClearFocus, pinned, onTogglePin, sessionInfo, messages = [], onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onDelete, onDuplicate, onActivateStream, onTeardownStream, onPrUrlChange, onGeneratePlan, activating, tearingDown, onSendMessage, onDragStart, onDragOver, onDrop, onDragEnd }: WorkStreamCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -73,7 +69,7 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
   const hasLiveSession = !!sessionInfo
   const hasSession = !!item.session_id
   const hasDelegator = item.delegator_enabled
-  const unresolvedBlockers = item.blockers.filter(b => !b.resolved)
+  const hasBlockingDeps = item.blocked_by.length > 0
   const implementationNotes = item.metadata.implementation_notes as string[] | undefined
   const notes = item.metadata.notes as string | undefined
   const { status: prStatus, loading: prLoading } = usePrStatus(expanded ? item.pr_url : null)
@@ -87,10 +83,6 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
     const entries: { timestamp: string; action: string; detail?: string }[] = []
     if (item.created_at) entries.push({ timestamp: item.created_at, action: 'Created', detail: `Source: ${item.source}` })
     if (item.activated_at) entries.push({ timestamp: item.activated_at, action: 'Activated' })
-    for (const b of item.blockers) {
-      entries.push({ timestamp: b.created_at, action: 'Blocker added', detail: b.description })
-      if (b.resolved && b.resolved_at) entries.push({ timestamp: b.resolved_at, action: 'Blocker resolved', detail: b.description })
-    }
     if (item.completed_at) entries.push({ timestamp: item.completed_at, action: 'Completed' })
     entries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
     return entries
@@ -103,7 +95,7 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
     if (tearingDown) return { label: 'Tearing down...', status: 'completed' }
     if (item.status === 'queued') return { label: 'Plan', status: 'planning' }
     if (item.status === 'planning') {
-      const planApproved = item.metadata?.plan_approved
+      const planApproved = itemPlan?.approved
       if (planApproved) return { label: 'Activate', status: 'active', useStream: !!onActivateStream }
       return itemPlanFile
         ? { label: 'Review Plan', status: 'planning', expandOnly: true }
@@ -272,12 +264,13 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
           ) : (
             <h3 className={styles.Title}>{item.title}</h3>
           )}
-          {unresolvedBlockers.length > 0 && (
-            <span className={styles.BlockerBadge} title={`${unresolvedBlockers.length} blocker(s)`}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+          {hasBlockingDeps && (
+            <span className={styles.DepBadge} title={`Blocked by: ${item.blocked_by.join(', ')}`}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
               </svg>
-              {unresolvedBlockers.length}
+              {item.blocked_by.length}
             </span>
           )}
         </div>
@@ -369,15 +362,15 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
               <span
                 className={classnames(
                   styles.PlanIndicator,
-                  item.metadata?.plan_approved ? styles.PlanApproved : styles.PlanDraft,
+                  itemPlan?.approved ? styles.PlanApproved : styles.PlanDraft,
                 )}
-                title={item.metadata?.plan_approved ? 'Plan approved' : 'Plan draft — needs review'}
+                title={itemPlan?.approved ? 'Plan approved' : 'Plan draft — needs review'}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
                   <rect x="9" y="3" width="6" height="4" rx="1" />
                 </svg>
-                {item.metadata?.plan_approved ? '' : '!'}
+                {itemPlan?.approved ? '' : '!'}
               </span>
             )}
             <span className={classnames(styles.Indicator, hasDelegator && styles.IndicatorActive)} title="Delegator">
@@ -406,25 +399,24 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
 
       {expanded && (
         <div className={styles.Details}>
-          {/* Blockers Section */}
-          <div className={styles.Section}>
-            <h4 className={styles.SectionTitle}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
-              </svg>
-              Blockers
-              {unresolvedBlockers.length > 0 && (
-                <span className={styles.SectionCount}>{unresolvedBlockers.length}</span>
-              )}
-            </h4>
-            <BlockerManager
-              blockers={item.blockers}
-              onAddBlocker={desc => onAddBlocker(item.id, desc)}
-              onResolveBlocker={bid => onResolveBlocker(item.id, bid)}
-              onUnresolveBlocker={bid => onUnresolveBlocker(item.id, bid)}
-            />
-          </div>
+          {/* Dependencies */}
+          {item.blocked_by.length > 0 && (
+            <div className={styles.Section}>
+              <h4 className={styles.SectionTitle}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+                </svg>
+                Blocked By
+                <span className={styles.SectionCount}>{item.blocked_by.length}</span>
+              </h4>
+              <div className={styles.NotesList}>
+                {item.blocked_by.map(depId => (
+                  <li key={depId} className={styles.Note}>{depId}</li>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Implementation Notes */}
           {implementationNotes && implementationNotes.length > 0 && (
@@ -457,7 +449,7 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
                   <line x1="9" y1="16" x2="15" y2="16" />
                 </svg>
                 Plan: {itemPlanFile.split('/').pop()}
-                {item.metadata?.plan_approved ? ' (Approved)' : ' (Draft)'}
+                {itemPlan?.approved ? ' (Approved)' : ' (Draft)'}
               </h4>
               {itemPlan?.summary && <p className={styles.NotesText}>{itemPlan.summary}</p>}
             </div>
@@ -756,7 +748,7 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
                   Start Planning
                 </button>
               )}
-              {item.status === 'planning' && item.metadata?.plan_approved && (
+              {item.status === 'planning' && itemPlan?.approved && (
                 <button
                   className={classnames(styles.ActionButtonText, onActivateStream && styles.ActionPrimary)}
                   onClick={() => onActivateStream ? onActivateStream(item.id) : onStatusChange(item.id, 'active')}
@@ -765,7 +757,7 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
                   {activating ? 'Activating...' : onActivateStream ? 'Activate Stream' : 'Activate'}
                 </button>
               )}
-              {item.status === 'planning' && !item.metadata?.plan_approved && item.type === 'quick_fix' && (
+              {item.status === 'planning' && !itemPlan?.approved && item.type === 'quick_fix' && (
                 <button
                   className={styles.ActionButtonText}
                   onClick={() => onActivateStream ? onActivateStream(item.id) : onStatusChange(item.id, 'active')}
@@ -774,7 +766,7 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
                   {activating ? 'Activating...' : 'Skip Plan & Activate'}
                 </button>
               )}
-              {item.status === 'planning' && !item.metadata?.plan_approved && (
+              {item.status === 'planning' && !itemPlan?.approved && (
                 <button
                   className={styles.ActionButtonText}
                   onClick={() => onStatusChange(item.id, 'queued')}

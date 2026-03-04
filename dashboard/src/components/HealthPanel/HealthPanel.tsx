@@ -170,7 +170,7 @@ export function HealthPanel({ onClose, onAutoRecover }: HealthPanelProps) {
                     <div key={i} className={styles.WarnItem}>{b.title}</div>
                   ))}
                 </div>
-                <p className={styles.WarnHint}>Items have unresolved blockers preventing progress.</p>
+                <p className={styles.WarnHint}>Items are blocked by incomplete dependencies.</p>
               </div>
             )}
 

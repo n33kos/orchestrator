@@ -18,13 +18,13 @@ bash ~/orchestrator/scripts/health-check.sh
 2. Report findings:
    - **Zombie sessions** — Sessions that lost their relay connection
    - **Stalled streams** — Active items with no commits for 24+ hours
-   - **Blocked items** — Items with unresolved blockers
+   - **Blocked items** — Items blocked by incomplete dependencies
    - **Concurrency issues** — More active projects than the limit allows
 
 3. For each issue, suggest a fix:
    - Zombie: `vmux reconnect <path>` or auto-recover all
    - Stalled: Check on the worker, or pause the stream
-   - Blocked: Review and resolve blockers
+   - Blocked: Complete the blocking dependencies or remove them
    - Concurrency: Pause or complete an active item
 
 4. If the user wants to auto-recover zombies:

@@ -1,4 +1,3 @@
-import { readFileSync } from 'fs'
 import { execFile } from 'child_process'
 import { join } from 'path'
 import { homedir } from 'os'
@@ -32,7 +31,7 @@ export function registerQueueRoutes(server: ViteDevServer) {
         session_id: null,
         delegator_id: null,
         delegator_enabled: true,
-        blockers: [],
+        blocked_by: [],
         created_at: new Date().toISOString(),
         activated_at: null,
         completed_at: null,
@@ -123,50 +122,20 @@ export function registerQueueRoutes(server: ViteDevServer) {
     }
   })
 
-  // POST /api/queue/blocker/add — add a blocker to a work item
-  server.middlewares.use('/api/queue/blocker/add', async (req, res) => {
-    if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
-    try {
-      const body = JSON.parse(await readBody(req))
-      if (!body.id) { res.statusCode = 400; res.end(JSON.stringify({ error: 'id is required' })); return }
-      if (!body.description) { res.statusCode = 400; res.end(JSON.stringify({ error: 'description is required' })); return }
-      const data = readQueue()
-      const item = data.items.find((i: { id: string }) => i.id === body.id)
-      if (!item) { res.statusCode = 404; res.end('Not found'); return }
-      if (!item.blockers) item.blockers = []
-      const blockerId = `blk-${Date.now()}`
-      const blocker = {
-        id: blockerId,
-        description: body.description,
-        resolved: false,
-        created_at: new Date().toISOString(),
-        resolved_at: null,
-      }
-      item.blockers.push(blocker)
-      writeQueue(data)
-      res.setHeader('Content-Type', 'application/json')
-      res.end(JSON.stringify(blocker))
-    } catch (err) {
-      res.statusCode = 500
-      res.end(JSON.stringify({ error: String(err) }))
-    }
-  })
-
-  // PATCH /api/queue/blocker/resolve — resolve or unresolve a blocker
-  server.middlewares.use('/api/queue/blocker/resolve', async (req, res) => {
+  // PATCH /api/queue/blocked-by/update — update the blocked_by list for a work item
+  server.middlewares.use('/api/queue/blocked-by/update', async (req, res) => {
     if (req.method !== 'PATCH') { res.statusCode = 405; res.end('Method not allowed'); return }
     try {
       const body = JSON.parse(await readBody(req))
+      if (!body.id) { res.statusCode = 400; res.end(JSON.stringify({ error: 'id is required' })); return }
+      if (!Array.isArray(body.blocked_by)) { res.statusCode = 400; res.end(JSON.stringify({ error: 'blocked_by must be an array' })); return }
       const data = readQueue()
       const item = data.items.find((i: { id: string }) => i.id === body.id)
       if (!item) { res.statusCode = 404; res.end('Not found'); return }
-      const blocker = (item.blockers || []).find((b: { id: string }) => b.id === body.blockerId)
-      if (!blocker) { res.statusCode = 404; res.end('Blocker not found'); return }
-      blocker.resolved = body.resolved ?? true
-      blocker.resolved_at = blocker.resolved ? new Date().toISOString() : null
+      item.blocked_by = body.blocked_by
       writeQueue(data)
       res.setHeader('Content-Type', 'application/json')
-      res.end(JSON.stringify(blocker))
+      res.end(JSON.stringify(item))
     } catch (err) {
       res.statusCode = 500
       res.end(JSON.stringify({ error: String(err) }))
@@ -230,12 +199,34 @@ export function registerQueueRoutes(server: ViteDevServer) {
     }
   })
 
-  // GET /api/queue — read the queue
+  // GET /api/queue — read the queue (with one-time migration)
   server.middlewares.use('/api/queue', (_req, res) => {
     try {
-      const data = readFileSync(queuePath, 'utf-8')
+      const data = readQueue()
+      let migrated = false
+      for (const item of data.items) {
+        // Migrate metadata.blocked_by to top-level blocked_by
+        if (item.metadata?.blocked_by && !item.blocked_by) {
+          item.blocked_by = item.metadata.blocked_by
+          delete item.metadata.blocked_by
+          migrated = true
+        }
+        // Ensure blocked_by exists
+        if (!Array.isArray(item.blocked_by)) {
+          item.blocked_by = []
+          migrated = true
+        }
+        // Remove old blockers field
+        if ('blockers' in item) {
+          delete item.blockers
+          migrated = true
+        }
+      }
+      if (migrated) {
+        writeQueue(data)
+      }
       res.setHeader('Content-Type', 'application/json')
-      res.end(data)
+      res.end(JSON.stringify(data))
     } catch {
       res.setHeader('Content-Type', 'application/json')
       res.end(JSON.stringify({ version: 1, items: [] }))

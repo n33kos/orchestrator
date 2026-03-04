@@ -7,11 +7,12 @@ import { timeAgo, formatDate } from '../../utils/time.ts'
 import { useFocusTrap } from '../../hooks/useFocusTrap.ts'
 import { usePrStack } from '../../hooks/usePrStatus.ts'
 import type { StackPr } from '../../hooks/usePrStatus.ts'
-import type { WorkItem, WorkItemStatus, SessionInfo } from '../../types.ts'
+import type { WorkItem, WorkItemStatus, SessionInfo, QueueData } from '../../types.ts'
 import type { DelegatorStatus } from '../../hooks/useDelegators.ts'
 
 interface DetailPanelProps {
   item: WorkItem
+  allItems?: WorkItem[]
   sessions?: SessionInfo[]
   delegator?: DelegatorStatus
   onClose: () => void
@@ -26,6 +27,7 @@ interface DetailPanelProps {
   onDelegatorToggle?: (id: string, enabled: boolean) => void
   onGeneratePlan?: (id: string) => void
   onRefresh?: () => void
+  onUpdateBlockedBy?: (id: string, blocked_by: string[]) => void
 }
 
 function getNextAction(status: WorkItemStatus): { label: string; nextStatus: WorkItemStatus } | null {
@@ -46,14 +48,14 @@ function formatItemSummary(item: WorkItem): string {
     item.branch ? `Branch: ${item.branch}` : '',
     item.pr_url ? `PR: ${item.pr_url}` : '',
     item.description ? `\nDescription:\n${item.description}` : '',
-    item.blockers.length > 0
-      ? `\nBlockers:\n${item.blockers.map(b => `- [${b.resolved ? 'x' : ' '}] ${b.description}`).join('\n')}`
+    item.blocked_by.length > 0
+      ? `\nBlocked by: ${item.blocked_by.join(', ')}`
       : '',
   ]
   return lines.filter(Boolean).join('\n')
 }
 
-export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange, onUpdate, onDelete, onDuplicate, onNotesChange, onActivateStream, onTeardownStream, onSendMessage, onDelegatorToggle, onGeneratePlan, onRefresh }: DetailPanelProps) {
+export function DetailPanel({ item, allItems = [], sessions, delegator, onClose, onStatusChange, onUpdate, onDelete, onDuplicate, onNotesChange, onActivateStream, onTeardownStream, onSendMessage, onDelegatorToggle, onGeneratePlan, onRefresh, onUpdateBlockedBy }: DetailPanelProps) {
   const panelRef = useFocusTrap<HTMLDivElement>()
   const [copied, setCopied] = useState(false)
   const [editingNotes, setEditingNotes] = useState(false)
@@ -127,7 +129,7 @@ export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange
 
   const planSummary = (item.metadata?.plan as { summary?: string } | undefined)?.summary
   const planFile = item.metadata?.plan_file as string | undefined
-  const planApproved = !!(item.metadata?.plan_approved)
+  const planApproved = !!((item.metadata?.plan as { approved?: boolean } | undefined)?.approved)
   const implNotes = (item.metadata?.implementation_notes as string) || ''
 
   function handleOpenPlanFile() {
@@ -150,8 +152,8 @@ export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange
   }
 
   const nextAction = getNextAction(item.status)
-  const unresolvedBlockers = item.blockers.filter(b => !b.resolved)
-  const resolvedBlockers = item.blockers.filter(b => b.resolved)
+  const [depInput, setDepInput] = useState('')
+  const [showDepForm, setShowDepForm] = useState(false)
 
   function saveNotes() {
     if (onNotesChange) {
@@ -568,25 +570,91 @@ export function DetailPanel({ item, sessions, delegator, onClose, onStatusChange
           </div>
 
           <div className={styles.Section}>
-            <span className={styles.SectionLabel}>
-              Blockers ({unresolvedBlockers.length} open, {resolvedBlockers.length} resolved)
-            </span>
-            {item.blockers.length === 0 ? (
-              <span className={styles.NoBlockers}>No blockers</span>
+            <div className={styles.SectionHeader}>
+              <span className={styles.SectionLabel}>
+                Blocked By ({item.blocked_by.length})
+              </span>
+              {onUpdateBlockedBy && !showDepForm && (
+                <button className={styles.EditNotesButton} onClick={() => setShowDepForm(true)}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  Add
+                </button>
+              )}
+            </div>
+            {item.blocked_by.length === 0 && !showDepForm ? (
+              <span className={styles.EmptyDescription} style={{ fontStyle: 'italic' }}>No dependencies</span>
             ) : (
-              <div className={styles.BlockerList}>
-                {unresolvedBlockers.map(b => (
-                  <div key={b.id} className={styles.Blocker}>
-                    <span className={styles.BlockerDot} />
-                    <span className={styles.BlockerText}>{b.description}</span>
-                  </div>
-                ))}
-                {resolvedBlockers.map(b => (
-                  <div key={b.id} className={styles.Blocker}>
-                    <span className={`${styles.BlockerDot} ${styles.BlockerResolved}`} />
-                    <span className={styles.BlockerText}>{b.description}</span>
-                  </div>
-                ))}
+              <div className={styles.DepList}>
+                {item.blocked_by.map(depId => {
+                  const dep = allItems.find(i => i.id === depId)
+                  const isResolved = dep?.status === 'completed'
+                  return (
+                    <div key={depId} className={styles.DepItem}>
+                      <span className={`${styles.DepDot} ${isResolved ? styles.DepResolved : ''}`} />
+                      <span className={styles.DepText}>
+                        <strong>{depId}</strong>
+                        {dep ? ` — ${dep.title}` : ' (unknown)'}
+                        {isResolved ? ' (completed)' : ''}
+                      </span>
+                      {onUpdateBlockedBy && (
+                        <button
+                          className={styles.DepRemove}
+                          onClick={e => { e.stopPropagation(); onUpdateBlockedBy(item.id, item.blocked_by.filter(id => id !== depId)) }}
+                          title="Remove dependency"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            {showDepForm && onUpdateBlockedBy && (
+              <div className={styles.NotesEdit} onClick={e => e.stopPropagation()}>
+                <input
+                  className={styles.SessionMessageInput}
+                  type="text"
+                  list="dep-items-list"
+                  value={depInput}
+                  onChange={e => setDepInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && depInput.trim()) {
+                      const id = depInput.trim()
+                      if (!item.blocked_by.includes(id)) {
+                        onUpdateBlockedBy(item.id, [...item.blocked_by, id])
+                      }
+                      setDepInput('')
+                      setShowDepForm(false)
+                    }
+                    if (e.key === 'Escape') { setDepInput(''); setShowDepForm(false) }
+                  }}
+                  placeholder="Type work item ID (e.g. ws-005)..."
+                  autoFocus
+                />
+                <datalist id="dep-items-list">
+                  {allItems
+                    .filter(i => i.id !== item.id && !item.blocked_by.includes(i.id))
+                    .map(i => (
+                      <option key={i.id} value={i.id}>{i.title}</option>
+                    ))}
+                </datalist>
+                <div className={styles.NotesActions}>
+                  <button className={styles.NotesSave} onClick={() => {
+                    if (depInput.trim() && !item.blocked_by.includes(depInput.trim())) {
+                      onUpdateBlockedBy(item.id, [...item.blocked_by, depInput.trim()])
+                    }
+                    setDepInput('')
+                    setShowDepForm(false)
+                  }}>Add</button>
+                  <button className={styles.NotesCancel} onClick={() => { setDepInput(''); setShowDepForm(false) }}>Cancel</button>
+                </div>
               </div>
             )}
           </div>

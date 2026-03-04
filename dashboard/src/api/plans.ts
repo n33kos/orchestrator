@@ -129,13 +129,15 @@ export function registerPlanRoutes(server: ViteDevServer) {
       if (!item) { res.statusCode = 404; res.end(JSON.stringify({ error: 'Item not found' })); return }
 
       item.metadata = item.metadata || {}
-      const approved = body.approved !== undefined ? body.approved : !item.metadata.plan_approved
-      item.metadata.plan_approved = approved
-      // Also update inline plan if it exists and is an object
-      if (item.metadata.plan && typeof item.metadata.plan === 'object') {
-        item.metadata.plan.approved = approved
-        item.metadata.plan.approved_at = approved ? new Date().toISOString() : null
+      // Ensure plan object exists
+      if (!item.metadata.plan || typeof item.metadata.plan !== 'object') {
+        item.metadata.plan = {}
       }
+      const approved = body.approved !== undefined ? body.approved : !item.metadata.plan.approved
+      item.metadata.plan.approved = approved
+      item.metadata.plan.approved_at = approved ? new Date().toISOString() : null
+      // Clean up legacy field
+      delete item.metadata.plan_approved
       // Auto-transition: planning → queued when approved, queued → planning when revoked
       if (approved && item.status === 'planning') {
         item.status = 'queued'

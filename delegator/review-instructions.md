@@ -13,7 +13,7 @@ Same payload as triage:
 - `plan` — Full implementation plan content (if one exists). Use this to evaluate plan adherence and completeness.
 - `worker` — `{session_alive, idle_check, activity_summary}`. Activity summary includes tool call histogram, recent conversation, and relay messages.
 - `commits` — `{new_commits, diff_stat, diff_content}`. Note: if `item_context.metadata.no_branch` is true, commits go directly to main.
-- `pr` — `{exists, url, state, ci_checks, mergeable}`. May not exist for no-branch projects.
+- `pr` — `{exists, url, state, ci_checks, mergeable, merge_state_status}`. `mergeable` is a boolean; `merge_state_status` is a string (`CLEAN`, `DIRTY`, `UNSTABLE`, `BEHIND`, `BLOCKED`, `UNKNOWN`). May not exist for no-branch projects.
 - `conversation_recent` — Summary of recent worker transcript. Check for completion signals.
 - `user_profile` — User preferences, quality priorities, review patterns, and domain concerns. Use to calibrate your review focus and communication style.
 - `previous_state` — State from the last cycle
@@ -111,7 +111,7 @@ Populate all fields that changed or were observed this cycle:
 ### Assessment Values
 
 - **`monitoring`** — Work in progress, no action needed. Use for mid-stream commits that look fine.
-- **`approve`** — Ready for user review. Plan complete, quality good, CI passing. Triggers review transition.
+- **`approve`** — Ready for user review. Plan complete, quality good, CI passing, **no merge conflicts**. Triggers review transition.
 - **`needs_work`** — Issues found. Include `message_worker` actions with specific feedback.
 - **`blocked`** — Needs user intervention (ambiguous requirements, missing access, design disagreements). Include `flag_for_user`.
 
@@ -119,11 +119,12 @@ Populate all fields that changed or were observed this cycle:
 
 1. New commits, no PR yet → review commits, assessment = `monitoring`
 2. Issues in commits → feedback to worker, assessment = `needs_work`
-3. PR with failing CI → request CI fix, assessment = `needs_work`
-4. PR with passing CI + worker idle → full PR review → `approve` / `needs_work` / `blocked`
-5. Ambiguous worker state → analyze transcript → `needs_work` (stuck) / `blocked` (genuinely stuck) / `monitoring` (slow but progressing)
-6. **No-branch project** (`item_context.metadata.no_branch` is true or `item_context.metadata.commit_strategy` is `single_commit_to_main`): Worker commits directly to main, no PR expected. If worker signals completion (conversation_recent shows "done"/"complete"/idle after committing) OR `previous_state.flags.ready_for_review` is true → trigger `trigger_review_transition` and assess as `approve`. Review the commit diffs if available.
-7. **Ready-for-review flag set** — If `previous_state.flags.ready_for_review` is true, this means a prior cycle (or the user) has explicitly flagged the work as complete. Unless you find blocking issues in the code, assess as `approve` and trigger `trigger_review_transition`. Do NOT reset `ready_for_review` to false unless you find actual blocking issues.
+3. PR with merge conflicts (`mergeable` is false, or `merge_state_status` is `DIRTY` or `CONFLICTING`) → message worker to rebase onto main and resolve conflicts, assessment = `needs_work`. **Never assess as `approve` when the PR has merge conflicts.**
+4. PR with failing CI → request CI fix, assessment = `needs_work`
+5. PR with passing CI + no merge conflicts + worker idle → full PR review → `approve` / `needs_work` / `blocked`
+6. Ambiguous worker state → analyze transcript → `needs_work` (stuck) / `blocked` (genuinely stuck) / `monitoring` (slow but progressing)
+7. **No-branch project** (`item_context.metadata.no_branch` is true or `item_context.metadata.commit_strategy` is `single_commit_to_main`): Worker commits directly to main, no PR expected. If worker signals completion (conversation_recent shows "done"/"complete"/idle after committing) OR `previous_state.flags.ready_for_review` is true → trigger `trigger_review_transition` and assess as `approve`. Review the commit diffs if available.
+8. **Ready-for-review flag set** — If `previous_state.flags.ready_for_review` is true, this means a prior cycle (or the user) has explicitly flagged the work as complete. Unless you find blocking issues in the code (including merge conflicts), assess as `approve` and trigger `trigger_review_transition`. Do NOT reset `ready_for_review` to false unless you find actual blocking issues.
 
 ## Message Style
 

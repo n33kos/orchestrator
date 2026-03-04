@@ -91,7 +91,7 @@ orchestrator/
 │   ├── activate-stream.sh # Full stream activation (worktree + session + delegator)
 │   ├── teardown-stream.sh # Full stream teardown (preserves git branch)
 │   ├── spawn-delegator.sh # Delegator session spawning
-│   ├── health-check.sh    # Zombie/stall/blocker detection
+│   ├── health-check.sh    # Zombie/stall/dependency detection
 │   ├── scheduler.sh       # Auto-activation with concurrency management
 │   ├── status.sh          # Comprehensive status report
 │   ├── delegator-status.sh# Delegator instance monitoring
@@ -136,8 +136,7 @@ The web dashboard is a PWA built with Vite 7, React 19, TypeScript 5.9, and Sass
 | `/api/queue/update` | PATCH | Update item fields (with metadata merge) |
 | `/api/queue/delete` | DELETE | Remove a work item |
 | `/api/queue/reorder` | PATCH | Drag-reorder with priority renumbering |
-| `/api/queue/blocker/add` | POST | Add a blocker to an item |
-| `/api/queue/blocker/resolve` | PATCH | Resolve/unresolve a blocker |
+| `/api/queue/blocked-by/update` | PATCH | Update blocked_by dependencies |
 | `/api/sessions` | GET | List vmux sessions |
 | `/api/sessions/send` | POST | Send message to a session |
 | `/api/sessions/kill` | POST | Kill a session |

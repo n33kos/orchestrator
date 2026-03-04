@@ -195,7 +195,9 @@ def _cli_get(args: list[str], queue_path: str) -> None:
             print(f"ERROR: Item {item_id} not found", file=sys.stderr)
             sys.exit(1)
         values = get_fields(item, fields)
-        print("\t".join(values))
+        # Use unit separator (ASCII 31) instead of tab — bash's read treats
+        # consecutive tabs as a single delimiter, dropping empty fields.
+        print("\x1f".join(values))
 
 
 def _cli_get_item(args: list[str], queue_path: str) -> None:

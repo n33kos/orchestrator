@@ -6,8 +6,6 @@ interface UseStreamActionsOptions {
   sessions: SessionInfo[]
   updateItem: (id: string, updates: { status?: WorkItemStatus; priority?: number; delegator_enabled?: boolean; title?: string; description?: string; pr_url?: string | null }) => void
   deleteItem: (id: string) => void
-  addBlocker: (id: string, description: string) => void
-  resolveBlocker: (id: string, blockerId: string, resolved: boolean) => void
   reorderItems: (dragId: string, dropId: string) => void
   refresh: () => void
   refreshSessions: () => void
@@ -20,8 +18,6 @@ export function useStreamActions({
   sessions,
   updateItem,
   deleteItem,
-  addBlocker,
-  resolveBlocker,
   reorderItems,
   refresh,
   refreshSessions,
@@ -118,21 +114,6 @@ export function useStreamActions({
     updateItem(id, updates)
     addToast('Work item updated', 'success')
   }, [updateItem, addToast])
-
-  const handleAddBlocker = useCallback((id: string, description: string) => {
-    addBlocker(id, description)
-    addToast('Blocker added', 'info')
-  }, [addBlocker, addToast])
-
-  const handleResolveBlocker = useCallback((id: string, blockerId: string) => {
-    resolveBlocker(id, blockerId, true)
-    addToast('Blocker resolved', 'success')
-  }, [resolveBlocker, addToast])
-
-  const handleUnresolveBlocker = useCallback((id: string, blockerId: string) => {
-    resolveBlocker(id, blockerId, false)
-    addToast('Blocker reopened', 'info')
-  }, [resolveBlocker, addToast])
 
   const handleDelegatorToggle = useCallback(async (id: string, enabled: boolean) => {
     updateItem(id, { delegator_enabled: enabled })
@@ -357,9 +338,6 @@ export function useStreamActions({
     handleStatusChange,
     handlePriorityChange,
     handleEdit,
-    handleAddBlocker,
-    handleResolveBlocker,
-    handleUnresolveBlocker,
     handleDelegatorToggle,
     handleReorder,
     handleSendMessage,

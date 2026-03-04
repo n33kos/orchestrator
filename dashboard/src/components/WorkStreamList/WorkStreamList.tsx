@@ -27,9 +27,6 @@ interface WorkStreamListProps {
   onPriorityChange: (id: string, priority: number) => void
   onDelegatorToggle: (id: string, enabled: boolean) => void
   onEdit: (id: string, updates: { title?: string; description?: string }) => void
-  onAddBlocker: (id: string, description: string) => void
-  onResolveBlocker: (id: string, blockerId: string) => void
-  onUnresolveBlocker: (id: string, blockerId: string) => void
   onDelete: (id: string) => void
   onDuplicate?: (id: string) => void
   onActivateStream?: (id: string) => void
@@ -53,7 +50,7 @@ function findSession(sessions: SessionInfo[], item: WorkItem): SessionInfo | und
   return undefined
 }
 
-export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab, sortField, sortDirection, sessions, messagesBySession, selectable, selectedIds, onSelect, focusedItemId, onClearFocus, pinnedIds, onTogglePin, onAddClick, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onAddBlocker, onResolveBlocker, onUnresolveBlocker, onDelete, onDuplicate, onActivateStream, onTeardownStream, activatingIds, tearingDownIds, onPrUrlChange, onGeneratePlan, onReorder, onSendMessage }: WorkStreamListProps) {
+export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab, sortField, sortDirection, sessions, messagesBySession, selectable, selectedIds, onSelect, focusedItemId, onClearFocus, pinnedIds, onTogglePin, onAddClick, onStatusChange, onPriorityChange, onDelegatorToggle, onEdit, onDelete, onDuplicate, onActivateStream, onTeardownStream, activatingIds, tearingDownIds, onPrUrlChange, onGeneratePlan, onReorder, onSendMessage }: WorkStreamListProps) {
   const { dragId, overId, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(onReorder)
   if (loading) {
     return <SkeletonList count={4} />
@@ -219,9 +216,6 @@ export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab
             onPriorityChange={onPriorityChange}
             onDelegatorToggle={onDelegatorToggle}
             onEdit={onEdit}
-            onAddBlocker={onAddBlocker}
-            onResolveBlocker={onResolveBlocker}
-            onUnresolveBlocker={onUnresolveBlocker}
             onDelete={onDelete}
             onDuplicate={onDuplicate}
             onActivateStream={onActivateStream}

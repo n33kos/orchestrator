@@ -4,7 +4,7 @@ import type { WorkItem, QueueData, WorkItemStatus } from '../types.ts'
 function normalizeItem(raw: Record<string, unknown>): WorkItem {
   return {
     ...raw,
-    blockers: Array.isArray(raw.blockers) ? raw.blockers as WorkItem['blockers'] : [],
+    blocked_by: Array.isArray(raw.blocked_by) ? raw.blocked_by as string[] : [],
     pr_url: (raw.pr_url as string) ?? null,
   } as WorkItem
 }
@@ -96,22 +96,18 @@ export function useQueue(pollIntervalMs = 5000) {
     }
   }, [fetchQueue])
 
-  const addBlocker = useCallback(async (id: string, description: string) => {
-    await fetch('/api/queue/blocker/add', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, description }),
-    })
-    await fetchQueue()
-  }, [fetchQueue])
-
-  const resolveBlocker = useCallback(async (id: string, blockerId: string, resolved = true) => {
-    await fetch('/api/queue/blocker/resolve', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, blockerId, resolved }),
-    })
-    await fetchQueue()
+  const updateBlockedBy = useCallback(async (id: string, blocked_by: string[]) => {
+    setItems(prev => prev.map(item => item.id === id ? { ...item, blocked_by } : item))
+    try {
+      await fetch('/api/queue/blocked-by/update', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, blocked_by }),
+      })
+      await fetchQueue()
+    } catch {
+      await fetchQueue()
+    }
   }, [fetchQueue])
 
   const deleteItem = useCallback(async (id: string) => {
@@ -137,7 +133,10 @@ export function useQueue(pollIntervalMs = 5000) {
   const pausedItems = items.filter(i => i.status === 'paused')
   const reviewItems = items.filter(i => i.status === 'review')
   const completedItems = items.filter(i => i.status === 'completed')
-  const blockedItems = items.filter(i => i.blockers.some(b => !b.resolved))
+  const blockedItems = items.filter(i => (i.blocked_by || []).length > 0 && (i.blocked_by || []).some(depId => {
+    const dep = items.find(d => d.id === depId)
+    return !dep || dep.status !== 'completed'
+  }))
 
   return {
     items,
@@ -156,8 +155,7 @@ export function useQueue(pollIntervalMs = 5000) {
     refresh: fetchQueue,
     updateItem,
     reorderItems,
-    addBlocker,
-    resolveBlocker,
+    updateBlockedBy,
     deleteItem,
   }
 }

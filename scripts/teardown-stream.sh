@@ -39,7 +39,7 @@ done
 
 # Read item from queue
 QUEUE_PY="python3 -m lib.queue"
-IFS=$'\t' read -r ITEM_BRANCH ITEM_TITLE SESSION_ID DELEGATOR_ID \
+IFS=$'\x1f' read -r ITEM_BRANCH ITEM_TITLE SESSION_ID DELEGATOR_ID \
     < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" branch title session_id delegator_id)
 
 echo "Tearing down: $ITEM_TITLE ($ITEM_ID)"

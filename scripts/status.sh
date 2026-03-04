@@ -42,7 +42,8 @@ for item in items:
 
 active_projects = sum(1 for i in items if i['status'] == 'active' and i['type'] == 'project')
 queued = [i for i in items if i['status'] in ('queued', 'planning')]
-blocked = [i for i in items if any(not b.get('resolved', False) for b in i.get('blockers', []))]
+all_by_id = {i['id']: i for i in items}
+blocked = [i for i in items if i.get('blocked_by') and any(all_by_id.get(dep, {}).get('status') != 'completed' for dep in i.get('blocked_by', []))]
 
 print(json.dumps({
     'total': len(items),

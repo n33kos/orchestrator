@@ -55,13 +55,16 @@ def check_and_activate(cfg: Config, dry_run: bool) -> None:
         has_repo_path = bool(i.get("metadata", {}).get("repo_path"))
         if i["type"] == "project" and not (has_branch or has_local_dir or has_repo_path):
             continue
-        if any(not b.get("resolved") for b in i.get("blockers", [])):
-            continue
+        # Skip if any blocked_by dependency is not completed
+        blocked_by = i.get("blocked_by", [])
+        if blocked_by:
+            all_items_by_id = {item["id"]: item for item in data["items"]}
+            if any(all_items_by_id.get(dep_id, {}).get("status") != "completed" for dep_id in blocked_by):
+                continue
         if cfg.require_approved_plan:
             plan = i.get("metadata", {}).get("plan", {})
             plan_approved = plan.get("approved", False) if isinstance(plan, dict) else False
-            file_approved = i.get("metadata", {}).get("plan_approved", False)
-            if not plan_approved and not file_approved:
+            if not plan_approved:
                 continue
         ready.append(i)
 

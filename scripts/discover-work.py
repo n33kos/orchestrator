@@ -520,7 +520,7 @@ def main():
             "session_id": None,
             "delegator_id": None,
             "delegator_enabled": True,
-            "blockers": [],
+            "blocked_by": [],
             "created_at": datetime.now().isoformat(),
             "activated_at": None,
             "completed_at": None,

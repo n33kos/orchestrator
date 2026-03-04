@@ -49,7 +49,7 @@ if [[ "$ITEM_STATUS" != "queued" && "$ITEM_STATUS" != "planning" ]]; then
 fi
 
 # Extract fields in a single call
-IFS=$'\t' read -r ITEM_TITLE ITEM_DESC ITEM_TYPE ITEM_BRANCH CUSTOM_REPO \
+IFS=$'\x1f' read -r ITEM_TITLE ITEM_DESC ITEM_TYPE ITEM_BRANCH CUSTOM_REPO \
     < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" title description type branch metadata.repo_path)
 CUSTOM_REPO="$(echo "$CUSTOM_REPO" | sed "s|~|$HOME|")"
 
@@ -172,8 +172,7 @@ print(json.dumps(plan))
 fi
 
 # Update queue item: simple fields via queue.py, plan object via locked_queue
-PLAN_APPROVED="$(echo "$PLAN_JSON" | python3 -c "import json,sys; print('TRUE' if json.load(sys.stdin).get('approved') else 'FALSE')")"
-cd "$SCRIPT_DIR" && $QUEUE_PY update "$ITEM_ID" metadata.plan_file="$PLAN_FILE" metadata.plan_approved="$PLAN_APPROVED"
+cd "$SCRIPT_DIR" && $QUEUE_PY update "$ITEM_ID" metadata.plan_file="$PLAN_FILE"
 
 # Set the plan object and conditionally update status (requires locked write)
 cd "$SCRIPT_DIR" && python3 -c "

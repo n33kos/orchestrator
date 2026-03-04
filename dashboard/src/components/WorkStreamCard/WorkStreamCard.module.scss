@@ -232,7 +232,7 @@
   text-overflow: ellipsis;
 }
 
-.BlockerBadge {
+.DepBadge {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -607,43 +607,6 @@
   border-radius: 10px;
   min-width: 18px;
   text-align: center;
-}
-
-/* ── Blockers ── */
-.Blocker {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 6px 8px;
-  background: var(--color-error-muted);
-  border-radius: var(--radius-sm);
-
-  &.BlockerResolved {
-    background: var(--color-surface-secondary);
-    opacity: 0.6;
-  }
-}
-
-.BlockerIcon {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  margin-top: 4px;
-
-  &[data-resolved="false"] {
-    background: var(--color-error);
-  }
-
-  &[data-resolved="true"] {
-    background: var(--color-success);
-  }
-}
-
-.BlockerText {
-  font-size: 13px;
-  color: var(--color-text);
-  line-height: 1.4;
 }
 
 /* ── Implementation Notes ── */

@@ -27,7 +27,7 @@ bash ~/orchestrator/scripts/scheduler.sh --once
 For an item to be auto-activated, it must:
 - Be in `queued` or `planning` status
 - Have a branch name configured
-- Have no unresolved blockers
+- Have no incomplete blocking dependencies (blocked_by items must be completed)
 - Projects must have an approved plan (if a plan exists)
 - There must be available concurrency slots (projects only — quick fixes bypass limits)
 

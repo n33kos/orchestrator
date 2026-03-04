@@ -75,7 +75,8 @@ with locked_queue() as ctx:
             hours = (datetime.now(timezone.utc) - ts).total_seconds() / 3600
             if hours > $STALL_THRESHOLD_HOURS:
                 stalled.append({'id': item['id'], 'title': item['title'], 'hours': round(hours, 1)})
-    blocked = [i for i in data['items'] if any(not b.get('resolved', False) for b in i.get('blockers', []))]
+    all_by_id = {i['id']: i for i in data['items']}
+    blocked = [i for i in data['items'] if i.get('blocked_by') and any(all_by_id.get(dep, {}).get('status') != 'completed' for dep in i.get('blocked_by', []))]
     print(json.dumps({
         'active_count': len(active),
         'max_concurrent': $MAX_ACTIVE,
@@ -154,7 +155,7 @@ if sessions['zombie'] > 0:
 for s in queue.get('stalled', []):
     issues.append({'type': 'stalled_stream', 'id': s['id'], 'message': f'{s[\"title\"]} active for {s[\"hours\"]}h'})
 for b in queue.get('blocked', []):
-    issues.append({'type': 'blocked_item', 'id': b['id'], 'message': f'{b[\"title\"]} has unresolved blockers'})
+    issues.append({'type': 'blocked_item', 'id': b['id'], 'message': f'{b[\"title\"]} is blocked by incomplete dependencies'})
 delegators = json.loads('''$DELEGATOR_HEALTH''')
 for d in delegators.get('stalled', []):
     issues.append({'type': 'stalled_delegator', 'id': d['item_id'], 'message': f'Delegator {d[\"item_id\"]} stalled ({d[\"hours\"]}h, status: {d[\"status\"]})'})
@@ -183,8 +184,8 @@ if [[ ${#ZOMBIES[@]} -gt 0 ]]; then
     done
 fi
 
-IFS=$'\t' read -r STALLED_COUNT BLOCKED_COUNT ACTIVE_COUNT <<< \
-    "$(echo "$QUEUE_HEALTH" | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'{len(d[\"stalled\"])}\t{len(d[\"blocked\"])}\t{d[\"active_count\"]}')")"
+IFS=$'\x1f' read -r STALLED_COUNT BLOCKED_COUNT ACTIVE_COUNT <<< \
+    "$(echo "$QUEUE_HEALTH" | python3 -c "import json,sys; d=json.load(sys.stdin); print(f\"{len(d['stalled'])}\t{len(d['blocked'])}\t{d['active_count']}\")")"
 
 echo ""
 echo "Queue: $ACTIVE_COUNT active"
@@ -212,7 +213,7 @@ for b in data['blocked']:
 fi
 
 # Delegator health
-IFS=$'\t' read -r DELEGATOR_TOTAL DELEGATOR_STALLED_COUNT DELEGATOR_HEALTHY <<< \
+IFS=$'\x1f' read -r DELEGATOR_TOTAL DELEGATOR_STALLED_COUNT DELEGATOR_HEALTHY <<< \
     "$(echo "$DELEGATOR_HEALTH" | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'{d[\"total\"]}\t{len(d[\"stalled\"])}\t{d[\"healthy\"]}')")"
 
 if [[ "$DELEGATOR_TOTAL" -gt 0 ]]; then

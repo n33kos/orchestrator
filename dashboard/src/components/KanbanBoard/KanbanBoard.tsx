@@ -93,9 +93,9 @@ export function KanbanBoard({ items, sortField = 'priority', sortDirection = 'as
   }
 
   for (const item of items) {
-    if (item.status === 'planning' && item.metadata.plan_approved !== true) {
+    if (item.status === 'planning' && (item.metadata.plan as Record<string, unknown>)?.approved !== true) {
       grouped.plan_review.push(item)
-    } else if (item.status === 'queued' || item.status === 'paused' || (item.status === 'planning' && item.metadata.plan_approved === true)) {
+    } else if (item.status === 'queued' || item.status === 'paused' || (item.status === 'planning' && (item.metadata.plan as Record<string, unknown>)?.approved === true)) {
       grouped.queued.push(item)
     } else if (item.status in grouped) {
       grouped[item.status as ColumnKey].push(item)
@@ -142,9 +142,9 @@ export function KanbanBoard({ items, sortField = 'priority', sortDirection = 'as
                   {item.branch && <code className={styles.CardBranch}>{item.branch}</code>}
                   <span className={styles.CardTime}>{timeAgo(item.activated_at || item.created_at)}</span>
                 </div>
-                {item.blockers.some(b => !b.resolved) && (
-                  <span className={styles.CardBlocker}>
-                    {item.blockers.filter(b => !b.resolved).length} blocker{item.blockers.filter(b => !b.resolved).length !== 1 ? 's' : ''}
+                {(item.blocked_by || []).length > 0 && (
+                  <span className={styles.CardDep}>
+                    Blocked by {(item.blocked_by || []).join(', ')}
                   </span>
                 )}
               </div>

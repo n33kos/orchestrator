@@ -33,8 +33,8 @@ export function useChangeDetection(items: WorkItem[]): Map<string, ItemChange[]>
       if ((prev.pr_url || '') !== (item.pr_url || '')) {
         diffs.push({ id: item.id, field: 'pr_url', from: prev.pr_url || '', to: item.pr_url || '' })
       }
-      if (prev.blockers.length !== item.blockers.length) {
-        diffs.push({ id: item.id, field: 'blockers', from: String(prev.blockers.length), to: String(item.blockers.length) })
+      if (prev.blocked_by.length !== item.blocked_by.length || prev.blocked_by.join(',') !== item.blocked_by.join(',')) {
+        diffs.push({ id: item.id, field: 'blocked_by', from: prev.blocked_by.join(','), to: item.blocked_by.join(',') })
       }
       if (diffs.length > 0) {
         changes.set(item.id, diffs)

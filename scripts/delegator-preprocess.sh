@@ -295,10 +295,12 @@ for line in ci_checks_raw.strip().splitlines():
 
 # Parse merge status
 mergeable = None
+merge_state_status = None
 try:
     if merge_status_raw:
         merge_data = json.loads(merge_status_raw)
         mergeable = merge_data.get("mergeable") == "MERGEABLE"
+        merge_state_status = merge_data.get("mergeStateStatus")
 except (json.JSONDecodeError, ValueError):
     pass
 
@@ -364,6 +366,7 @@ payload = {
             "failing_names": failing_names,
         },
         "mergeable": mergeable,
+        "merge_state_status": merge_state_status,
     },
     "previous_state": previous_state,
 }

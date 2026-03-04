@@ -10,7 +10,7 @@ function escapeCsv(val: string): string {
 export function exportWorkItemsCsv(items: WorkItem[]): string {
   const headers = [
     'ID', 'Title', 'Description', 'Type', 'Status', 'Priority',
-    'Branch', 'PR URL', 'Blockers (unresolved)', 'Created At',
+    'Branch', 'PR URL', 'Blocked By', 'Created At',
     'Activated At', 'Completed At',
   ]
 
@@ -23,7 +23,7 @@ export function exportWorkItemsCsv(items: WorkItem[]): string {
     String(item.priority),
     item.branch,
     item.pr_url || '',
-    String(item.blockers.filter(b => !b.resolved).length),
+    item.blocked_by.join('; '),
     item.created_at,
     item.activated_at || '',
     item.completed_at || '',

@@ -241,13 +241,31 @@
   }
 }
 
-.BlockerList {
+.DepList {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.Blocker {
+.DepDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-error);
+  flex-shrink: 0;
+  margin-top: 5px;
+
+  &.DepResolved {
+    background: var(--color-success);
+  }
+}
+
+.DepText {
+  flex: 1;
+  min-width: 0;
+}
+
+.DepItem {
   display: flex;
   align-items: flex-start;
   gap: 6px;
@@ -258,28 +276,24 @@
   background: var(--color-surface-secondary);
 }
 
-.BlockerDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-error);
-  flex-shrink: 0;
-  margin-top: 5px;
-
-  &.BlockerResolved {
-    background: var(--color-success);
-  }
-}
-
-.BlockerText {
-  flex: 1;
-  min-width: 0;
-}
-
-.NoBlockers {
-  font-size: 12px;
+.DepRemove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--color-text-muted);
-  font-style: italic;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-left: auto;
+
+  &:hover {
+    background: var(--color-error-muted);
+    color: var(--color-error);
+  }
 }
 
 /* ── Section Header ── */

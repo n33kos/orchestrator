@@ -131,8 +131,6 @@ export function App() {
     sessions,
     updateItem: queue.updateItem,
     deleteItem: queue.deleteItem,
-    addBlocker: queue.addBlocker,
-    resolveBlocker: queue.resolveBlocker,
     reorderItems: queue.reorderItems,
     refresh: queue.refresh,
     refreshSessions,
@@ -752,9 +750,6 @@ export function App() {
               onPriorityChange={actions.handlePriorityChange}
               onDelegatorToggle={actions.handleDelegatorToggle}
               onEdit={actions.handleEdit}
-              onAddBlocker={actions.handleAddBlocker}
-              onResolveBlocker={actions.handleResolveBlocker}
-              onUnresolveBlocker={actions.handleUnresolveBlocker}
               onDelete={actions.handleDelete}
               onDuplicate={actions.handleDuplicate}
               onActivateStream={actions.handleActivateStream}
@@ -875,6 +870,7 @@ export function App() {
         return (
           <DetailPanel
             item={detailItem}
+            allItems={queue.items}
             sessions={sessions}
             delegator={delegatorData.delegators.find(d => d.item_id === detailItemId)}
             onClose={() => setDetailItemId(null)}
@@ -913,6 +909,7 @@ export function App() {
             onDelegatorToggle={actions.handleDelegatorToggle}
             onGeneratePlan={actions.handleGeneratePlan}
             onRefresh={() => queue.refresh()}
+            onUpdateBlockedBy={queue.updateBlockedBy}
           />
         )
       })()}
