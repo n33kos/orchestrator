@@ -10,7 +10,7 @@ import { timeAgo, formatDate } from '../../utils/time.ts'
 import { useTimeRefresh } from '../../hooks/useTimeRefresh.ts'
 import { ProgressBar } from '../ProgressBar/ProgressBar.tsx'
 import { usePrStack } from '../../hooks/usePrStatus.ts'
-import type { WorkItem, WorkItemStatus, SessionInfo, MessageEntry } from '../../types.ts'
+import type { WorkItem, WorkItemStatus, SessionInfo, MessageEntry, StackStep } from '../../types.ts'
 
 interface WorkStreamCardProps {
   item: WorkItem
@@ -69,6 +69,8 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
   const hasDelegator = item.delegator_enabled
   const hasBlockingDeps = item.blocked_by.length > 0
   const isStack = item.metadata?.pr_type === 'graphite_stack'
+  const stackSteps = (item.metadata?.stack_steps as StackStep[] | undefined) ?? []
+  const stackCompletedCount = stackSteps.filter(s => s.completed).length
   const { stack: prStack } = usePrStack(expanded ? item.pr_url : null, isStack)
   const itemPlan = item.metadata.plan as { summary?: string; approved?: boolean } | undefined
   const itemPlanFile = item.metadata.plan_file as string | undefined
@@ -317,6 +319,19 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
                 </span>
               ) : null
             })()}
+            {isStack && stackSteps.length > 0 && (
+              <span
+                className={styles.StackProgress}
+                title={`Stack: ${stackCompletedCount}/${stackSteps.length} steps complete`}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                  <path d="M2 17l10 5 10-5" />
+                  <path d="M2 12l10 5 10-5" />
+                </svg>
+                {stackCompletedCount}/{stackSteps.length}
+              </span>
+            )}
             {position != null && totalCount != null && (
               <span className={styles.QueuePosition} title={`Position ${position} of ${totalCount}`}>
                 {position}/{totalCount}

@@ -505,6 +505,77 @@
   width: 100%;
 }
 
+/* ── Stack Steps ── */
+.StackStepsList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.StackStepItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-sm);
+  border-left: 2px solid var(--color-border);
+  transition: all 0.15s ease;
+
+  &.StackStepCompleted {
+    border-left-color: var(--color-success);
+    opacity: 0.7;
+  }
+}
+
+.StackStepDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-border);
+  flex-shrink: 0;
+  margin-top: 4px;
+
+  &.StackStepDotDone {
+    background: var(--color-success);
+  }
+}
+
+.StackStepContent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.StackStepPosition {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.StackStepDesc {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+
+.StackStepBranch {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--color-text-muted);
+  word-break: break-all;
+}
+
+.StackStepCheck {
+  flex-shrink: 0;
+  color: var(--color-success);
+  margin-top: 2px;
+}
+
 /* ── Stack PRs ── */
 .StackList {
   display: flex;

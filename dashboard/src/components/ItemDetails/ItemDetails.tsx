@@ -10,7 +10,7 @@ import { ItemNotes } from '../ItemNotes/ItemNotes.tsx'
 import { timeAgo, formatDate } from '../../utils/time.ts'
 import { usePrStatus, usePrStack } from '../../hooks/usePrStatus.ts'
 import type { StackPr } from '../../hooks/usePrStatus.ts'
-import type { WorkItem, WorkItemStatus, SessionInfo, MessageEntry } from '../../types.ts'
+import type { WorkItem, WorkItemStatus, SessionInfo, MessageEntry, StackStep } from '../../types.ts'
 import type { DelegatorStatus } from '../../hooks/useDelegators.ts'
 
 export interface ItemDetailsProps {
@@ -91,6 +91,8 @@ export function ItemDetails({
 }: ItemDetailsProps) {
   const isBusy = activating || tearingDown
   const isStack = item.metadata?.pr_type === 'graphite_stack'
+  const stackSteps = (item.metadata?.stack_steps as StackStep[] | undefined) ?? []
+  const stackCompletedCount = stackSteps.filter(s => s.completed).length
   const implementationNotes = item.metadata.implementation_notes as string[] | undefined
   const notes = item.metadata.notes as string | undefined
   const delegatorAssessment = item.metadata.delegator_assessment as string | undefined
@@ -304,6 +306,50 @@ export function ItemDetails({
               <li key={i} className={styles.NoteItem}>{note}</li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* Stack Steps */}
+      {isStack && stackSteps.length > 0 && (
+        <div className={styles.Section}>
+          <div className={styles.SectionHeader}>
+            <h4 className={styles.SectionTitle}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
+              </svg>
+              Stack Steps
+              <span className={styles.SectionCount} style={{
+                background: stackCompletedCount === stackSteps.length ? 'var(--color-success-muted, rgba(34,197,94,0.15))' : undefined,
+                color: stackCompletedCount === stackSteps.length ? 'var(--color-success)' : undefined,
+              }}>
+                {stackCompletedCount}/{stackSteps.length}
+              </span>
+            </h4>
+          </div>
+          <div className={styles.StackStepsList}>
+            {[...stackSteps].sort((a, b) => a.position - b.position).map(step => (
+              <div
+                key={step.position}
+                className={classnames(styles.StackStepItem, step.completed && styles.StackStepCompleted)}
+              >
+                <span className={classnames(styles.StackStepDot, step.completed && styles.StackStepDotDone)} />
+                <div className={styles.StackStepContent}>
+                  <span className={styles.StackStepPosition}>Step {step.position}</span>
+                  <span className={styles.StackStepDesc}>{step.description}</span>
+                  <code className={styles.StackStepBranch}>
+                    {item.branch}/{step.position}/{step.branch_suffix}
+                  </code>
+                </div>
+                {step.completed && (
+                  <svg className={styles.StackStepCheck} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

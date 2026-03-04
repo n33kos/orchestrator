@@ -1,6 +1,13 @@
 export type WorkItemStatus = 'queued' | 'planning' | 'active' | 'review' | 'completed' | 'paused'
 export type WorkItemType = 'project' | 'quick_fix'
 
+export interface StackStep {
+  position: number
+  branch_suffix: string
+  description: string
+  completed: boolean
+}
+
 export interface WorkItem {
   id: string
   source: string

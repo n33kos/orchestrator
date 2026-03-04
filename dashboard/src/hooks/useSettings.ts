@@ -8,7 +8,6 @@ export interface OrchestratorSettings {
   requireApprovedPlan: boolean
   plansDirectory: string
   defaultDelegatorEnabled: boolean
-  notificationsEnabled: boolean
   soundEnabled: boolean
   archiveAfterDays: number
   stallThresholdMinutes: number
@@ -40,7 +39,6 @@ const DEFAULTS: OrchestratorSettings = {
   requireApprovedPlan: false,
   plansDirectory: '~/.claude/orchestrator/plans',
   defaultDelegatorEnabled: true,
-  notificationsEnabled: true,
   soundEnabled: false,
   archiveAfterDays: 7,
   stallThresholdMinutes: 30,

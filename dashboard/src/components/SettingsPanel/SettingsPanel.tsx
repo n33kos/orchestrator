@@ -387,15 +387,6 @@ export function SettingsPanel({
           <div className={styles.Group}>
             <h3 className={styles.GroupTitle}>Notifications</h3>
             <SettingRow
-              label="Browser notifications"
-              description="Show notifications for status changes and completions"
-            >
-              <Toggle
-                checked={settings.notificationsEnabled}
-                onChange={(v) => onUpdate("notificationsEnabled", v)}
-              />
-            </SettingRow>
-            <SettingRow
               label="Sound effects"
               description="Play sounds on important events"
             >

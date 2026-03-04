@@ -285,6 +285,21 @@
   overflow: hidden;
 }
 
+.StackProgress {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-primary);
+  background: var(--color-primary-muted);
+  padding: 1px 6px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
 .QueuePosition {
   font-size: 10px;
   color: var(--color-text-muted);

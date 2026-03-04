@@ -157,3 +157,38 @@
   color: var(--color-warning);
   font-weight: 600;
 }
+
+.SpendGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 24px;
+}
+
+.SpendItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.SpendValue {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--color-text);
+  line-height: 1;
+}
+
+.SpendValueLoading {
+  color: var(--color-text-muted);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.SpendLabel {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}

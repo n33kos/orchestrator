@@ -47,7 +47,6 @@ import { useTheme } from './hooks/useTheme.ts'
 import { useToast } from './hooks/useToast.ts'
 import { useKeyboard } from './hooks/useKeyboard.ts'
 import { useSettings } from './hooks/useSettings.ts'
-import { useNotifications } from './hooks/useNotifications.ts'
 import { useSessions } from './hooks/useSessions.ts'
 import { useDocumentTitle } from './hooks/useDocumentTitle.ts'
 import { useFaviconBadge } from './hooks/useFaviconBadge.ts'
@@ -102,7 +101,6 @@ export function App() {
   }, [changes, queue.items, rawAddToast])
   const { isDraggingOver } = useFileDrop({ accept: ['.json'], onDrop: handleImportQueue })
   const { history: searchHistory, addSearch, clearHistory: clearSearchHistory, removeItem: removeSearchItem } = useSearchHistory()
-  useNotifications(queue.items, settings.notificationsEnabled)
   const { sessions, sendMessage, refresh: refreshSessions } = useSessions()
   const zombieCount = sessions.filter(s => s.state === 'zombie').length
   const delegatorData = useDelegators(pageVisible ? 10_000 : 60_000)
@@ -150,7 +148,6 @@ export function App() {
     }
     prevDebouncedRef.current = debouncedSearch
   }, [debouncedSearch, addSearch])
-  const [showCompleted, setShowCompleted] = useState(false)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [showSessions, setShowSessions] = useState(false)
   const [showActivityFeed, setShowActivityFeed] = useState(false)
@@ -162,7 +159,7 @@ export function App() {
   const [sortField, setSortField] = usePersistedState<SortField>('sortField', 'priority')
   const [sortDirection, setSortDirection] = usePersistedState<SortDirection>('sortDirection', 'asc')
   const [statusFilter, setStatusFilter] = useState<Set<WorkItemStatus>>(
-    new Set<WorkItemStatus>(['active', 'planning', 'queued', 'review'])
+    new Set<WorkItemStatus>(['active', 'planning', 'queued', 'review', 'completed'])
   )
   const searchRef = useRef<HTMLInputElement>(null)
   const mainRef = useRef<HTMLElement>(null)
@@ -562,8 +559,6 @@ export function App() {
               pausedCount={queue.pausedItems.length}
               completedCount={queue.completedItems.length}
               blockedCount={queue.blockedItems.length}
-              showCompleted={showCompleted}
-              onToggleCompleted={() => setShowCompleted(!showCompleted)}
             />
             <Breadcrumb
               tab={activeTab}

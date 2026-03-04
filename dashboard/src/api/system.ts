@@ -38,7 +38,8 @@ export function registerSystemRoutes(server: ViteDevServer) {
   // GET /api/events — read recent events from the event log
   server.middlewares.use('/api/events', (req, res) => {
     const url = new URL(req.url || '', 'http://localhost')
-    const limit = parseInt(url.searchParams.get('limit') || '50', 10)
+    const maxLimit = 200
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), maxLimit)
     const since = url.searchParams.get('since') || ''
     const eventsFile = join(homedir(), '.claude/orchestrator/events.jsonl')
 
@@ -50,7 +51,15 @@ export function registerSystemRoutes(server: ViteDevServer) {
 
     try {
       const lines = readFileSync(eventsFile, 'utf-8').trim().split('\n').filter(Boolean)
-      let events = lines.map(line => {
+
+      // Trim the log file if it exceeds 500 entries
+      const maxLogEntries = 500
+      if (lines.length > maxLogEntries) {
+        const trimmed = lines.slice(-maxLogEntries)
+        writeFileSync(eventsFile, trimmed.join('\n') + '\n', 'utf-8')
+      }
+
+      let events = lines.slice(-maxLogEntries).map(line => {
         try { return JSON.parse(line) }
         catch { return null }
       }).filter(Boolean)
