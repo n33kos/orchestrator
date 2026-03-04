@@ -214,8 +214,6 @@ fi
 # Step 2b: Send task reference to the worker session
 echo ""
 echo "Step 2b: Sending task instructions to worker..."
-# Wait for session to enter standby (give it time to initialize)
-sleep 5
 
 # Build a concise task message that references the plan file
 PLAN_FILE="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" metadata.plan_file)"
@@ -228,10 +226,19 @@ Read your full implementation plan and task context at: $PLAN_FILE
 Branch: $ITEM_BRANCH
 Status: Activating now — follow the plan steps in order."
 
-if $VMUX send "$SESSION_ID" "$TASK_MESSAGE" 2>/dev/null; then
-    echo "  Task instructions sent to worker"
-else
-    echo "  WARNING: Could not send task instructions (worker may not be in standby yet)" >&2
+# Retry sending the task message until the session is in standby
+MESSAGE_SENT=false
+for attempt in $(seq 1 12); do
+    if $VMUX send "$SESSION_ID" "$TASK_MESSAGE" 2>/dev/null; then
+        echo "  Task instructions sent to worker"
+        MESSAGE_SENT=true
+        break
+    fi
+    echo "  Attempt $attempt/12: session not ready, waiting 5s..."
+    sleep 5
+done
+if [[ "$MESSAGE_SENT" == "false" ]]; then
+    echo "  WARNING: Could not send task instructions after 60s (worker may not have entered standby)" >&2
 fi
 
 # Step 3: Update queue item status

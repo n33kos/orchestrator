@@ -87,7 +87,6 @@ print(hashlib.sha256(cwd.encode()).hexdigest()[:12])
 echo "  Status: active (session: $SESSION_ID)"
 
 # Send task reference to the resumed worker session
-sleep 5
 PLAN_FILE="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" metadata.plan_file)"
 
 # Check PR merge status if a branch exists
@@ -110,8 +109,19 @@ Read your full implementation plan and task context at: $PLAN_FILE
 Branch: $ITEM_BRANCH
 Status: Resuming — continue where you left off, following the plan steps in order.${PR_STATUS_MSG}"
 
-if $VMUX send "$SESSION_ID" "$TASK_MESSAGE" 2>/dev/null; then
-    echo "  Task context sent to worker"
+# Retry sending the task message until the session is in standby
+MESSAGE_SENT=false
+for attempt in $(seq 1 12); do
+    if $VMUX send "$SESSION_ID" "$TASK_MESSAGE" 2>/dev/null; then
+        echo "  Task context sent to worker"
+        MESSAGE_SENT=true
+        break
+    fi
+    echo "  Attempt $attempt/12: session not ready, waiting 5s..."
+    sleep 5
+done
+if [[ "$MESSAGE_SENT" == "false" ]]; then
+    echo "  WARNING: Could not send task instructions after 60s (worker may not have entered standby)" >&2
 fi
 
 # Optionally spawn delegator
