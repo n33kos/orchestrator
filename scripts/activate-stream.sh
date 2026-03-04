@@ -129,31 +129,47 @@ print(json.dumps(steps))
     echo "  Branch prefix: $ITEM_BRANCH (graphite_stack)"
     echo "  Stack steps: $(echo "$STACK_STEPS_JSON" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")"
 
-    # Step 1: Create worktree from main
-    # Sanitize branch name: replace / with - (matches Rostrum convention)
-    SANITIZED_BRANCH="${ITEM_BRANCH//\//-}"
+    # Step 1: Create worktree via Rostrum using the branch prefix
+    echo ""
+    echo "Step 1: Creating worktree via Rostrum..."
+    cd "$REPO_PATH"
+
+    # Reuse find_worktree_by_branch helper (defined in standard flow too)
+    find_worktree_by_branch() {
+        git worktree list --porcelain | awk -v branch="refs/heads/$1" '
+            /^worktree / { wt=substr($0, 10) }
+            /^branch / && $2 == branch { print wt; exit }
+        '
+    }
+
     EXISTING_WORKTREE="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" worktree_path)"
     if [[ -n "$EXISTING_WORKTREE" && -d "$EXISTING_WORKTREE" ]]; then
         WORKTREE_PATH="$EXISTING_WORKTREE"
-    else
-        WORKTREE_PATH="${WORKTREE_PREFIX}${SANITIZED_BRANCH}"
-    fi
-    echo ""
-    echo "Step 1: Creating worktree from main..."
-    cd "$REPO_PATH"
-
-    if [[ -d "$WORKTREE_PATH" ]]; then
         echo "  Worktree already exists at $WORKTREE_PATH"
     else
-        # For stacks, create a detached worktree from main — gt create handles branching
-        git worktree add "$WORKTREE_PATH" main 2>/dev/null || {
-            # Fallback: try origin/main
-            git worktree add "$WORKTREE_PATH" origin/main 2>/dev/null || {
-                echo "  ERROR: Failed to create worktree from main" >&2
+        EXISTING_GIT_WORKTREE="$(find_worktree_by_branch "$ITEM_BRANCH")"
+        if [[ -n "$EXISTING_GIT_WORKTREE" && -d "$EXISTING_GIT_WORKTREE" ]]; then
+            WORKTREE_PATH="$EXISTING_GIT_WORKTREE"
+            echo "  Worktree already exists at $WORKTREE_PATH"
+        elif $ROSTRUM setup "$ITEM_BRANCH" --quick; then
+            ACTUAL_WORKTREE="$(find_worktree_by_branch "$ITEM_BRANCH")"
+            if [[ -n "$ACTUAL_WORKTREE" && -d "$ACTUAL_WORKTREE" ]]; then
+                WORKTREE_PATH="$ACTUAL_WORKTREE"
+            else
+                echo "  ERROR: Rostrum created worktree but could not find it" >&2
                 exit 1
-            }
-        }
-        echo "  Created: $WORKTREE_PATH (from main)"
+            fi
+            echo "  Created: $WORKTREE_PATH"
+        else
+            ACTUAL_WORKTREE="$(find_worktree_by_branch "$ITEM_BRANCH")"
+            if [[ -n "$ACTUAL_WORKTREE" && -d "$ACTUAL_WORKTREE" ]]; then
+                WORKTREE_PATH="$ACTUAL_WORKTREE"
+                echo "  Rostrum failed but worktree exists at $WORKTREE_PATH"
+            else
+                echo "  ERROR: Rostrum setup failed and no existing worktree found" >&2
+                exit 1
+            fi
+        fi
     fi
 else
     # Standard flow: validate branch and create worktree via Rostrum
