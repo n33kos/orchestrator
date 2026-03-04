@@ -421,6 +421,18 @@ except Exception:
                     # Postprocess (note: this deletes TRIAGE_OUTPUT)
                     "$SCRIPT_DIR/delegator-postprocess.sh" "$ITEM_ID" "$TRIAGE_OUTPUT" $MODEL_FLAG 2>&1 | sed 's/^/  [postprocess] /' || true
 
+                    # Update status.json so watchdog doesn't think we're stalled
+                    python3 -c "
+import json
+from datetime import datetime, timezone
+sf = '$HOME/.claude/orchestrator/delegators/$ITEM_ID/status.json'
+try:
+    with open(sf) as f: s = json.load(f)
+except: s = {}
+s['last_check_at'] = datetime.now(timezone.utc).isoformat()
+with open(sf, 'w') as f: json.dump(s, f, indent=2); f.write(chr(10))
+" 2>/dev/null || true
+
                     # Cleanup remaining temp files
                     rm -f "$CYCLE_JSON" "/tmp/delegator-escalation-$ITEM_ID.json"
                     """,

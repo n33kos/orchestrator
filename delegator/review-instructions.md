@@ -106,6 +106,7 @@ Populate all fields that changed or were observed this cycle:
 - `flags.stall_detected` — Boolean
 - `flags.pr_reviewed` — Boolean
 - `flags.worker_lost` — Boolean
+- `flags.ready_for_review` — Boolean. Set to true when work is complete and ready for user review. Only set to false if you find blocking issues.
 
 ### Assessment Values
 
@@ -121,7 +122,8 @@ Populate all fields that changed or were observed this cycle:
 3. PR with failing CI → request CI fix, assessment = `needs_work`
 4. PR with passing CI + worker idle → full PR review → `approve` / `needs_work` / `blocked`
 5. Ambiguous worker state → analyze transcript → `needs_work` (stuck) / `blocked` (genuinely stuck) / `monitoring` (slow but progressing)
-6. **No-branch project** (`item_context.metadata.no_branch` is true or `item_context.metadata.commit_strategy` is `single_commit_to_main`): Worker commits directly to main, no PR expected. If worker signals completion (conversation_recent shows "done"/"complete"/idle after committing) → trigger `trigger_review_transition` and assess as `approve`. Review the commit diffs if available.
+6. **No-branch project** (`item_context.metadata.no_branch` is true or `item_context.metadata.commit_strategy` is `single_commit_to_main`): Worker commits directly to main, no PR expected. If worker signals completion (conversation_recent shows "done"/"complete"/idle after committing) OR `previous_state.flags.ready_for_review` is true → trigger `trigger_review_transition` and assess as `approve`. Review the commit diffs if available.
+7. **Ready-for-review flag set** — If `previous_state.flags.ready_for_review` is true, this means a prior cycle (or the user) has explicitly flagged the work as complete. Unless you find blocking issues in the code, assess as `approve` and trigger `trigger_review_transition`. Do NOT reset `ready_for_review` to false unless you find actual blocking issues.
 
 ## Message Style
 
