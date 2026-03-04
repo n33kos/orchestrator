@@ -95,6 +95,24 @@
   }
 }
 
+.SpendSection {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.SpendLabel {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+
+  strong {
+    color: var(--color-text);
+    font-family: var(--font-mono);
+  }
+}
+
 .CompletedToggle {
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-sm);

@@ -1,17 +1,15 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import classnames from 'classnames'
 import styles from './WorkStreamCard.module.scss'
 import { StatusBadge } from '../StatusBadge/StatusBadge.tsx'
 import { InlineEdit } from '../InlineEdit/InlineEdit.tsx'
-import { ActivityLog } from '../ActivityLog/ActivityLog.tsx'
-import { MessageComposer } from '../MessageComposer/MessageComposer.tsx'
 import { ContextMenu } from '../ContextMenu/ContextMenu.tsx'
 import type { ContextMenuItem } from '../ContextMenu/ContextMenu.tsx'
+import { ItemDetails } from '../ItemDetails/ItemDetails.tsx'
 import { timeAgo, formatDate } from '../../utils/time.ts'
 import { useTimeRefresh } from '../../hooks/useTimeRefresh.ts'
 import { ProgressBar } from '../ProgressBar/ProgressBar.tsx'
-import { usePrStatus, usePrStack } from '../../hooks/usePrStatus.ts'
-import type { StackPr } from '../../hooks/usePrStatus.ts'
+import { usePrStack } from '../../hooks/usePrStatus.ts'
 import type { WorkItem, WorkItemStatus, SessionInfo, MessageEntry } from '../../types.ts'
 
 interface WorkStreamCardProps {
@@ -70,23 +68,10 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
   const hasSession = !!item.session_id
   const hasDelegator = item.delegator_enabled
   const hasBlockingDeps = item.blocked_by.length > 0
-  const implementationNotes = item.metadata.implementation_notes as string[] | undefined
-  const notes = item.metadata.notes as string | undefined
-  const { status: prStatus, loading: prLoading } = usePrStatus(expanded ? item.pr_url : null)
   const isStack = item.metadata?.pr_type === 'graphite_stack'
-  const { stack: prStack, loading: stackLoading } = usePrStack(expanded ? item.pr_url : null, isStack)
-  const delegatorAssessment = item.metadata.delegator_assessment as string | undefined
+  const { stack: prStack } = usePrStack(expanded ? item.pr_url : null, isStack)
   const itemPlan = item.metadata.plan as { summary?: string; approved?: boolean } | undefined
   const itemPlanFile = item.metadata.plan_file as string | undefined
-
-  const activityEntries = useMemo(() => {
-    const entries: { timestamp: string; action: string; detail?: string }[] = []
-    if (item.created_at) entries.push({ timestamp: item.created_at, action: 'Created', detail: `Source: ${item.source}` })
-    if (item.activated_at) entries.push({ timestamp: item.activated_at, action: 'Activated' })
-    if (item.completed_at) entries.push({ timestamp: item.completed_at, action: 'Completed' })
-    entries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    return entries
-  }, [item])
 
   const isBusy = activating || tearingDown
 
@@ -316,6 +301,22 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
               <span className={styles.MetaLabel}>Branch</span>
               <code className={styles.MetaValue}>{item.branch}</code>
             </span>
+            {(() => {
+              const spendUsd = (item.metadata.spend as { total_usd?: number } | undefined)?.total_usd
+              return spendUsd != null && spendUsd > 0 ? (
+                <span
+                  className={classnames(
+                    styles.SpendBadge,
+                    spendUsd < 5 && styles.SpendGreen,
+                    spendUsd >= 5 && spendUsd <= 20 && styles.SpendYellow,
+                    spendUsd > 20 && styles.SpendRed,
+                  )}
+                  title={`Token spend: $${spendUsd.toFixed(2)}`}
+                >
+                  ${spendUsd.toFixed(2)}
+                </span>
+              ) : null
+            })()}
             {position != null && totalCount != null && (
               <span className={styles.QueuePosition} title={`Position ${position} of ${totalCount}`}>
                 {position}/{totalCount}
@@ -398,440 +399,25 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
       )}
 
       {expanded && (
-        <div className={styles.Details}>
-          {/* Dependencies */}
-          {item.blocked_by.length > 0 && (
-            <div className={styles.Section}>
-              <h4 className={styles.SectionTitle}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
-                </svg>
-                Blocked By
-                <span className={styles.SectionCount}>{item.blocked_by.length}</span>
-              </h4>
-              <div className={styles.NotesList}>
-                {item.blocked_by.map(depId => (
-                  <li key={depId} className={styles.Note}>{depId}</li>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Implementation Notes */}
-          {implementationNotes && implementationNotes.length > 0 && (
-            <div className={styles.Section}>
-              <h4 className={styles.SectionTitle}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <line x1="16" y1="13" x2="8" y2="13" />
-                  <line x1="16" y1="17" x2="8" y2="17" />
-                </svg>
-                Implementation Notes
-              </h4>
-              <ul className={styles.NotesList}>
-                {implementationNotes.map((note, i) => (
-                  <li key={i} className={styles.Note}>{note}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Implementation Plan */}
-          {itemPlanFile && (
-            <div className={styles.Section}>
-              <h4 className={styles.SectionTitle}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
-                  <rect x="9" y="3" width="6" height="4" rx="1" />
-                  <line x1="9" y1="12" x2="15" y2="12" />
-                  <line x1="9" y1="16" x2="15" y2="16" />
-                </svg>
-                Plan: {itemPlanFile.split('/').pop()}
-                {itemPlan?.approved ? ' (Approved)' : ' (Draft)'}
-              </h4>
-              {itemPlan?.summary && <p className={styles.NotesText}>{itemPlan.summary}</p>}
-            </div>
-          )}
-
-          {/* Notes */}
-          {notes && (
-            <div className={styles.Section}>
-              <h4 className={styles.SectionTitle}>Notes</h4>
-              <p className={styles.NotesText}>{notes}</p>
-            </div>
-          )}
-
-          {/* Activity Timeline */}
-          <div className={styles.Section}>
-            <h4 className={styles.SectionTitle}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
-              Activity
-            </h4>
-            <ActivityLog entries={activityEntries} />
-          </div>
-
-          {/* Pull Request Section */}
-          <div className={styles.Section}>
-            <h4 className={styles.SectionTitle}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="18" cy="18" r="3" />
-                <circle cx="6" cy="6" r="3" />
-                <path d="M6 21V9a9 9 0 009 9" />
-              </svg>
-              {isStack ? 'PR Stack (Graphite)' : 'Pull Request'}
-            </h4>
-            {item.pr_url ? (
-              <div className={styles.PrSection} onClick={e => e.stopPropagation()}>
-                {/* Graphite stack view */}
-                {isStack && prStack ? (
-                  <>
-                    {prStack.graphiteStackUrl && (
-                      <a
-                        className={styles.PrLink}
-                        href={prStack.graphiteStackUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        View full stack on Graphite
-                      </a>
-                    )}
-                    <div className={styles.StackList}>
-                      {prStack.prs.map((pr: StackPr) => (
-                        <div key={pr.number} className={styles.StackItem}>
-                          <div className={styles.StackItemHeader}>
-                            <a
-                              className={styles.StackPrLink}
-                              href={pr.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              #{pr.number}
-                            </a>
-                            <span className={styles.StackPrTitle}>{pr.title}</span>
-                            <span className={classnames(styles.PrBadge, styles[`pr_${pr.state.toLowerCase()}`])}>
-                              {pr.state}
-                            </span>
-                          </div>
-                          <div className={styles.StackItemMeta}>
-                            {pr.reviewDecision && (
-                              <span className={classnames(styles.PrBadge, styles[`pr_review_${pr.reviewDecision.toLowerCase()}`])}>
-                                {pr.reviewDecision === 'APPROVED' ? 'Approved' :
-                                 pr.reviewDecision === 'CHANGES_REQUESTED' ? 'Changes Req.' :
-                                 'Review Req.'}
-                              </span>
-                            )}
-                            <span className={classnames(
-                              styles.PrBadge,
-                              pr.checksPass && styles.pr_checks_pass,
-                              pr.checksFail && styles.pr_checks_fail,
-                              !pr.checksPass && !pr.checksFail && styles.pr_checks_pending,
-                            )}>
-                              {pr.checksPass ? 'Checks Pass' : pr.checksFail ? 'Checks Fail' : 'Pending'}
-                            </span>
-                            <span className={styles.PrStats}>
-                              <span className={styles.PrAdditions}>+{pr.additions}</span>
-                              <span className={styles.PrDeletions}>-{pr.deletions}</span>
-                              <span className={styles.PrFiles}>{pr.changedFiles}f</span>
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {stackLoading && <span className={styles.PrLoading}>Loading stack...</span>}
-                  </>
-                ) : (
-                  /* Single PR view */
-                  <>
-                    <div className={styles.PrHeader}>
-                      <a
-                        className={styles.PrLink}
-                        href={item.pr_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {item.pr_url.replace(/^https?:\/\/github\.com\//, '')}
-                      </a>
-                      {prLoading && <span className={styles.PrLoading}>Loading...</span>}
-                    </div>
-                    {prStatus && prStatus.state !== 'unknown' && (
-                      <div className={styles.PrStatusGrid}>
-                        <span className={classnames(styles.PrBadge, styles[`pr_${prStatus.state.toLowerCase()}`])}>
-                          {prStatus.state}
-                        </span>
-                        {prStatus.reviewDecision && (
-                          <span className={classnames(styles.PrBadge, styles[`pr_review_${prStatus.reviewDecision.toLowerCase()}`])}>
-                            {prStatus.reviewDecision === 'APPROVED' ? 'Approved' :
-                             prStatus.reviewDecision === 'CHANGES_REQUESTED' ? 'Changes Requested' :
-                             'Review Required'}
-                          </span>
-                        )}
-                        {prStatus.checksTotal > 0 && (
-                          <span className={classnames(
-                            styles.PrBadge,
-                            prStatus.checksPass && styles.pr_checks_pass,
-                            prStatus.checksFail && styles.pr_checks_fail,
-                            prStatus.checksPending && styles.pr_checks_pending,
-                          )}>
-                            Checks: {prStatus.checksPass ? 'Pass' : prStatus.checksFail ? 'Fail' : 'Pending'}
-                          </span>
-                        )}
-                        <span className={styles.PrStats}>
-                          <span className={styles.PrAdditions}>+{prStatus.additions}</span>
-                          <span className={styles.PrDeletions}>-{prStatus.deletions}</span>
-                          <span className={styles.PrFiles}>{prStatus.changedFiles} file{prStatus.changedFiles !== 1 ? 's' : ''}</span>
-                        </span>
-                      </div>
-                    )}
-                    {prStatus?.reviews && prStatus.reviews.length > 0 && (
-                      <div className={styles.PrReviewers}>
-                        {prStatus.reviews.map((r, i) => (
-                          <span key={i} className={classnames(styles.PrReviewer, styles[`pr_reviewer_${r.state.toLowerCase()}`])}>
-                            {r.author}
-                            {r.state === 'APPROVED' && ' ✓'}
-                            {r.state === 'CHANGES_REQUESTED' && ' ✗'}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            ) : onPrUrlChange ? (
-              <div className={styles.PrEmpty} onClick={e => e.stopPropagation()}>
-                <InlineEdit
-                  value=""
-                  onSave={url => onPrUrlChange(item.id, url)}
-                  className={styles.PrUrlInput}
-                  placeholder="Paste PR URL..."
-                />
-              </div>
-            ) : (
-              <span className={styles.PrNone}>No PR linked</span>
-            )}
-          </div>
-
-          {/* Delegator Assessment */}
-          {delegatorAssessment && (
-            <div className={styles.Section}>
-              <h4 className={styles.SectionTitle}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                </svg>
-                Delegator Assessment
-              </h4>
-              <p className={styles.AssessmentText}>{delegatorAssessment}</p>
-            </div>
-          )}
-
-          {/* Metadata Grid */}
-          <div className={styles.MetaGrid}>
-            <div className={styles.MetaGridItem}>
-              <span className={styles.MetaGridLabel}>Branch</span>
-              <code className={styles.MetaGridValue}>{item.branch}</code>
-            </div>
-            <div className={styles.MetaGridItem}>
-              <span className={styles.MetaGridLabel}>Type</span>
-              <span className={styles.MetaGridValue}>{item.type === 'project' ? 'Project' : 'Quick Fix'}</span>
-            </div>
-            <div className={styles.MetaGridItem}>
-              <span className={styles.MetaGridLabel}>Source</span>
-              <span className={styles.MetaGridValue}>{item.source}</span>
-            </div>
-            <div className={styles.MetaGridItem}>
-              <span className={styles.MetaGridLabel}>Created</span>
-              <span className={styles.MetaGridValue}>{formatDate(item.created_at)}</span>
-            </div>
-            <div className={styles.MetaGridItem}>
-              <span className={styles.MetaGridLabel}>Activated</span>
-              <span className={styles.MetaGridValue}>{formatDate(item.activated_at)}</span>
-            </div>
-            <div className={styles.MetaGridItem}>
-              <span className={styles.MetaGridLabel}>Completed</span>
-              <span className={styles.MetaGridValue}>{formatDate(item.completed_at)}</span>
-            </div>
-            {item.worktree_path && (
-              <div className={classnames(styles.MetaGridItem, styles.MetaGridWide)}>
-                <span className={styles.MetaGridLabel}>Worktree</span>
-                <code className={styles.MetaGridValue}>{item.worktree_path}</code>
-              </div>
-            )}
-          </div>
-
-          {/* Session/Delegator Status */}
-          <div className={styles.StatusRow}>
-            <span className={classnames(styles.StatusItem, hasLiveSession && styles.StatusActive)}>
-              <span className={classnames(styles.LiveDot, hasLiveSession && styles[sessionInfo!.state])} />
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="2" y="3" width="20" height="14" rx="2" />
-                <line x1="8" y1="21" x2="16" y2="21" />
-                <line x1="12" y1="17" x2="12" y2="21" />
-              </svg>
-              Worker: {hasLiveSession ? `${sessionInfo!.state} (${sessionInfo!.id.slice(0, 8)})` : hasSession ? item.session_id : 'Not running'}
-            </span>
-            <label
-              className={classnames(styles.StatusItem, styles.DelegatorToggle)}
-              onClick={e => e.stopPropagation()}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
-              Delegator
-              <button
-                className={classnames(styles.Toggle, item.delegator_enabled && styles.ToggleOn)}
-                onClick={() => onDelegatorToggle(item.id, !item.delegator_enabled)}
-                role="switch"
-                aria-checked={item.delegator_enabled}
-              >
-                <span className={styles.ToggleKnob} />
-              </button>
-              <span className={styles.ToggleLabel}>
-                {item.delegator_enabled ? 'Enabled' : 'Off'}
-              </span>
-            </label>
-          </div>
-
-          {/* Session Messaging */}
-          {hasLiveSession && onSendMessage && (
-            <div className={styles.Section}>
-              <h4 className={styles.SectionTitle}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-                </svg>
-                Session Messaging
-              </h4>
-              <MessageComposer
-                sessionId={sessionInfo!.id}
-                sessionState={sessionInfo!.state}
-                messages={messages}
-                onSend={text => onSendMessage(sessionInfo!.id, text)}
-              />
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className={styles.ActionBar} onClick={e => e.stopPropagation()}>
-            <div className={styles.PriorityActions}>
-              <button
-                className={styles.ActionButton}
-                onClick={() => onPriorityChange(item.id, Math.max(1, item.priority - 1))}
-                aria-label="Increase priority"
-                disabled={item.priority <= 1}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="18 15 12 9 6 15" />
-                </svg>
-              </button>
-              <span className={styles.PriorityLabel}>Priority {item.priority}</span>
-              <button
-                className={styles.ActionButton}
-                onClick={() => onPriorityChange(item.id, item.priority + 1)}
-                aria-label="Decrease priority"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </button>
-            </div>
-
-            <div className={styles.StatusActions}>
-              {item.status === 'queued' && (
-                <button
-                  className={styles.ActionButtonText}
-                  onClick={() => onStatusChange(item.id, 'planning')}
-                  disabled={isBusy}
-                >
-                  Start Planning
-                </button>
-              )}
-              {item.status === 'planning' && itemPlan?.approved && (
-                <button
-                  className={classnames(styles.ActionButtonText, onActivateStream && styles.ActionPrimary)}
-                  onClick={() => onActivateStream ? onActivateStream(item.id) : onStatusChange(item.id, 'active')}
-                  disabled={isBusy}
-                >
-                  {activating ? 'Activating...' : onActivateStream ? 'Activate Stream' : 'Activate'}
-                </button>
-              )}
-              {item.status === 'planning' && !itemPlan?.approved && item.type === 'quick_fix' && (
-                <button
-                  className={styles.ActionButtonText}
-                  onClick={() => onActivateStream ? onActivateStream(item.id) : onStatusChange(item.id, 'active')}
-                  disabled={isBusy}
-                >
-                  {activating ? 'Activating...' : 'Skip Plan & Activate'}
-                </button>
-              )}
-              {item.status === 'planning' && !itemPlan?.approved && (
-                <button
-                  className={styles.ActionButtonText}
-                  onClick={() => onStatusChange(item.id, 'queued')}
-                  disabled={isBusy}
-                >
-                  Back to Queue
-                </button>
-              )}
-              {item.status === 'active' && (
-                <>
-                  <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'review')} disabled={isBusy}>
-                    Move to Review
-                  </button>
-                  <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'paused')} disabled={isBusy}>
-                    Pause
-                  </button>
-                </>
-              )}
-              {item.status === 'review' && (
-                <>
-                  <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'completed')} disabled={isBusy}>
-                    Complete
-                  </button>
-                  <button className={styles.ActionButtonText} onClick={() => onStatusChange(item.id, 'active')} disabled={isBusy}>
-                    Back to Active
-                  </button>
-                </>
-              )}
-              {item.status === 'paused' && (
-                <button
-                  className={classnames(styles.ActionButtonText, onActivateStream && styles.ActionPrimary)}
-                  onClick={() => onActivateStream ? onActivateStream(item.id) : onStatusChange(item.id, 'active')}
-                  disabled={isBusy}
-                >
-                  {activating ? 'Activating...' : 'Resume'}
-                </button>
-              )}
-              {onTeardownStream && (item.status === 'active' || item.status === 'review') && (item.worktree_path || item.session_id) && (
-                <button
-                  className={classnames(styles.ActionButtonText, styles.ActionDanger)}
-                  onClick={() => onTeardownStream(item.id)}
-                  disabled={isBusy}
-                >
-                  {tearingDown ? 'Tearing down...' : 'Tear Down'}
-                </button>
-              )}
-              {onDuplicate && (
-                <button
-                  className={styles.ActionButtonText}
-                  onClick={() => onDuplicate(item.id)}
-                  disabled={isBusy}
-                >
-                  Duplicate
-                </button>
-              )}
-              <button
-                className={classnames(styles.ActionButtonText, styles.ActionDanger)}
-                onClick={() => onDelete(item.id)}
-                disabled={isBusy}
-              >
-                Remove
-              </button>
-            </div>
-          </div>
-        </div>
+        <ItemDetails
+          item={item}
+          variant="inline"
+          sessionInfo={sessionInfo}
+          messages={messages}
+          onStatusChange={onStatusChange}
+          onPriorityChange={onPriorityChange}
+          onDelegatorToggle={onDelegatorToggle}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onDuplicate={onDuplicate}
+          onActivateStream={onActivateStream}
+          onTeardownStream={onTeardownStream}
+          onPrUrlChange={onPrUrlChange}
+          onGeneratePlan={onGeneratePlan}
+          onSendMessage={onSendMessage}
+          activating={activating}
+          tearingDown={tearingDown}
+        />
       )}
       {contextMenu && (
         <ContextMenu
