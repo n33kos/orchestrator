@@ -43,7 +43,7 @@ export function GlobalSearch({ items, sessions, onClose, onNavigateToItem, onNav
       .filter(i =>
         i.title.toLowerCase().includes(q) ||
         i.description.toLowerCase().includes(q) ||
-        i.branch.toLowerCase().includes(q) ||
+        (i.environment?.branch || '').toLowerCase().includes(q) ||
         i.id.toLowerCase().includes(q),
       )
       .slice(0, 10)
@@ -51,8 +51,8 @@ export function GlobalSearch({ items, sessions, onClose, onNavigateToItem, onNav
         id: i.id,
         type: 'item' as const,
         title: i.title,
-        subtitle: `${i.type} - ${i.status}`,
-        meta: i.branch || undefined,
+        subtitle: `${i.id} - ${i.status}`,
+        meta: i.environment?.branch || undefined,
       }))
 
     const sessionResults: SearchResult[] = sessions

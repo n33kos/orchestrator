@@ -118,7 +118,7 @@ export function ItemDetails({
   const [editingNotes, setEditingNotes] = useState(false);
   const [titleText, setTitleText] = useState(item.title);
   const [descriptionText, setDescriptionText] = useState(item.description);
-  const [notesText, setNotesText] = useState(notes || "");
+  const [notesText, setNotesText] = useState("");
   const [copied, setCopied] = useState(false);
   const [messageText, setMessageText] = useState("");
   const [depInput, setDepInput] = useState("");
@@ -140,8 +140,8 @@ export function ItemDetails({
     if (!editingDescription) setDescriptionText(item.description);
   }, [item.description, editingDescription]);
   useEffect(() => {
-    if (!editingNotes) setNotesText(notes || "");
-  }, [notes, editingNotes]);
+    if (!editingNotes) setNotesText("");
+  }, [editingNotes]);
 
   // Focus inputs when entering edit mode
   useEffect(() => {
@@ -406,8 +406,8 @@ export function ItemDetails({
         </div>
       )}
 
-      {/* Implementation Notes */}
-      {implementationNotes && implementationNotes.length > 0 && (
+      {/* Implementation Notes — rendered when delegator provides them */}
+      {delegator?.commit_reviews && delegator.commit_reviews.length > 0 && (
         <div className={styles.Section}>
           <h4 className={styles.SectionTitle}>
             <svg
@@ -423,12 +423,12 @@ export function ItemDetails({
               <line x1="16" y1="13" x2="8" y2="13" />
               <line x1="16" y1="17" x2="8" y2="17" />
             </svg>
-            Implementation Notes
+            Commit Reviews
           </h4>
           <ul className={styles.NotesList}>
-            {implementationNotes.map((note, i) => (
+            {delegator.commit_reviews.map((review, i) => (
               <li key={i} className={styles.NoteItem}>
-                {note}
+                <code>{review.hash?.slice(0, 8)}</code> {review.message} — {review.assessment}
               </li>
             ))}
           </ul>
@@ -738,7 +738,7 @@ export function ItemDetails({
                 className={styles.CancelButton}
                 onClick={() => {
                   setEditingNotes(false);
-                  setNotesText(notes || "");
+                  setNotesText("");
                 }}
               >
                 Cancel
@@ -749,8 +749,6 @@ export function ItemDetails({
           <>
             {notesText ? (
               <p className={styles.NotesText}>{notesText}</p>
-            ) : notes ? (
-              <p className={styles.NotesText}>{notes}</p>
             ) : (
               <span className={styles.EmptyText}>
                 {onNotesChange ? "Click edit to add notes" : "No notes"}
@@ -766,7 +764,7 @@ export function ItemDetails({
       </div>
 
       {/* Delegator Assessment */}
-      {delegatorAssessment && (
+      {delegator?.assessment && (
         <div className={styles.Section}>
           <h4 className={styles.SectionTitle}>
             <svg
@@ -781,7 +779,7 @@ export function ItemDetails({
             </svg>
             Delegator Assessment
           </h4>
-          <p className={styles.AssessmentText}>{delegatorAssessment}</p>
+          <p className={styles.AssessmentText}>{delegator.assessment}</p>
         </div>
       )}
 

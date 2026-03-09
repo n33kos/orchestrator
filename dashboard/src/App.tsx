@@ -887,7 +887,7 @@ export function App() {
                 await fetch('/api/queue/update', {
                   method: 'PATCH',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ id, metadata: { notes } }),
+                  body: JSON.stringify({ id, runtime: { notes } }),
                 })
                 queue.refresh()
                 addToast('Notes updated', 'success')
