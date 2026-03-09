@@ -3,6 +3,7 @@ import styles from "./AnalyticsView.module.scss";
 import { StatusChart } from "../StatusChart/StatusChart.tsx";
 import { BarChart } from "../BarChart/BarChart.tsx";
 import { useSpend } from "../../hooks/useSpend.ts";
+import { SpendTrendChart } from "../SpendTrendChart/SpendTrendChart.tsx";
 import type { WorkItem, SessionInfo } from "../../types.ts";
 import type { DelegatorStatus } from "../../hooks/useDelegators.ts";
 import type { OrchestratorEvent } from "../../hooks/useEvents.ts";
@@ -24,7 +25,7 @@ export function AnalyticsView({
   events = [],
 }: Props) {
   // Spend totals — loads from cache instantly, refreshes once per page load
-  const { orchestrator: orchestratorSpend, overall: overallSpend, loading: spendLoading, refresh: refreshSpend } = useSpend()
+  const { overall: overallSpend, daily: dailySpend, loading: spendLoading, refresh: refreshSpend } = useSpend()
 
   // Fire live ccusage refresh only once per page load, on first analytics tab focus
   useEffect(() => {
@@ -39,7 +40,6 @@ export function AnalyticsView({
     active: items.filter((i) => i.status === "active").length,
     queued: items.filter((i) => i.status === "queued").length,
     review: items.filter((i) => i.status === "review").length,
-    paused: items.filter((i) => i.status === "paused").length,
     completed: items.filter((i) => i.status === "completed").length,
   };
 
@@ -156,7 +156,7 @@ export function AnalyticsView({
     <div className={styles.Root}>
       <div className={styles.Grid}>
         <div className={styles.Card}>
-          <h3 className={styles.CardTitle}>Overall User Spend{spendLoading && !overallSpend ? '' : ''}</h3>
+          <h3 className={styles.CardTitle}>Overall User Spend</h3>
           <div className={styles.SpendGrid}>
             {(['today', 'week', 'month', 'all_time'] as const).map(period => (
               <div key={period} className={styles.SpendItem}>
@@ -172,19 +172,8 @@ export function AnalyticsView({
         </div>
 
         <div className={styles.Card}>
-          <h3 className={styles.CardTitle}>Orchestrator Spend</h3>
-          <div className={styles.SpendGrid}>
-            {(['today', 'week', 'month', 'all_time'] as const).map(period => (
-              <div key={period} className={styles.SpendItem}>
-                <span className={`${styles.SpendValue}${spendLoading && orchestratorSpend.all_time === 0 ? ` ${styles.SpendValueLoading}` : ''}`}>
-                  ${orchestratorSpend[period].toFixed(2)}
-                </span>
-                <span className={styles.SpendLabel}>
-                  {period === 'today' ? 'Today' : period === 'week' ? 'This Week' : period === 'month' ? 'This Month' : 'All Time'}
-                </span>
-              </div>
-            ))}
-          </div>
+          <h3 className={styles.CardTitle}>Daily Spend Trend</h3>
+          <SpendTrendChart daily={dailySpend} />
         </div>
 
         <div className={styles.Card}>

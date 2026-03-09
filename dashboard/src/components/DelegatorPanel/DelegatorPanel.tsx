@@ -7,6 +7,9 @@ import type { DelegatorStatus } from '../../hooks/useDelegators.ts'
 interface WorkItem {
   id: string
   title: string
+  status?: ItemStatus
+  worker?: { delegator_enabled?: boolean }
+  runtime?: { spend?: Record<string, unknown> | null }
 }
 
 interface DelegatorPanelProps {
@@ -18,8 +21,30 @@ interface DelegatorPanelProps {
 
 const healthLabels: Record<string, { label: string; cls: string }> = {
   healthy: { label: 'Healthy', cls: 'statusActive' },
+  standby: { label: 'Standby', cls: 'statusIdle' },
   stale: { label: 'Stale', cls: 'statusIdle' },
+  disabled: { label: 'Disabled', cls: 'statusInit' },
   error: { label: 'Error', cls: 'statusError' },
+}
+
+type ItemStatus = 'queued' | 'planning' | 'active' | 'review' | 'completed'
+
+/**
+ * Derive effective delegator health based on both the state file health
+ * and the parent work item's current status / delegator_enabled flag.
+ */
+function deriveEffectiveHealth(
+  rawHealth: string,
+  itemStatus: ItemStatus | undefined,
+  delegatorEnabled: boolean | undefined,
+  stallDetected: boolean,
+): string {
+  if (stallDetected) return 'stale'
+  if (rawHealth === 'error') return 'error'
+  if (delegatorEnabled === false) return 'disabled'
+  const activeStatuses: ItemStatus[] = ['active', 'review']
+  if (itemStatus && !activeStatuses.includes(itemStatus)) return 'standby'
+  return rawHealth // healthy or stale pass through
 }
 
 const statusLabels: Record<string, { label: string; cls: string }> = {
@@ -131,20 +156,41 @@ export function DelegatorPanel({ delegators, loading, items, onRefresh }: Delega
     )
   }
 
-  const healthyCount = delegators.filter(d => d.health?.status === 'healthy').length
-  const staleCount = delegators.filter(d => d.health?.status === 'stale').length
-  const errorCount = delegators.filter(d => d.health?.status === 'error').length
+  // Derive effective health for each delegator, accounting for item status
+  const effectiveHealthMap = new Map<string, string>()
+  for (const d of delegators) {
+    const matchedItem = items?.find(i => i.id === d.item_id)
+    const effective = deriveEffectiveHealth(
+      d.health?.status || 'unknown',
+      matchedItem?.status as ItemStatus | undefined,
+      matchedItem?.worker?.delegator_enabled,
+      d.stall_detected,
+    )
+    effectiveHealthMap.set(d.item_id, effective)
+  }
+
+  const healthyCount = delegators.filter(d => effectiveHealthMap.get(d.item_id) === 'healthy').length
+  const standbyCount = delegators.filter(d => effectiveHealthMap.get(d.item_id) === 'standby').length
+  const staleCount = delegators.filter(d => effectiveHealthMap.get(d.item_id) === 'stale').length
+  const errorCount = delegators.filter(d => effectiveHealthMap.get(d.item_id) === 'error').length
+
+  // Aggregate delegator spend across all items
+  const totalDelegatorSpend = delegators.reduce((sum, d) => {
+    const matchedItem = items?.find(i => i.id === d.item_id)
+    const spend = matchedItem?.runtime?.spend as { delegator_usd?: number } | undefined
+    return sum + (spend?.delegator_usd ?? 0)
+  }, 0)
 
   return (
     <div className={styles.Root}>
       <div className={styles.Summary}>
         <span className={styles.SummaryCount}>{delegators.length}</span>
         <span className={styles.SummaryLabel}>delegator{delegators.length !== 1 ? 's' : ''}</span>
-        {(staleCount > 0 || errorCount > 0) && (
+        {(standbyCount > 0 || staleCount > 0 || errorCount > 0) && (
           <>
             <span className={styles.SummaryDivider} />
             <span className={classnames(styles.SummaryStat, styles.SummaryStatWarn)}>
-              {healthyCount} healthy{staleCount > 0 ? ` · ${staleCount} stale` : ''}{errorCount > 0 ? ` · ${errorCount} error` : ''}
+              {healthyCount} healthy{standbyCount > 0 ? ` · ${standbyCount} standby` : ''}{staleCount > 0 ? ` · ${staleCount} stale` : ''}{errorCount > 0 ? ` · ${errorCount} error` : ''}
             </span>
           </>
         )}
@@ -155,6 +201,14 @@ export function DelegatorPanel({ delegators, loading, items, onRefresh }: Delega
         <span className={styles.SummaryStat}>
           {delegators.reduce((sum, d) => sum + (d.issues_found?.length ?? 0), 0)} issues found
         </span>
+        {totalDelegatorSpend > 0 && (
+          <>
+            <span className={styles.SummaryDivider} />
+            <span className={styles.SummaryStat}>
+              ${totalDelegatorSpend.toFixed(2)} delegator spend
+            </span>
+          </>
+        )}
         {onRefresh && (
           <button className={styles.RefreshButton} onClick={onRefresh} title="Refresh">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -167,7 +221,7 @@ export function DelegatorPanel({ delegators, loading, items, onRefresh }: Delega
 
       {delegators.map(d => {
         const isExpanded = expandedId === d.item_id
-        const healthStatus = d.health?.status || 'unknown'
+        const healthStatus = effectiveHealthMap.get(d.item_id) || d.health?.status || 'unknown'
         const healthInfo = healthLabels[healthStatus] || { label: healthStatus, cls: '' }
 
         return (
@@ -208,7 +262,7 @@ export function DelegatorPanel({ delegators, loading, items, onRefresh }: Delega
               <div className={styles.CardBody}>
                 <div className={styles.MetaGrid}>
                   <div className={styles.MetaItem}>
-                    <span className={styles.MetaLabel}>Health</span>
+                    <span className={styles.MetaLabel}>Status</span>
                     <span className={styles.MetaValue}>
                       {healthInfo.label}
                       {d.health?.consecutive_errors > 0 && ` (${d.health.consecutive_errors} errors)`}
@@ -235,6 +289,19 @@ export function DelegatorPanel({ delegators, loading, items, onRefresh }: Delega
                     <span className={styles.MetaValue}>{d.pr_reviewed ? 'Yes' : 'No'}</span>
                   </div>
                 </div>
+
+                {(() => {
+                  const matchedItem = items?.find(i => i.id === d.item_id)
+                  const spend = matchedItem?.runtime?.spend as { delegator_usd?: number } | undefined
+                  const delegatorSpend = spend?.delegator_usd
+                  if (delegatorSpend == null || delegatorSpend <= 0) return null
+                  return (
+                    <div className={styles.MetaItem}>
+                      <span className={styles.MetaLabel}>Delegator Spend</span>
+                      <span className={styles.MetaValue}>${delegatorSpend.toFixed(2)}</span>
+                    </div>
+                  )
+                })()}
 
                 {d.assessment && (
                   <div className={styles.Assessment}>

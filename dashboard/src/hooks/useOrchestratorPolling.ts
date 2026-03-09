@@ -81,10 +81,10 @@ export function useOrchestratorPolling({
 
   useEffect(() => {
     const interval = setInterval(async () => {
-      const itemsWithPr = itemsRef.current.filter(i => i.pr_url && i.status === 'active')
+      const itemsWithPr = itemsRef.current.filter(i => i.runtime?.pr_url && i.status === 'active')
       for (const item of itemsWithPr) {
         try {
-          const url = encodeURIComponent(item.pr_url!)
+          const url = encodeURIComponent(item.runtime!.pr_url!)
           const res = await fetch(`/api/pr-status?url=${url}`)
           if (res.ok) {
             const data = await res.json()

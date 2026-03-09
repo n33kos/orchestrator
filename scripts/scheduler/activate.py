@@ -111,7 +111,7 @@ def check_review_prs_merged(cfg: Config) -> list[dict]:
 
     review_with_pr = [
         i for i in data["items"]
-        if i["status"] == "review" and i.get("pr_url")
+        if i["status"] == "review" and (i.get("runtime") or {}).get("pr_url")
     ]
 
     if not review_with_pr:
@@ -120,23 +120,26 @@ def check_review_prs_merged(cfg: Config) -> list[dict]:
     # Collect all PR URLs for batching
     all_urls = []
     for item in review_with_pr:
-        all_urls.append(item["pr_url"])
+        all_urls.append((item.get("runtime") or {}).get("pr_url", ""))
     batch_states = _batch_pr_states(all_urls)
 
     merged = []
 
     for item in review_with_pr:
-        pr_url = item["pr_url"]
+        runtime = item.get("runtime") or {}
+        pr_url = runtime.get("pr_url", "")
         item_id = item["id"]
         item_title = item.get("title", "")
-        is_stack = item.get("metadata", {}).get("pr_type") == "graphite_stack"
+        worker_cfg = item.get("worker") or {}
+        env = item.get("environment") or {}
+        is_stack = worker_cfg.get("commit_strategy") == "graphite_stack"
 
         if is_stack:
             parsed = _parse_pr_url(pr_url)
             if not parsed:
                 continue
             owner, repo, _ = parsed
-            branch = item.get("branch", "")
+            branch = env.get("branch", "")
             if not branch:
                 continue
             try:

@@ -153,7 +153,7 @@ The delegator is a Claude instance that acts as the user's proxy reviewer for ea
 #### Toggling Delegators
 - User can enable/disable delegators per work stream via the dashboard or CLI skills
 - Default behavior configurable in environment config (`delegator.enabled_by_default: true`)
-- Delegators can be paused mid-stream and resumed without losing context
+- Delegators can be toggled on/off per work stream without losing context
 
 ### 3.3 Plan Generation
 - When activating a queued item, generate an implementation plan
@@ -169,7 +169,7 @@ The delegator is a Claude instance that acts as the user's proxy reviewer for ea
 ### 3.5 User Interaction Points
 - Orchestrator can ask user questions via voice relay when needed
 - Priority changes can be made via dashboard or skill commands
-- User can pause/resume/cancel work streams
+- User can move work streams to review or complete/cancel them
 - User can cut into any delegator-worker conversation
 - Configurable autonomy level (ask before activating vs. auto-activate)
 
@@ -186,7 +186,7 @@ A dedicated web interface for the orchestrator — the user's command center.
 ### 4.2 Work Management
 - Add new work items manually (title, description, priority, type)
 - Import priorities from any configured source (Jira, Google Docs, GitHub)
-- Bulk operations: pause all, resume all, reprioritize
+- Bulk operations: activate all, complete all, reprioritize
 - Filter and search across all work items
 
 ### 4.3 Delegator Controls

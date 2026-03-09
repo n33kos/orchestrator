@@ -22,6 +22,7 @@ from scripts.scheduler.events import emit_event
 from scripts.scheduler.reconcile import (
     check_and_activate,
     check_planning_timeouts,
+    discover_pr_urls,
     generate_plans,
     process_worker_completions,
     reconcile_state,
@@ -162,6 +163,7 @@ def main():
             check_planning_timeouts(cfg)
             generate_plans(cfg, args.dry_run)
             reconcile_state(cfg, args.dry_run)
+            discover_pr_urls(cfg, args.dry_run)
             check_and_activate(cfg, args.dry_run)
             update_spend(cfg)
             return
@@ -207,6 +209,7 @@ def main():
             check_planning_timeouts(cfg)
             generate_plans(cfg, args.dry_run)
             reconcile_state(cfg, args.dry_run)
+            discover_pr_urls(cfg, args.dry_run)
             check_and_activate(cfg, args.dry_run)
             update_spend(cfg)
 

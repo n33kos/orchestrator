@@ -67,7 +67,7 @@ with locked_queue() as ctx:
     active = [i for i in data['items'] if i['status'] == 'active']
     stalled = []
     for item in active:
-        last_ts = (item.get('metadata') or {}).get('last_activity') or item.get('activated_at')
+        last_ts = (item.get('runtime') or {}).get('last_activity') or item.get('activated_at')
         if last_ts:
             ts = datetime.fromisoformat(last_ts.replace('Z', '+00:00'))
             if ts.tzinfo is None:

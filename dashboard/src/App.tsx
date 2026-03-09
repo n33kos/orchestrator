@@ -191,7 +191,7 @@ export function App() {
       pool = pool.filter(item =>
         item.title.toLowerCase().includes(q) ||
         item.description.toLowerCase().includes(q) ||
-        item.branch.toLowerCase().includes(q) ||
+        (item.environment?.branch || '').toLowerCase().includes(q) ||
         item.id.toLowerCase().includes(q)
       )
     }
@@ -289,10 +289,12 @@ export function App() {
   const sessionsWithItems = useMemo(() => {
     const refs: { itemId: string; itemTitle: string; sessionId: string }[] = []
     for (const item of queue.items) {
-      const session = item.session_id
-        ? sessions.find(s => s.id === item.session_id)
-        : item.worktree_path
-          ? sessions.find(s => s.cwd === item.worktree_path || item.worktree_path!.startsWith(s.cwd))
+      const sessionId = item.environment?.session_id
+      const worktreePath = item.environment?.worktree_path
+      const session = sessionId
+        ? sessions.find(s => s.id === sessionId)
+        : worktreePath
+          ? sessions.find(s => s.cwd === worktreePath || worktreePath!.startsWith(s.cwd))
           : undefined
       if (session) {
         refs.push({ itemId: item.id, itemTitle: item.title, sessionId: session.id })
@@ -326,7 +328,7 @@ export function App() {
     setSelectedIds(new Set())
     setSelectionMode(false)
     const labels: Record<string, string> = {
-      active: 'activated', paused: 'paused', completed: 'completed',
+      active: 'activated', completed: 'completed',
       queued: 'queued', review: 'moved to review',
     }
     addToast(`${count} item${count !== 1 ? 's' : ''} ${labels[status] || status}`, 'success')
@@ -382,7 +384,7 @@ export function App() {
             description: item.description || '',
             type: item.type || 'work_item',
             priority: item.priority ?? 50,
-            branch: item.branch || '',
+            branch: item.environment?.branch || '',
           }),
         })
         imported++
@@ -493,7 +495,6 @@ export function App() {
       <Header
         activeCount={queue.activeItems.length}
         queuedCount={queue.queuedItems.length}
-        pausedCount={queue.pausedItems.length}
         blockedCount={queue.blockedItems.length}
         sessionCount={sessions.length}
         workersActiveCount={sessions.filter(s => s.state === 'thinking' || s.state === 'responding').length}
@@ -553,7 +554,6 @@ export function App() {
               totalItems={queue.items.length}
               activeCount={queue.activeItems.length}
               queuedCount={queue.queuedItems.length}
-              pausedCount={queue.pausedItems.length}
               completedCount={queue.completedItems.length}
               blockedCount={queue.blockedItems.length}
             />

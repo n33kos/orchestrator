@@ -11,7 +11,7 @@ import type { WorkItem, WorkItemStatus } from '../../types.ts'
 type SortCol = 'priority' | 'title' | 'status' | 'branch' | 'time'
 type SortDir = 'asc' | 'desc'
 
-const STATUS_ORDER: Record<string, number> = { active: 0, review: 1, planning: 2, queued: 3, paused: 4, completed: 5 }
+const STATUS_ORDER: Record<string, number> = { active: 0, review: 1, planning: 2, queued: 3, completed: 4 }
 
 interface CompactListProps {
   items: WorkItem[]
@@ -31,7 +31,6 @@ function getQuickAction(status: WorkItemStatus): { label: string; nextStatus: Wo
   if (status === 'queued' || status === 'planning') return { label: 'Activate', nextStatus: 'active' }
   if (status === 'active') return { label: 'Review', nextStatus: 'review' }
   if (status === 'review') return { label: 'Complete', nextStatus: 'completed' }
-  if (status === 'paused') return { label: 'Resume', nextStatus: 'active' }
   return null
 }
 
@@ -95,7 +94,7 @@ export function CompactList({ items, selectable, selectedIds, onSelect, onStatus
         case 'priority': cmp = a.priority - b.priority; break
         case 'title': cmp = a.title.localeCompare(b.title); break
         case 'status': cmp = (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99); break
-        case 'branch': cmp = (a.branch || '').localeCompare(b.branch || ''); break
+        case 'branch': cmp = (a.environment?.branch || '').localeCompare(b.environment?.branch || ''); break
         case 'time': cmp = new Date(a.activated_at || a.created_at).getTime() - new Date(b.activated_at || b.created_at).getTime(); break
       }
       return sortDir === 'desc' ? -cmp : cmp
@@ -183,7 +182,7 @@ export function CompactList({ items, selectable, selectedIds, onSelect, onStatus
               <StatusBadge status={item.status} />
             </span>
             <span className={styles.ColBranch}>
-              <code className={styles.BranchCode}>{item.branch || '--'}</code>
+              <code className={styles.BranchCode}>{item.environment?.branch || '--'}</code>
             </span>
             <span className={styles.ColTime}>
               {timeAgo(item.activated_at || item.created_at)}
@@ -191,7 +190,7 @@ export function CompactList({ items, selectable, selectedIds, onSelect, onStatus
             <span className={styles.ColAction} onClick={e => e.stopPropagation()}>
               {action && (() => {
                 const isActivating = activatingIds?.has(item.id)
-                const useStream = onActivateStream && (item.status === 'queued' || item.status === 'planning' || item.status === 'paused')
+                const useStream = onActivateStream && (item.status === 'queued' || item.status === 'planning')
                 return (
                   <button
                     className={styles.QuickAction}

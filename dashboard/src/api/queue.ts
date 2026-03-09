@@ -21,24 +21,39 @@ export function registerQueueRoutes(server: ViteDevServer) {
       const newItem = {
         id: `ws-${String(maxId + 1).padStart(3, '0')}`,
         source: 'manual',
+        source_ref: 'Dashboard — manual entry',
         title: body.title,
         description: body.description || '',
-        type: body.type || 'work_item',
         priority: body.priority || data.items.length + 1,
         status: 'planning',
-        branch: body.branch || '',
-        worktree_path: null,
-        session_id: null,
-        delegator_id: null,
-        delegator_enabled: true,
         blocked_by: [],
         created_at: new Date().toISOString(),
         activated_at: null,
         completed_at: null,
-        metadata: {
-          source_ref: 'Dashboard — manual entry',
-          ...(body.prType ? { pr_type: body.prType } : {}),
-          ...(body.repoPath ? { repo_path: body.repoPath } : {}),
+        environment: {
+          repo: body.repoPath || null,
+          use_worktree: !body.repoPath,
+          branch: body.branch || null,
+          worktree_path: null,
+          session_id: null,
+        },
+        worker: {
+          commit_strategy: body.prType === 'graphite_stack' ? 'graphite_stack' : 'branch_and_pr',
+          delegator_enabled: true,
+        },
+        plan: {
+          file: null,
+          summary: null,
+          approved: false,
+          approved_at: null,
+        },
+        runtime: {
+          delegator_status: null,
+          spend: null,
+          last_activity: null,
+          pr_url: null,
+          stack_prs: null,
+          completion_message: null,
         },
       }
       data.items.push(newItem)
@@ -64,11 +79,10 @@ export function registerQueueRoutes(server: ViteDevServer) {
       // Validate status transitions
       if (body.status !== undefined && body.status !== item.status) {
         const validTransitions: Record<string, string[]> = {
-          queued: ['planning', 'active', 'paused'],
-          planning: ['queued', 'active', 'paused'],
-          active: ['review', 'paused', 'completed'],
-          review: ['active', 'paused', 'completed'],
-          paused: ['queued', 'planning', 'active', 'review'],
+          queued: ['planning', 'active'],
+          planning: ['queued', 'active'],
+          active: ['review', 'completed'],
+          review: ['active', 'completed', 'queued'],
           completed: ['queued'], // Allow re-queuing completed items
         }
         const allowed = validTransitions[item.status] || []
@@ -83,34 +97,43 @@ export function registerQueueRoutes(server: ViteDevServer) {
       if (body.priority !== undefined) item.priority = body.priority
       if (body.title !== undefined) item.title = body.title
       if (body.description !== undefined) item.description = body.description
-      if (body.delegator_enabled !== undefined) item.delegator_enabled = body.delegator_enabled
-      if (body.pr_url !== undefined) item.pr_url = body.pr_url
-      if (body.branch !== undefined) item.branch = body.branch
-      if (body.metadata !== undefined) {
-        if (!item.metadata) item.metadata = {}
-        Object.assign(item.metadata, body.metadata)
+      // Nested field updates
+      if (body.environment !== undefined) {
+        if (!item.environment) item.environment = {}
+        Object.assign(item.environment, body.environment)
+      }
+      if (body.worker !== undefined) {
+        if (!item.worker) item.worker = {}
+        Object.assign(item.worker, body.worker)
+      }
+      if (body.plan !== undefined) {
+        if (!item.plan) item.plan = {}
+        Object.assign(item.plan, body.plan)
+      }
+      if (body.runtime !== undefined) {
+        if (!item.runtime) item.runtime = {}
+        Object.assign(item.runtime, body.runtime)
       }
 
       // Auto-update last_activity for stall detection
-      if (body.status || body.metadata || body.pr_url) {
-        if (!item.metadata) item.metadata = {}
-        item.metadata.last_activity = new Date().toISOString()
+      if (body.status || body.runtime || body.environment) {
+        if (!item.runtime) item.runtime = {}
+        item.runtime.last_activity = new Date().toISOString()
       }
 
       writeQueue(data)
 
-      // NOTE: The scheduler's reconcile_state() is the PRIMARY mechanism for
-      // ensuring active items have sessions and review items do not. It runs
-      // every polling cycle and enforces desired state regardless of how items
-      // got into their current status.
+      // NOTE: The scheduler's reconcile_state() enforces desired state on each
+      // cycle. Active and review items keep sessions alive. Teardown only
+      // happens when an item moves to completed (via PR merge or manual action).
 
-      // Supplementary fast-path: suspend sessions immediately when moving to
-      // review (belt-and-suspenders — scheduler reconciliation will also catch this)
+      // Review items keep worker + delegator alive. The delegator monitors CI/merge
+      // and sets delegator_enabled=false when clean. Teardown only on completion.
       const targetStatus = body.status
-      if (targetStatus === 'review' && (item.session_id || item.delegator_id)) {
-        const suspendScript = join(__dirname, '..', '..', '..', 'scripts', 'suspend-stream.sh')
-        execFile('bash', [suspendScript, body.id], { timeout: 30000, env: { ...process.env, HOME: homedir() } }, (err, _stdout, stderr) => {
-          if (err) console.error('suspend-stream failed:', stderr || String(err))
+      if (targetStatus === 'completed' && item.environment?.session_id) {
+        const teardownScript = join(__dirname, '..', '..', '..', 'scripts', 'teardown-stream.sh')
+        execFile('bash', [teardownScript, body.id], { timeout: 60000, env: { ...process.env, HOME: homedir() } }, (err, _stdout, stderr) => {
+          if (err) console.error('teardown-stream failed:', stderr || String(err))
         })
       }
 
@@ -152,7 +175,7 @@ export function registerQueueRoutes(server: ViteDevServer) {
       const dropIdx = data.items.findIndex((i: { id: string }) => i.id === body.dropId)
       if (dragIdx === -1 || dropIdx === -1) { res.statusCode = 404; res.end('Item not found'); return }
       // Sort items by the same display order (status group, then priority)
-      const statusOrder: Record<string, number> = { active: 0, review: 1, queued: 2, planning: 3, paused: 4, completed: 5 }
+      const statusOrder: Record<string, number> = { active: 0, review: 1, queued: 2, planning: 3, completed: 4 }
       const sorted = data.items
         .map((item: { id: string; status: string; priority: number }, i: number) => ({ item, origIdx: i }))
         .sort((a: { item: { status: string; priority: number } }, b: { item: { status: string; priority: number } }) => {
@@ -203,28 +226,6 @@ export function registerQueueRoutes(server: ViteDevServer) {
   server.middlewares.use('/api/queue', (_req, res) => {
     try {
       const data = readQueue()
-      let migrated = false
-      for (const item of data.items) {
-        // Migrate metadata.blocked_by to top-level blocked_by
-        if (item.metadata?.blocked_by && !item.blocked_by) {
-          item.blocked_by = item.metadata.blocked_by
-          delete item.metadata.blocked_by
-          migrated = true
-        }
-        // Ensure blocked_by exists
-        if (!Array.isArray(item.blocked_by)) {
-          item.blocked_by = []
-          migrated = true
-        }
-        // Remove old blockers field
-        if ('blockers' in item) {
-          delete item.blockers
-          migrated = true
-        }
-      }
-      if (migrated) {
-        writeQueue(data)
-      }
       res.setHeader('Content-Type', 'application/json')
       res.end(JSON.stringify(data))
     } catch {

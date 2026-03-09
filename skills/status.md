@@ -12,7 +12,7 @@ bash ~/orchestrator/scripts/status.sh
 ```
 
 Present the output in a clear, organized summary:
-1. **Queue Summary** — Active, queued, paused, blocked (by dependencies), and completed counts
+1. **Queue Summary** — Active, queued, blocked (by dependencies), and completed counts
 2. **Active Work Streams** — What's currently running, with session and delegator status
 3. **Next Up** — Highest priority queued items ready for activation
 4. **Issues** — Any blocked items, zombie sessions, or stalled streams

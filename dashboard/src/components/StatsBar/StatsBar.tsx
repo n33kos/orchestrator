@@ -4,12 +4,11 @@ interface StatsBarProps {
   totalItems: number
   activeCount: number
   queuedCount: number
-  pausedCount: number
   completedCount: number
   blockedCount: number
 }
 
-export function StatsBar({ totalItems, activeCount, queuedCount, pausedCount, completedCount, blockedCount }: StatsBarProps) {
+export function StatsBar({ totalItems, activeCount, queuedCount, completedCount, blockedCount }: StatsBarProps) {
 
   function pct(n: number) {
     return totalItems > 0 ? (n / totalItems) * 100 : 0
@@ -18,7 +17,6 @@ export function StatsBar({ totalItems, activeCount, queuedCount, pausedCount, co
   const segments = [
     { key: 'active', pct: pct(activeCount), cls: styles.SegActive },
     { key: 'queued', pct: pct(queuedCount), cls: styles.SegQueued },
-    { key: 'paused', pct: pct(pausedCount), cls: styles.SegPaused },
     { key: 'completed', pct: pct(completedCount), cls: styles.SegCompleted },
   ].filter(s => s.pct > 0)
 
@@ -39,12 +37,6 @@ export function StatsBar({ totalItems, activeCount, queuedCount, pausedCount, co
             <span className={styles.LabelDot} data-status="queued" />
             {queuedCount} queued
           </span>
-          {pausedCount > 0 && (
-            <span className={styles.ProgressLabel}>
-              <span className={styles.LabelDot} data-status="paused" />
-              {pausedCount} paused
-            </span>
-          )}
           {blockedCount > 0 && (
             <span className={styles.ProgressLabelDanger}>
               <span className={styles.LabelDot} data-status="blocked" />

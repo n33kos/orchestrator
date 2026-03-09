@@ -110,6 +110,28 @@
   -webkit-box-orient: vertical;
 }
 
+.DelegatorIndicator {
+  font-size: 11px;
+  flex-shrink: 0;
+  line-height: 1;
+  cursor: default;
+
+  &.DelegatorDisabled {
+    color: var(--color-text-muted);
+    opacity: 0.3;
+  }
+
+  &.DelegatorIdle {
+    color: var(--color-primary);
+    opacity: 0.8;
+  }
+
+  &.DelegatorActive {
+    color: #16a34a;
+    opacity: 1;
+  }
+}
+
 .CardMeta {
   display: flex;
   align-items: center;

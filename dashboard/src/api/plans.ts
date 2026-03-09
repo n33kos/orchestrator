@@ -43,7 +43,7 @@ export function registerPlanRoutes(server: ViteDevServer) {
       const item = queueData.items.find((i: Record<string, unknown>) => i.id === itemId)
       if (!item) { res.statusCode = 404; res.end(JSON.stringify({ error: 'Item not found' })); return }
 
-      const planFile = (item.metadata?.plan_file as string) || ''
+      const planFile = (item.plan?.file as string) || ''
       if (!planFile) {
         // Check default location
         const configPath = join(__dirname, '..', '..', '..', 'config', 'environment.yml')
@@ -82,8 +82,8 @@ export function registerPlanRoutes(server: ViteDevServer) {
       const item = queueData.items.find((i: Record<string, unknown>) => i.id === body.itemId)
       if (!item) { res.statusCode = 404; res.end(JSON.stringify({ error: 'Item not found' })); return }
 
-      // Check metadata plan_file first, then default location
-      let planPath = (item.metadata?.plan_file as string || '').replace('~', homedir())
+      // Check plan.file first, then default location
+      let planPath = (item.plan?.file as string || '').replace('~', homedir())
       if (!planPath || !existsSync(planPath)) {
         const configPath = join(__dirname, '..', '..', '..', 'config', 'environment.yml')
         const configContent = readFileSync(configPath, 'utf-8')
@@ -94,9 +94,9 @@ export function registerPlanRoutes(server: ViteDevServer) {
         if (!existsSync(planPath)) {
           if (!existsSync(plansDir)) mkdirSync(plansDir, { recursive: true })
           writeFileSync(planPath, `# ${item.title || body.itemId}\n\n## Summary\n\n\n## Steps\n\n- [ ] \n\n## Notes\n\n`, 'utf-8')
-          // Update queue with plan_file reference
-          item.metadata = item.metadata || {}
-          item.metadata.plan_file = planPath
+          // Update queue with plan file reference
+          item.plan = item.plan || {}
+          item.plan.file = planPath
           writeFileSync(join(homedir(), '.claude/orchestrator/queue.json'), JSON.stringify(queueData, null, 2) + '\n', 'utf-8')
         }
       }
@@ -128,16 +128,13 @@ export function registerPlanRoutes(server: ViteDevServer) {
       const item = queueData.items.find((i: Record<string, unknown>) => i.id === body.itemId)
       if (!item) { res.statusCode = 404; res.end(JSON.stringify({ error: 'Item not found' })); return }
 
-      item.metadata = item.metadata || {}
       // Ensure plan object exists
-      if (!item.metadata.plan || typeof item.metadata.plan !== 'object') {
-        item.metadata.plan = {}
+      if (!item.plan || typeof item.plan !== 'object') {
+        item.plan = {}
       }
-      const approved = body.approved !== undefined ? body.approved : !item.metadata.plan.approved
-      item.metadata.plan.approved = approved
-      item.metadata.plan.approved_at = approved ? new Date().toISOString() : null
-      // Clean up legacy field
-      delete item.metadata.plan_approved
+      const approved = body.approved !== undefined ? body.approved : !item.plan.approved
+      item.plan.approved = approved
+      item.plan.approved_at = approved ? new Date().toISOString() : null
       // Auto-transition: planning → queued when approved, queued → planning when revoked
       if (approved && item.status === 'planning') {
         item.status = 'queued'

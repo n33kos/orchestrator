@@ -65,15 +65,15 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
     }
   }, [focused, onClearFocus])
   const hasLiveSession = !!sessionInfo
-  const hasSession = !!item.session_id
-  const hasDelegator = item.delegator_enabled
+  const hasSession = !!item.environment?.session_id
+  const hasDelegator = item.worker?.delegator_enabled
   const hasBlockingDeps = item.blocked_by.length > 0
-  const isStack = item.metadata?.pr_type === 'graphite_stack'
-  const stackSteps = (item.metadata?.stack_steps as StackStep[] | undefined) ?? []
+  const isStack = item.worker?.commit_strategy === 'graphite_stack'
+  const stackSteps = item.worker?.stack_steps ?? []
   const stackCompletedCount = stackSteps.filter(s => s.completed).length
-  const { stack: prStack } = usePrStack(expanded ? item.pr_url : null, isStack)
-  const itemPlan = item.metadata.plan as { summary?: string; approved?: boolean } | undefined
-  const itemPlanFile = item.metadata.plan_file as string | undefined
+  const { stack: prStack } = usePrStack(expanded ? item.runtime?.pr_url : null, isStack)
+  const itemPlan = item.plan
+  const itemPlanFile = item.plan?.file
 
   const isBusy = activating || tearingDown
 
@@ -90,7 +90,6 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
     }
     if (item.status === 'active') return { label: 'Review', status: 'review' }
     if (item.status === 'review') return { label: 'Complete', status: 'completed' }
-    if (item.status === 'paused') return { label: 'Resume', status: 'active', useStream: !!onActivateStream }
     return null
   }
 
@@ -119,7 +118,7 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
         action: handleQuickAction,
       })
     }
-    if (onTeardownStream && (item.status === 'active' || item.status === 'review') && (item.worktree_path || item.session_id) && !isBusy) {
+    if (onTeardownStream && (item.status === 'active' || item.status === 'review') && (item.environment?.worktree_path || item.environment?.session_id) && !isBusy) {
       items.push({
         id: 'teardown',
         label: 'Tear Down',
@@ -131,14 +130,6 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
     items.push({
       id: 'sep-1', label: '', separator: true, action: () => {},
     })
-    if (item.status === 'active') {
-      items.push({
-        id: 'pause',
-        label: 'Pause',
-        icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>,
-        action: () => onStatusChange(item.id, 'paused'),
-      })
-    }
     if (onDuplicate) {
       items.push({
         id: 'duplicate',
@@ -147,12 +138,12 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
         action: () => onDuplicate(item.id),
       })
     }
-    if (item.branch) {
+    if (item.environment?.branch) {
       items.push({
         id: 'copy-branch',
         label: 'Copy branch name',
         icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2" /><rect x="8" y="2" width="8" height="4" rx="1" /></svg>,
-        action: () => navigator.clipboard.writeText(item.branch),
+        action: () => navigator.clipboard.writeText(item.environment.branch || ''),
       })
     }
     if (onTogglePin) {
@@ -301,11 +292,17 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
           <div className={styles.MetaLeft}>
             <span className={styles.MetaItem}>
               <span className={styles.MetaLabel}>Branch</span>
-              <code className={styles.MetaValue}>{item.branch}</code>
+              <code className={styles.MetaValue}>{item.environment?.branch}</code>
             </span>
             {(() => {
-              const spendUsd = (item.metadata.spend as { total_usd?: number } | undefined)?.total_usd
-              return spendUsd != null && spendUsd > 0 ? (
+              const spend = item.runtime?.spend as { total_usd?: number; worker_usd?: number; delegator_usd?: number } | undefined
+              const spendUsd = spend?.total_usd
+              if (spendUsd == null || spendUsd <= 0) return null
+              const hasBreakdown = spend?.worker_usd != null || spend?.delegator_usd != null
+              const tooltip = hasBreakdown
+                ? `Total: $${spendUsd.toFixed(2)} (Worker: $${(spend?.worker_usd ?? 0).toFixed(2)}, Delegator: $${(spend?.delegator_usd ?? 0).toFixed(2)})`
+                : `Token spend: $${spendUsd.toFixed(2)}`
+              return (
                 <span
                   className={classnames(
                     styles.SpendBadge,
@@ -313,11 +310,11 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
                     spendUsd >= 5 && spendUsd <= 20 && styles.SpendYellow,
                     spendUsd > 20 && styles.SpendRed,
                   )}
-                  title={`Token spend: $${spendUsd.toFixed(2)}`}
+                  title={tooltip}
                 >
                   ${spendUsd.toFixed(2)}
                 </span>
-              ) : null
+              )
             })()}
             {isStack && stackSteps.length > 0 && (
               <span
@@ -342,10 +339,10 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
             </span>
           </div>
           <div className={styles.Indicators}>
-            {item.pr_url && (
+            {item.runtime?.pr_url && (
               <a
                 className={styles.PrLink}
-                href={isStack && prStack?.graphiteStackUrl ? prStack.graphiteStackUrl : item.pr_url}
+                href={isStack && prStack?.graphiteStackUrl ? prStack.graphiteStackUrl : item.runtime.pr_url}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={e => e.stopPropagation()}

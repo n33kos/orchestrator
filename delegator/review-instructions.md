@@ -9,10 +9,10 @@ You are invoked when Haiku triage escalates a situation that requires deeper rea
 Same payload as triage:
 
 - `item_id`, `cycle_number` — Item identifier and cycle counter
-- `item_context` — `{title, description, metadata}`. The metadata contains `commit_strategy`, `no_branch`, `notes`, `plan_file`, etc. **Check this to understand the delivery model** — some projects commit directly to main without branches or PRs.
+- `item_context` — `{title, description, environment, worker, plan, runtime}`. The `worker` object contains `commit_strategy` (e.g., `branch_and_pr`, `graphite_stack`, `commit_to_main`), `delegator_enabled`, and `stack_steps`. The `plan` object contains `file`, `summary`, `approved`, `approved_at`. **Check `worker.commit_strategy` to understand the delivery model** — some projects commit directly to main without branches or PRs.
 - `plan` — Full implementation plan content (if one exists). Use this to evaluate plan adherence and completeness.
 - `worker` — `{session_alive, idle_check, activity_summary}`. Activity summary includes tool call histogram, recent conversation, and relay messages.
-- `commits` — `{new_commits, diff_stat, diff_content}`. Note: if `item_context.metadata.no_branch` is true, commits go directly to main.
+- `commits` — `{new_commits, diff_stat, diff_content}`. Note: if `item_context.worker.commit_strategy` is `commit_to_main`, commits go directly to main.
 - `pr` — `{exists, url, state, ci_checks, mergeable, merge_state_status}`. `mergeable` is a boolean; `merge_state_status` is a string (`CLEAN`, `DIRTY`, `UNSTABLE`, `BEHIND`, `BLOCKED`, `UNKNOWN`). May not exist for no-branch projects.
 - `conversation_recent` — Summary of recent worker transcript. Check for completion signals.
 - `user_profile` — User preferences, quality priorities, review patterns, and domain concerns. Use to calibrate your review focus and communication style.
@@ -123,7 +123,7 @@ Populate all fields that changed or were observed this cycle:
 4. PR with failing CI → request CI fix, assessment = `needs_work`
 5. PR with passing CI + no merge conflicts + worker idle → full PR review → `approve` / `needs_work` / `blocked`
 6. Ambiguous worker state → analyze transcript → `needs_work` (stuck) / `blocked` (genuinely stuck) / `monitoring` (slow but progressing)
-7. **No-branch project** (`item_context.metadata.no_branch` is true or `item_context.metadata.commit_strategy` is `single_commit_to_main`): Worker commits directly to main, no PR expected. If worker signals completion (conversation_recent shows "done"/"complete"/idle after committing) OR `previous_state.flags.ready_for_review` is true → trigger `trigger_review_transition` and assess as `approve`. Review the commit diffs if available.
+7. **No-branch project** (`item_context.worker.commit_strategy` is `commit_to_main`): Worker commits directly to main, no PR expected. If worker signals completion (conversation_recent shows "done"/"complete"/idle after committing) OR `previous_state.flags.ready_for_review` is true → trigger `trigger_review_transition` and assess as `approve`. Review the commit diffs if available.
 8. **Ready-for-review flag set** — If `previous_state.flags.ready_for_review` is true, this means a prior cycle (or the user) has explicitly flagged the work as complete. Unless you find blocking issues in the code (including merge conflicts), assess as `approve` and trigger `trigger_review_transition`. Do NOT reset `ready_for_review` to false unless you find actual blocking issues.
 
 ## Message Style

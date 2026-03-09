@@ -9,7 +9,7 @@ function escapeCsv(val: string): string {
 
 export function exportWorkItemsCsv(items: WorkItem[]): string {
   const headers = [
-    'ID', 'Title', 'Description', 'Type', 'Status', 'Priority',
+    'ID', 'Title', 'Description', 'Commit Strategy', 'Status', 'Priority',
     'Branch', 'PR URL', 'Blocked By', 'Created At',
     'Activated At', 'Completed At',
   ]
@@ -18,11 +18,11 @@ export function exportWorkItemsCsv(items: WorkItem[]): string {
     item.id,
     item.title,
     item.description,
-    item.type,
+    item.worker?.commit_strategy || '',
     item.status,
     String(item.priority),
-    item.branch,
-    item.pr_url || '',
+    item.environment?.branch || '',
+    item.runtime?.pr_url || '',
     item.blocked_by.join('; '),
     item.created_at,
     item.activated_at || '',

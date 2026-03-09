@@ -69,76 +69,7 @@ DECISION="$(echo "$CLAUDE_JSON" | python3 -c "import json,sys; print(json.load(s
 
 echo "[postprocess] $ITEM_ID: decision=$DECISION model=$MODEL"
 
-# Execute actions if decision is "handle"
-if [[ "$DECISION" == "handle" || "$DECISION" == "escalate" ]]; then
-    echo "$CLAUDE_JSON" | python3 -c "
-import json, sys, subprocess, os
-
-data = json.load(sys.stdin)
-actions = data.get('actions', [])
-vmux = '$VMUX'
-dashboard_port = '$DASHBOARD_PORT'
-item_id = '$ITEM_ID'
-
-for action in actions:
-    action_type = action.get('type', '')
-    try:
-        if action_type == 'message_worker':
-            text = action.get('text', '')
-            # Get worker session ID from queue
-            result = subprocess.run(
-                ['python3', '-m', 'lib.queue', 'get', item_id, 'session_id'],
-                capture_output=True, text=True, cwd='$SCRIPT_DIR'
-            )
-            worker_id = result.stdout.strip()
-            if worker_id and text:
-                subprocess.run(
-                    [vmux, 'send', worker_id, text],
-                    capture_output=True, timeout=10
-                )
-                print(f'  [action] Sent message to worker: {text[:80]}...')
-
-        elif action_type == 'update_queue_metadata':
-            metadata = action.get('data', {})
-            args = ['python3', '-m', 'lib.queue', 'update', item_id]
-            for key, value in metadata.items():
-                args.append(f'metadata.{key}={value}')
-            subprocess.run(args, cwd='$SCRIPT_DIR', capture_output=True)
-            print(f'  [action] Updated queue metadata: {list(metadata.keys())}')
-
-        elif action_type == 'trigger_review_transition':
-            subprocess.run(
-                ['curl', '-s', '-X', 'POST',
-                 f'http://localhost:{dashboard_port}/api/stream/suspend',
-                 '-H', 'Content-Type: application/json',
-                 '-d', json.dumps({'itemId': item_id})],
-                capture_output=True, timeout=10
-            )
-            print(f'  [action] Triggered review transition for {item_id}')
-
-        elif action_type == 'request_ci_fix':
-            result = subprocess.run(
-                ['python3', '-m', 'lib.queue', 'get', item_id, 'session_id'],
-                capture_output=True, text=True, cwd='$SCRIPT_DIR'
-            )
-            worker_id = result.stdout.strip()
-            if worker_id:
-                msg = f'[Delegator {item_id}]: CI checks are failing. Run /fix-ci-tests to identify and fix the failures.'
-                subprocess.run([vmux, 'send', worker_id, msg], capture_output=True, timeout=10)
-                print(f'  [action] Sent CI fix request to worker')
-
-        elif action_type == 'flag_for_user':
-            description = action.get('description', 'Delegator flagged an issue')
-            print(f'  [action] Flagged for user: {description}')
-
-        else:
-            print(f'  [action] Unknown action type: {action_type}')
-    except Exception as e:
-        print(f'  [action] ERROR executing {action_type}: {e}')
-"
-fi
-
-# Update state file
+# Update state file FIRST (before actions), so state is persisted even if an action causes issues
 python3 -c "
 import json, sys, os
 from datetime import datetime, timezone
@@ -204,6 +135,84 @@ with open(state_file, 'w') as f:
 
 print(f'[postprocess] State updated: cycle={state[\"cycle_count\"]}, model={model}, decision={decision}')
 "
+
+# Execute actions if decision is "handle"
+if [[ "$DECISION" == "handle" || "$DECISION" == "escalate" ]]; then
+    echo "$CLAUDE_JSON" | python3 -c "
+import json, sys, subprocess, os
+
+data = json.load(sys.stdin)
+actions = data.get('actions', [])
+vmux = '$VMUX'
+dashboard_port = '$DASHBOARD_PORT'
+item_id = '$ITEM_ID'
+
+for action in actions:
+    action_type = action.get('type', '')
+    try:
+        if action_type == 'message_worker':
+            text = action.get('text', '')
+            # Get worker session ID from queue
+            result = subprocess.run(
+                ['python3', '-m', 'lib.queue', 'get', item_id, 'environment.session_id'],
+                capture_output=True, text=True, cwd='$SCRIPT_DIR'
+            )
+            worker_id = result.stdout.strip()
+            if worker_id and text:
+                subprocess.run(
+                    [vmux, 'send', worker_id, text],
+                    capture_output=True, timeout=10
+                )
+                print(f'  [action] Sent message to worker: {text[:80]}...')
+
+        elif action_type == 'update_queue_metadata':
+            metadata = action.get('data', {})
+            args = ['python3', '-m', 'lib.queue', 'update', item_id]
+            # Map known fields to their new nested paths
+            FIELD_MAPPING = {
+                'delegator_enabled': 'worker.delegator_enabled',
+                'status': 'status',
+                'delegator_status': 'runtime.delegator_status',
+                'last_activity': 'runtime.last_activity',
+                'completion_message': 'runtime.completion_message',
+                'spend': 'runtime.spend',
+            }
+            for key, value in metadata.items():
+                mapped = FIELD_MAPPING.get(key, f'runtime.{key}')
+                args.append(f'{mapped}={value}')
+            subprocess.run(args, cwd='$SCRIPT_DIR', capture_output=True)
+            print(f'  [action] Updated queue metadata: {list(metadata.keys())}')
+
+        elif action_type == 'trigger_review_transition':
+            # Only update queue status to review — do NOT suspend session or delegator.
+            # Both stay alive so the delegator can monitor CI and the worker can receive commands.
+            subprocess.run(
+                ['python3', '-m', 'lib.queue', 'update', item_id, 'status=review'],
+                cwd='$SCRIPT_DIR', capture_output=True, timeout=10
+            )
+            print(f'  [action] Moved {item_id} to review status (session + delegator stay alive)')
+
+        elif action_type == 'request_ci_fix':
+            result = subprocess.run(
+                ['python3', '-m', 'lib.queue', 'get', item_id, 'environment.session_id'],
+                capture_output=True, text=True, cwd='$SCRIPT_DIR'
+            )
+            worker_id = result.stdout.strip()
+            if worker_id:
+                msg = f'[Delegator {item_id}]: CI checks are failing. Run /fix-ci-tests to identify and fix the failures.'
+                subprocess.run([vmux, 'send', worker_id, msg], capture_output=True, timeout=10)
+                print(f'  [action] Sent CI fix request to worker')
+
+        elif action_type == 'flag_for_user':
+            description = action.get('description', 'Delegator flagged an issue')
+            print(f'  [action] Flagged for user: {description}')
+
+        else:
+            print(f'  [action] Unknown action type: {action_type}')
+    except Exception as e:
+        print(f'  [action] ERROR executing {action_type}: {e}')
+"
+fi
 
 # Clean up running.pid
 rm -f "$DELEGATOR_DIR/running.pid"

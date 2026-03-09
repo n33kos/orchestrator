@@ -30,8 +30,8 @@ export function useChangeDetection(items: WorkItem[]): Map<string, ItemChange[]>
       if (prev.priority !== item.priority) {
         diffs.push({ id: item.id, field: 'priority', from: String(prev.priority), to: String(item.priority) })
       }
-      if ((prev.pr_url || '') !== (item.pr_url || '')) {
-        diffs.push({ id: item.id, field: 'pr_url', from: prev.pr_url || '', to: item.pr_url || '' })
+      if ((prev.runtime?.pr_url || '') !== (item.runtime?.pr_url || '')) {
+        diffs.push({ id: item.id, field: 'pr_url', from: prev.runtime?.pr_url || '', to: item.runtime?.pr_url || '' })
       }
       if (prev.blocked_by.length !== item.blocked_by.length || prev.blocked_by.join(',') !== item.blocked_by.join(',')) {
         diffs.push({ id: item.id, field: 'blocked_by', from: prev.blocked_by.join(','), to: item.blocked_by.join(',') })

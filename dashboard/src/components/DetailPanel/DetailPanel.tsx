@@ -54,8 +54,8 @@ export function DetailPanel({ item, allItems = [], sessions, delegator, onClose,
 
   // Find linked session
   const linkedSession = sessions?.find(s =>
-    (item.session_id && s.id === item.session_id) ||
-    (item.worktree_path && (s.cwd === item.worktree_path || item.worktree_path!.startsWith(s.cwd)))
+    (item.environment?.session_id && s.id === item.environment.session_id) ||
+    (item.environment?.worktree_path && (s.cwd === item.environment.worktree_path || item.environment.worktree_path!.startsWith(s.cwd)))
   )
 
   return (

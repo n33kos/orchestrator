@@ -21,7 +21,7 @@ Options:
 
 3. Report the plan summary and steps to the user
 4. Ask if they want to:
-   - **Approve** the plan as-is (update via `/api/queue/update` with `metadata.plan.approved: true`)
+   - **Approve** the plan as-is (update via `/api/queue/update` with `plan.approved: true`)
    - **Edit** specific steps before approving
    - **Regenerate** with different guidance
    - **Skip planning** and go straight to activation (quick fixes only)
@@ -30,4 +30,4 @@ Options:
 - Plans are generated using `claude --print --model haiku` for speed
 - The item must be in `queued` or `planning` status
 - Projects require an approved plan before activation; quick fixes can skip planning
-- Plans are stored in `metadata.plan` on the queue item
+- Plans are stored in the `plan` sub-object on the queue item (`plan.file`, `plan.summary`, `plan.approved`, `plan.approved_at`)

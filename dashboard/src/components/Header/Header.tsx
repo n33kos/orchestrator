@@ -7,7 +7,6 @@ import { Sparkline } from '../Sparkline/Sparkline.tsx'
 interface HeaderProps {
   activeCount: number
   queuedCount: number
-  pausedCount: number
   blockedCount: number
   sessionCount: number
   workersActiveCount: number
@@ -27,7 +26,7 @@ interface HeaderProps {
   onPauseToggle?: () => void
 }
 
-export function Header({ activeCount, queuedCount, pausedCount, blockedCount, sessionCount, workersActiveCount, zombieCount, activityCount, activitySparkline, healthIssues, lastUpdated, theme, onThemeToggle, onSettingsClick, onSessionsClick, onActivityFeedClick, onHealthClick, onDiscoverClick, orchestratorPaused, onPauseToggle }: HeaderProps) {
+export function Header({ activeCount, queuedCount, blockedCount, sessionCount, workersActiveCount, zombieCount, activityCount, activitySparkline, healthIssues, lastUpdated, theme, onThemeToggle, onSettingsClick, onSessionsClick, onActivityFeedClick, onHealthClick, onDiscoverClick, orchestratorPaused, onPauseToggle }: HeaderProps) {
   return (
     <header className={styles.Root}>
       <div className={styles.Left}>
@@ -44,12 +43,6 @@ export function Header({ activeCount, queuedCount, pausedCount, blockedCount, se
             <span className={styles.Stat}>
               <span className={styles.StatDot} data-status="queued" />
               {queuedCount} queued
-            </span>
-          )}
-          {pausedCount > 0 && (
-            <span className={styles.Stat}>
-              <span className={styles.StatDot} data-status="paused" />
-              {pausedCount} paused
             </span>
           )}
           {blockedCount > 0 && (

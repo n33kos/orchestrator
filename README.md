@@ -210,7 +210,7 @@ Work items are stored in `~/.claude/orchestrator/queue.json`:
 - `metadata.plan_file` — Path to the markdown plan file (single source of truth for worker context).
 - `metadata.plan.approved` — Items with `require_approved_plan` enabled won't activate without approval.
 
-**Statuses:** `planning` → `queued` → `active` → `review` → `completed` (also: `paused`, `archived`)
+**Statuses:** `queued` → `planning` → `active` → `review` → `completed`
 
 ## Scheduler
 

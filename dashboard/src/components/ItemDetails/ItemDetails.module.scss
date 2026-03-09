@@ -288,6 +288,64 @@
   font-style: italic;
 }
 
+/* ── Spend Breakdown ── */
+.SpendBreakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.SpendTotal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.SpendTotalLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.SpendTotalValue {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-strong);
+}
+
+.SpendBuckets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.SpendBucket {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.SpendBucketLabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.SpendBucketValue {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
 /* ── Delegator Assessment ── */
 .AssessmentText {
   font-size: 13px;

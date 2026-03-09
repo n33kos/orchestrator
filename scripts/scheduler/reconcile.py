@@ -11,6 +11,7 @@ import re
 import subprocess
 import sys
 import time
+import urllib.request
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -67,10 +68,10 @@ def check_and_activate(cfg: Config, dry_run: bool) -> None:
     for i in data["items"]:
         if i["status"] not in ("queued", "planning"):
             continue
-        has_branch = bool(i.get("branch"))
-        has_local_dir = bool(i.get("metadata", {}).get("local_directory"))
-        has_repo_path = bool(i.get("metadata", {}).get("repo_path"))
-        if not (has_branch or has_local_dir or has_repo_path):
+        env = i.get("environment") or {}
+        has_branch = bool(env.get("branch"))
+        has_repo = bool(env.get("repo"))
+        if not (has_branch or has_repo):
             continue
         # Skip if any blocked_by dependency is not completed
         blocked_by = i.get("blocked_by", [])
@@ -79,7 +80,7 @@ def check_and_activate(cfg: Config, dry_run: bool) -> None:
             if any(all_items_by_id.get(dep_id, {}).get("status") != "completed" for dep_id in blocked_by):
                 continue
         if cfg.require_approved_plan:
-            plan = i.get("metadata", {}).get("plan", {})
+            plan = i.get("plan") or {}
             plan_approved = plan.get("approved", False) if isinstance(plan, dict) else False
             if not plan_approved:
                 continue
@@ -107,27 +108,136 @@ def check_and_activate(cfg: Config, dry_run: bool) -> None:
         if dry_run:
             print(f"[scheduler] Would activate: {item_id} — {item_title}")
         else:
-            print(f"[scheduler] Activating: {item_id} — {item_title}")
+            print(f"[scheduler] Activating (non-blocking): {item_id} — {item_title}")
             emit_event("scheduler.activating", f"Auto-activating: {item_title}", item_id=item_id)
             try:
-                result = subprocess.run(
-                    ["bash", os.path.join(SCRIPTS_DIR, "activate-stream.sh"), item_id],
-                    capture_output=True, text=True, timeout=120, env=EXEC_ENV,
+                _activate_nonblocking(cfg, item)
+            except Exception as e:
+                print(f"[scheduler] ERROR: Failed to activate {item_id}: {e}", file=sys.stderr)
+                emit_event("scheduler.error", f"Failed to activate {item_id}", item_id=item_id, severity="error")
+                subprocess.run(
+                    ["python3", "-m", "lib.queue", "update", item_id,
+                     "status=queued", "activated_at=NULL", "environment.worktree_path=NULL"],
+                    cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
                 )
-                if result.stdout:
-                    for line in result.stdout.strip().split("\n"):
-                        print(f"  {line}")
-                if result.returncode != 0:
-                    print(f"[scheduler] ERROR: Failed to activate {item_id}", file=sys.stderr)
-                    emit_event("scheduler.error", f"Failed to activate {item_id}", item_id=item_id, severity="error")
-                    subprocess.run(
-                        ["python3", "-m", "lib.queue", "update", item_id,
-                         "status=queued", "activated_at=NULL", "worktree_path=NULL"],
-                        cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
-                    )
-                    print(f"[scheduler] Rolled back {item_id} to queued")
-            except subprocess.TimeoutExpired:
-                print(f"[scheduler] ERROR: Activation timed out for {item_id}", file=sys.stderr)
+                print(f"[scheduler] Rolled back {item_id} to queued")
+
+
+def _activate_nonblocking(cfg: Config, item: dict) -> None:
+    """Activate an item without blocking on worktree creation.
+
+    Sets status to active immediately, then determines setup needs:
+    - non-worktree items: mkdir or use existing repo directly
+    - worktree items: kick off Rostrum in the background; reconcile_state()
+      will discover the worktree and spawn the session once it's ready.
+    """
+    item_id = item["id"]
+    env = item.get("environment") or {}
+    worker = item.get("worker") or {}
+    use_worktree = env.get("use_worktree", False)
+    repo = env.get("repo", "") or ""
+    branch = env.get("branch", "") or ""
+
+    # 1. Set status to active immediately
+    update_args = ["python3", "-m", "lib.queue", "update", item_id,
+                   "status=active", "activated_at=NOW"]
+
+    if not use_worktree:
+        # Non-worktree items — use repo path directly
+        expanded = os.path.expanduser(repo) if repo else ""
+        if expanded:
+            os.makedirs(expanded, exist_ok=True)
+            update_args.append(f"environment.worktree_path={expanded}")
+            subprocess.run(update_args, cwd=SCRIPTS_DIR, capture_output=True, timeout=10)
+            print(f"[scheduler] Activated {item_id} with repo: {expanded}")
+        else:
+            raise RuntimeError(f"Item {item_id} has use_worktree=false but no repo path")
+
+    elif branch:
+        # Worktree items — needs Rostrum setup (background)
+        subprocess.run(update_args, cwd=SCRIPTS_DIR, capture_output=True, timeout=10)
+        _start_worktree_setup(cfg, item_id, branch)
+    else:
+        raise RuntimeError(f"Item {item_id} has use_worktree=true but no branch")
+
+
+def _start_worktree_setup(cfg: Config, item_id: str, branch: str) -> None:
+    """Kick off worktree creation via Rostrum in the background.
+
+    If a worktree already exists for this branch, sets worktree_path immediately.
+    Otherwise, launches Rostrum as a background subprocess — reconcile_state()
+    will discover the worktree once it's ready and spawn the session.
+    """
+    main_repo = os.path.expanduser(cfg.repo_path)
+
+    # Check if worktree already exists
+    existing = _find_worktree_by_branch(main_repo, branch)
+    if existing:
+        subprocess.run(
+            ["python3", "-m", "lib.queue", "update", item_id,
+             f"environment.worktree_path={existing}"],
+            cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
+        )
+        print(f"[scheduler] Worktree already exists for {item_id}: {existing}")
+        return
+
+    # Launch Rostrum setup in background
+    log_dir = Path.home() / ".claude" / "orchestrator" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"rostrum-{item_id}.log"
+
+    rostrum_cmd = [cfg.tool_rostrum, "setup", branch]
+
+    print(f"[scheduler] Starting background worktree setup for {item_id} (branch: {branch})")
+    with open(log_file, "w") as lf:
+        subprocess.Popen(
+            rostrum_cmd,
+            stdout=lf, stderr=subprocess.STDOUT,
+            cwd=main_repo, env=EXEC_ENV,
+        )
+
+
+def _find_worktree_by_branch(repo_path: str, branch: str) -> str | None:
+    """Find an existing worktree by its branch name."""
+    try:
+        result = subprocess.run(
+            ["git", "worktree", "list", "--porcelain"],
+            capture_output=True, text=True, timeout=10, cwd=repo_path,
+        )
+        if result.returncode != 0:
+            return None
+        current_wt = None
+        for line in result.stdout.split("\n"):
+            if line.startswith("worktree "):
+                current_wt = line[9:]
+            elif line.startswith("branch refs/heads/") and current_wt:
+                if line[18:] == branch:
+                    if os.path.isdir(current_wt):
+                        return current_wt
+                current_wt = None
+    except Exception:
+        pass
+    return None
+
+
+def _set_session_hue(item_id: str, session_id: str) -> None:
+    """Set deterministic hue for a work item's session via the relay API."""
+    try:
+        hue = int(hashlib.md5(item_id.encode()).hexdigest()[:4], 16) % 360
+        secret_path = Path.home() / ".claude" / "voice-multiplexer" / "daemon.secret"
+        if not secret_path.exists():
+            return
+        secret = secret_path.read_text().strip()
+        url = f"http://localhost:3100/api/session-metadata/{session_id}"
+        data = json.dumps({"hue_override": hue}).encode()
+        req = urllib.request.Request(
+            url, data=data, method="PUT",
+            headers={"Content-Type": "application/json", "X-Daemon-Secret": secret},
+        )
+        urllib.request.urlopen(req, timeout=5)
+        print(f"[reconcile] Set hue {hue} for session {session_id}")
+    except Exception:
+        pass  # Non-critical — don't fail activation over cosmetic hue
 
 
 def generate_plans(cfg: Config, dry_run: bool) -> None:
@@ -139,7 +249,9 @@ def generate_plans(cfg: Config, dry_run: bool) -> None:
         data = ctx["data"]
 
     for item in data["items"]:
-        if item["status"] == "queued" and not item.get("metadata", {}).get("plan"):
+        plan = item.get("plan") or {}
+        has_plan = isinstance(plan, dict) and (plan.get("summary") or plan.get("file"))
+        if item["status"] == "queued" and not has_plan:
             item_id, item_title = item["id"], item["title"]
             if dry_run:
                 print(f"[scheduler] Would generate plan for: {item_id} — {item_title}")
@@ -170,8 +282,8 @@ def check_planning_timeouts(cfg: Config) -> None:
         for item in data["items"]:
             if item["status"] != "planning":
                 continue
-            plan = item.get("metadata", {}).get("plan") or {}
-            if isinstance(plan, dict) and plan.get("steps"):
+            plan = item.get("plan") or {}
+            if isinstance(plan, dict) and plan.get("summary"):
                 continue
             activated = item.get("activated_at") or item.get("created_at")
             if not activated:
@@ -185,8 +297,7 @@ def check_planning_timeouts(cfg: Config) -> None:
                     print(f"[scheduler] Planning timeout: {item_id} ({item_title}) — reverting to queued")
                     emit_event("scheduler.planning_timeout", f"Plan timed out for {item_title}", item_id=item_id, severity="warn")
                     item["status"] = "queued"
-                    if item.get("metadata"):
-                        item["metadata"]["plan"] = None
+                    item["plan"] = {"file": None, "summary": None, "approved": False, "approved_at": None}
                     ctx["modified"] = True
             except (ValueError, TypeError):
                 continue
@@ -200,8 +311,9 @@ def process_worker_completions(cfg: Config, dry_run: bool) -> None:
     for item in data["items"]:
         item_id = item["id"]
         item_title = item.get("title", "")
+        env = item.get("environment") or {}
 
-        if item["status"] == "completed" and (item.get("session_id") or item.get("worktree_path")):
+        if item["status"] == "completed" and (env.get("session_id") or env.get("worktree_path")):
             if dry_run:
                 print(f"[scheduler] Would teardown (worker-completed): {item_id} — {item_title}")
             else:
@@ -209,21 +321,15 @@ def process_worker_completions(cfg: Config, dry_run: bool) -> None:
                 emit_event("scheduler.worker_teardown", f"Auto-teardown after worker completion: {item_title}", item_id=item_id)
                 _run_script("teardown-stream.sh", [item_id], timeout=60)
 
-        elif item["status"] == "review" and (item.get("session_id") or item.get("delegator_id")):
-            if dry_run:
-                print(f"[scheduler] Would suspend (review with active sessions): {item_id} — {item_title}")
-            else:
-                print(f"[scheduler] Safety net: suspending review item with active sessions: {item_id} — {item_title}")
-                emit_event("scheduler.safety_suspend", f"Suspending review item with lingering sessions: {item_title}", item_id=item_id, severity="warn")
-                _run_script("suspend-stream.sh", [item_id], timeout=30)
-
-        elif item["status"] == "review" and item.get("metadata", {}).get("completion_message"):
-            msg = item["metadata"]["completion_message"]
-            print(f"[scheduler] Worker moved to review: {item_id} — {item_title} ({msg})")
+        elif item["status"] == "review":
+            runtime = item.get("runtime") or {}
+            if runtime.get("completion_message"):
+                msg = runtime["completion_message"]
+                print(f"[scheduler] Item in review: {item_id} — {item_title} ({msg})")
 
 
 def reconcile_state(cfg: Config, dry_run: bool) -> None:
-    """Enforce desired state — active items have sessions, review items do not."""
+    """Enforce desired state — active and review items keep sessions alive, completed items do not."""
     pause_file = os.path.expanduser("~/.claude/orchestrator/paused")
     is_paused = os.path.isfile(pause_file)
 
@@ -263,37 +369,54 @@ def reconcile_state(cfg: Config, dry_run: bool) -> None:
         item_id = item["id"]
         status = item["status"]
 
-        if status == "active":
+        if status in ("active", "review"):
             seen_items.add(item_id)
-            session_id = item.get("session_id") or ""
-            worktree_path = item.get("worktree_path") or ""
+            env = item.get("environment") or {}
+            session_id = env.get("session_id") or ""
+            worktree_path = env.get("worktree_path") or ""
             title = item.get("title", "")
+            use_worktree = env.get("use_worktree", True)
 
-            # Items with metadata.local_directory use an isolated workspace
-            # instead of a git worktree (e.g. orchestrator self-targeting items).
-            # Always prefer local_directory as the authoritative path — worktree_path
-            # can be stale or corrupt from a failed/stale activation.
-            local_dir = (item.get("metadata") or {}).get("local_directory") or ""
-            if local_dir:
-                local_dir = os.path.expanduser(local_dir)
-                if worktree_path != local_dir:
-                    print(f"[reconcile] Correcting worktree_path for {item_id}: "
-                          f"{worktree_path!r} -> {local_dir!r}")
-                    worktree_path = local_dir
-                    # Persist the correction
-                    subprocess.run(
-                        ["python3", "-m", "lib.queue", "update", item_id,
-                         f"worktree_path={worktree_path}"],
-                        cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
-                    )
+            # Non-worktree items use their repo path directly
+            if not use_worktree and not worktree_path:
+                repo = env.get("repo", "")
+                if repo:
+                    expanded_repo = os.path.expanduser(repo)
+                    if os.path.isdir(expanded_repo):
+                        worktree_path = expanded_repo
+                        subprocess.run(
+                            ["python3", "-m", "lib.queue", "update", item_id,
+                             f"environment.worktree_path={worktree_path}"],
+                            cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
+                        )
+
+            # Worktree discovery: active items without a worktree_path may be
+            # waiting for a background Rostrum setup to complete.
+            if not worktree_path and use_worktree:
+                branch = env.get("branch", "")
+                if branch:
+                    main_repo = os.path.expanduser(cfg.repo_path)
+                    discovered = _find_worktree_by_branch(main_repo, branch)
+                    if discovered:
+                        worktree_path = discovered
+                        subprocess.run(
+                            ["python3", "-m", "lib.queue", "update", item_id,
+                             f"environment.worktree_path={worktree_path}"],
+                            cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
+                        )
+                        print(f"[reconcile] Discovered worktree for {item_id}: {worktree_path}")
+                    else:
+                        print(f"[reconcile] Worktree for {item_id} not ready yet (branch: {branch})")
+                        continue  # Skip session/delegator checks — worktree still building
 
             # Guard: spawning a worker at the orchestrator's own directory would
-            # take over the orchestrator's vmux session. PROJECT_ROOT is computed
-            # dynamically from the script location — not hardcoded to any path.
+            # take over the orchestrator's vmux session.
             if worktree_path and os.path.realpath(worktree_path) == os.path.realpath(PROJECT_ROOT):
                 print(f"[reconcile] REFUSING to spawn worker for {item_id} at orchestrator root ({worktree_path})")
                 continue
-            delegator_enabled = item.get("delegator_enabled")
+
+            worker_cfg = item.get("worker") or {}
+            delegator_enabled = worker_cfg.get("delegator_enabled")
             if delegator_enabled is None:
                 delegator_enabled = cfg.delegator_enabled
             else:
@@ -308,10 +431,6 @@ def reconcile_state(cfg: Config, dry_run: bool) -> None:
             needs_respawn = False
             old_session_id = ""
 
-            # Normalize the stored session_id to match vmux's parsed format.
-            # activate-stream.sh stores "name (hex)" but vmux sessions parsing
-            # extracts just the hex ID. Without normalization, every session
-            # appears "missing" and gets respawned — killing active sessions.
             normalized_id = _normalize_session_id(session_id) if session_id else ""
 
             if not session_id:
@@ -324,11 +443,7 @@ def reconcile_state(cfg: Config, dry_run: bool) -> None:
                 if worktree_path:
                     needs_spawn = True
 
-            # Bug 3 fix: require grace period before respawning workers.
-            # A worker transiently missing from vmux sessions during
-            # delegator respawn churn should not trigger a cascade kill.
             if (needs_spawn or needs_respawn) and not is_paused:
-                # Check if delegator was recently respawned for this item
                 delegator_state_file = (
                     Path.home() / ".claude" / "orchestrator" / "delegators" / item_id / "state.json"
                 )
@@ -347,7 +462,6 @@ def reconcile_state(cfg: Config, dry_run: bool) -> None:
                     except Exception:
                         pass
 
-                # Also enforce a "missing for 2 cycles" rule (applies to both spawn and respawn)
                 if (needs_spawn or needs_respawn) and session_id and item_id not in _worker_missing_since:
                     _worker_missing_since[item_id] = now
                     skip_for_delegator_churn = True
@@ -359,17 +473,14 @@ def reconcile_state(cfg: Config, dry_run: bool) -> None:
                         print(f"[reconcile] Worker for {item_id} still missing ({int(elapsed)}s) — waiting for grace period")
 
                 if skip_for_delegator_churn:
-                    pass  # Skip this cycle
+                    pass
                 elif needs_spawn:
-                    # Worker confirmed missing past grace period.
-                    # Before spawning, check if a session already exists at
-                    # this path — the stored session_id may just be stale.
                     existing = _find_session_by_cwd(cfg, worktree_path)
                     if existing:
                         _worker_missing_since.pop(item_id, None)
                         print(f"[reconcile] Found existing session {existing} at {worktree_path} — updating stored ID for {item_id}")
                         subprocess.run(
-                            ["python3", "-m", "lib.queue", "update", item_id, f"session_id={existing}"],
+                            ["python3", "-m", "lib.queue", "update", item_id, f"environment.session_id={existing}"],
                             cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
                         )
                     elif dry_run:
@@ -393,7 +504,6 @@ def reconcile_state(cfg: Config, dry_run: bool) -> None:
                         time.sleep(2)
                         _spawn_worker(cfg, item_id, worktree_path, session_name)
             else:
-                # Worker is healthy — clear any missing tracking
                 _worker_missing_since.pop(item_id, None)
 
             if delegator_enabled and not is_paused:
@@ -405,19 +515,101 @@ def reconcile_state(cfg: Config, dry_run: bool) -> None:
                         print(f"[reconcile] Initializing delegator state for {item_id}")
                         _run_script("spawn-delegator.sh", [item_id], timeout=60)
 
-        elif status == "review":
-            if item.get("session_id") or item.get("delegator_id"):
-                if dry_run:
-                    print(f"[reconcile] Would suspend review item {item_id} (has active sessions)")
-                else:
-                    print(f"[reconcile] Suspending review item {item_id} (has lingering sessions)")
-                    emit_event("reconcile.suspend_review", f"Suspending review item with active sessions: {item_id}", item_id=item_id, severity="warn")
-                    _run_script("suspend-stream.sh", [item_id], timeout=30)
-
     # Clean up tracking for items that are no longer active
     stale = [k for k in _worker_missing_since if k not in seen_items]
     for k in stale:
         del _worker_missing_since[k]
+
+
+def discover_pr_urls(cfg: Config, dry_run: bool) -> None:
+    """Auto-discover PR URLs for active items that have no pr_url set."""
+    with locked_queue() as ctx:
+        data = ctx["data"]
+
+    candidates = [
+        i for i in data["items"]
+        if i["status"] == "active" and not (i.get("runtime") or {}).get("pr_url")
+    ]
+
+    if not candidates:
+        return
+
+    for item in candidates:
+        item_id = item["id"]
+        env = item.get("environment") or {}
+        branch = env.get("branch", "")
+        if not branch:
+            continue
+
+        # Determine the repo path to run gh commands in
+        repo_path = env.get("repo", "")
+        if repo_path:
+            repo_path = os.path.expanduser(repo_path)
+        if not repo_path:
+            repo_path = env.get("worktree_path", "")
+
+        if not repo_path or not os.path.isdir(repo_path):
+            continue
+
+        worker_cfg = item.get("worker") or {}
+        is_graphite_stack = worker_cfg.get("commit_strategy") == "graphite_stack"
+
+        try:
+            if is_graphite_stack:
+                result = subprocess.run(
+                    ["gh", "pr", "list", "--search", f"head:{branch}",
+                     "--state", "all", "--json", "number,url,isDraft",
+                     "--limit", "20"],
+                    capture_output=True, text=True, timeout=15,
+                    cwd=repo_path, env=EXEC_ENV,
+                )
+            else:
+                result = subprocess.run(
+                    ["gh", "pr", "list", "--head", branch,
+                     "--state", "all", "--json", "number,url,isDraft",
+                     "--limit", "1"],
+                    capture_output=True, text=True, timeout=15,
+                    cwd=repo_path, env=EXEC_ENV,
+                )
+
+            if result.returncode != 0:
+                continue
+
+            prs = json.loads(result.stdout) if result.stdout.strip() else []
+            if not prs:
+                continue
+
+            prs.sort(key=lambda p: p.get("number", 0))
+            first_url = prs[0].get("url", "")
+
+            if not first_url:
+                continue
+
+            update_args = [
+                "python3", "-m", "lib.queue", "update", item_id,
+                f"runtime.pr_url={first_url}",
+            ]
+
+            if is_graphite_stack:
+                stack_urls = [p.get("url", "") for p in prs if p.get("url")]
+                update_args.append(f"runtime.stack_prs={json.dumps(stack_urls)}")
+
+            if dry_run:
+                print(f"[reconcile] Would set pr_url for {item_id}: {first_url}")
+                if is_graphite_stack:
+                    print(f"[reconcile]   Stack has {len(prs)} PRs")
+            else:
+                subprocess.run(
+                    update_args,
+                    cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
+                )
+                print(f"[reconcile] Auto-discovered pr_url for {item_id}: {first_url}")
+                if is_graphite_stack:
+                    print(f"[reconcile]   Stack has {len(prs)} PRs")
+                emit_event("reconcile.pr_discovered", f"Auto-discovered PR for {item_id}: {first_url}", item_id=item_id)
+
+        except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception) as e:
+            print(f"[reconcile] WARNING: PR discovery failed for {item_id}: {e}", file=sys.stderr)
 
 
 def _run_script(script_name: str, args: list[str], timeout: int = 60) -> subprocess.CompletedProcess:
@@ -462,7 +654,6 @@ def _find_session_by_cwd(cfg: Config, worktree_path: str) -> str | None:
 
 def _spawn_worker(cfg: Config, item_id: str, worktree_path: str, session_name: str) -> None:
     """Spawn a vmux worker session, send task instructions, and update queue."""
-    # Safety: refuse to spawn at the orchestrator's own root
     if os.path.realpath(worktree_path) == os.path.realpath(PROJECT_ROOT):
         print(f"[reconcile] REFUSING to spawn worker for {item_id} at orchestrator root ({worktree_path})", file=sys.stderr)
         return
@@ -475,25 +666,20 @@ def _spawn_worker(cfg: Config, item_id: str, worktree_path: str, session_name: s
             print(f"[reconcile] WARNING: vmux spawn failed for {item_id}: {result.stderr}", file=sys.stderr)
             return
 
-        # Find the actual session ID by querying vmux sessions for the CWD.
-        # This is more reliable than parsing spawn output, which may not
-        # include the session ID in a consistent format.
-        time.sleep(2)  # Give vmux a moment to register the session
+        time.sleep(2)
         new_id = _find_session_by_cwd(cfg, worktree_path)
         if not new_id:
             new_id = hashlib.sha256(worktree_path.encode()).hexdigest()[:12]
             print(f"[reconcile] WARNING: Could not find session by CWD, using computed ID {new_id}", file=sys.stderr)
 
         subprocess.run(
-            ["python3", "-m", "lib.queue", "update", item_id, f"session_id={new_id}"],
+            ["python3", "-m", "lib.queue", "update", item_id, f"environment.session_id={new_id}"],
             cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
         )
         print(f"[reconcile] Worker spawned for {item_id} (session: {new_id})")
 
-        # Send task instructions to the new session.
-        # Without this, respawned workers enter standby but sit idle because
-        # they never receive their task assignment.
         _send_task_instructions(cfg, item_id, new_id)
+        _set_session_hue(item_id, new_id)
     except Exception as e:
         print(f"[reconcile] WARNING: Failed to spawn worker for {item_id}: {e}", file=sys.stderr)
 
@@ -501,9 +687,8 @@ def _spawn_worker(cfg: Config, item_id: str, worktree_path: str, session_name: s
 def _send_task_instructions(cfg: Config, item_id: str, session_id: str) -> None:
     """Send task instructions to a worker session (retry until standby)."""
     try:
-        # Read the plan file and title from the queue
         result = subprocess.run(
-            ["python3", "-m", "lib.queue", "get", item_id, "title", "branch", "metadata.plan_file"],
+            ["python3", "-m", "lib.queue", "get", item_id, "title", "environment.branch", "plan.file"],
             cwd=SCRIPTS_DIR, capture_output=True, text=True, timeout=10,
         )
         if result.returncode != 0:
@@ -527,9 +712,6 @@ def _send_task_instructions(cfg: Config, item_id: str, session_id: str) -> None:
             f"Status: Activating now — follow the plan steps in order."
         )
 
-        # Retry sending until the session enters standby (up to 3 × 5s = 15s).
-        # Keep retries short to avoid blocking the scheduler cycle — if the
-        # session isn't ready yet, the next reconciliation cycle will retry.
         for attempt in range(1, 4):
             try:
                 send_result = subprocess.run(

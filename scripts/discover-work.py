@@ -191,7 +191,7 @@ def deduplicate(new_items: list[dict], existing_items: list[dict]) -> list[dict]
     existing_titles = {item["title"].lower().strip() for item in existing_items}
     existing_refs = set()
     for item in existing_items:
-        ref = item.get("metadata", {}).get("source_ref", "") or item.get("source_ref", "")
+        ref = item.get("source_ref", "")
         if ref:
             existing_refs.add(ref.strip())
 
@@ -510,21 +510,40 @@ def main():
         queue_item = {
             "id": item_id,
             "source": item.get("source", "discovery"),
+            "source_ref": item.get("source_ref", ""),
             "title": item["title"],
             "description": item.get("description", ""),
-            "type": item["type"],
             "priority": item["priority"],
             "status": "queued",
-            "branch": "",
-            "worktree_path": None,
-            "session_id": None,
-            "delegator_id": None,
-            "delegator_enabled": True,
             "blocked_by": [],
             "created_at": datetime.now().isoformat(),
             "activated_at": None,
             "completed_at": None,
-            "metadata": {"source_ref": item.get("source_ref", "")},
+            "environment": {
+                "repo": None,
+                "use_worktree": True,
+                "branch": None,
+                "worktree_path": None,
+                "session_id": None,
+            },
+            "worker": {
+                "commit_strategy": "branch_and_pr",
+                "delegator_enabled": True,
+            },
+            "plan": {
+                "file": None,
+                "summary": None,
+                "approved": False,
+                "approved_at": None,
+            },
+            "runtime": {
+                "delegator_status": None,
+                "spend": None,
+                "last_activity": None,
+                "pr_url": None,
+                "stack_prs": None,
+                "completion_message": None,
+            },
         }
         queue["items"].append(queue_item)
         print(f"  Added: {item_id} — {item['title']}")

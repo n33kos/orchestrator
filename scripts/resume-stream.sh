@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Resume a suspended (review/paused) work stream: respawn session + delegator.
+# Resume a suspended (review) work stream: respawn session + delegator.
 # The worktree should still exist from the prior activation.
 #
 # Usage:
@@ -41,16 +41,16 @@ done
 
 # Read item and validate status
 ITEM_STATUS="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" status)"
-if [[ "$ITEM_STATUS" != "review" && "$ITEM_STATUS" != "paused" ]]; then
-    echo "ERROR: Item $ITEM_ID is '$ITEM_STATUS', expected review or paused" >&2
+if [[ "$ITEM_STATUS" != "review" ]]; then
+    echo "ERROR: Item $ITEM_ID is '$ITEM_STATUS', expected review" >&2
     exit 1
 fi
 
-IFS=$'\x1f' read -r ITEM_TITLE ITEM_BRANCH ITEM_TYPE WORKTREE_PATH DELEGATOR_ENABLED LOCAL_DIR \
-    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" title branch type worktree_path delegator_enabled metadata.local_directory)
+IFS=$'\x1f' read -r ITEM_TITLE ITEM_BRANCH WORKTREE_PATH DELEGATOR_ENABLED ENV_REPO USE_WORKTREE \
+    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" title environment.branch environment.worktree_path worker.delegator_enabled environment.repo environment.use_worktree)
 
-# Expand ~ in local_directory
-LOCAL_DIR="${LOCAL_DIR/#\~/$HOME}"
+# Expand ~ in repo path
+ENV_REPO="${ENV_REPO/#\~/$HOME}"
 
 echo "Resuming: $ITEM_TITLE ($ITEM_ID)"
 
@@ -61,12 +61,12 @@ if [[ "$ACTIVE_COUNT" -ge "$MAX_ACTIVE" ]]; then
     exit 1
 fi
 
-# Resolve worktree path: prefer local_directory, then stored worktree_path, then branch prefix
-if [[ -n "$LOCAL_DIR" ]]; then
-    WORKTREE_PATH="$LOCAL_DIR"
+# Resolve worktree path: prefer non-worktree repo, then stored worktree_path, then branch prefix
+if [[ "$USE_WORKTREE" == "False" && -n "$ENV_REPO" ]]; then
+    WORKTREE_PATH="$ENV_REPO"
     if [[ ! -d "$WORKTREE_PATH" ]]; then
         mkdir -p "$WORKTREE_PATH"
-        echo "  Created local directory: $WORKTREE_PATH"
+        echo "  Created directory: $WORKTREE_PATH"
     fi
 elif [[ -z "$WORKTREE_PATH" ]]; then
     WORKTREE_PATH="${WORKTREE_PREFIX}${ITEM_BRANCH}"
@@ -83,7 +83,7 @@ if [[ "$REAL_WORKTREE" == "$REAL_PROJECT" ]]; then
     exit 1
 fi
 
-if [[ -z "$LOCAL_DIR" && ! -d "$WORKTREE_PATH" ]]; then
+if [[ "$USE_WORKTREE" != "False" && ! -d "$WORKTREE_PATH" ]]; then
     echo "  Worktree missing — recreating..."
     cd "$REPO_PATH"
     $ROSTRUM setup "$ITEM_BRANCH" --quick
@@ -100,12 +100,12 @@ print(hashlib.sha256(cwd.encode()).hexdigest()[:12])
 ")"
 
 # Update queue: move to active, set session ID
-(cd "$SCRIPT_DIR" && $QUEUE_PY update "$ITEM_ID" status=active session_id="$SESSION_ID" worktree_path="$WORKTREE_PATH")
+(cd "$SCRIPT_DIR" && $QUEUE_PY update "$ITEM_ID" status=active environment.session_id="$SESSION_ID" environment.worktree_path="$WORKTREE_PATH")
 
 echo "  Status: active (session: $SESSION_ID)"
 
 # Send task reference to the resumed worker session
-PLAN_FILE="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" metadata.plan_file)"
+PLAN_FILE="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" plan.file)"
 
 # Check PR merge status if a branch exists
 PR_STATUS_MSG=""

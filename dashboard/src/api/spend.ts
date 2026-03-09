@@ -41,7 +41,7 @@ function startOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1)
 }
 
-function fetchCcusageTotals(): { totals: SpendTotals; totalCost: number } | null {
+function fetchCcusageTotals(): { totals: SpendTotals; totalCost: number; daily: CcusageDailyEntry[] } | null {
   try {
     const output = execSync('npx ccusage --json --offline', {
       encoding: 'utf-8',
@@ -54,7 +54,7 @@ function fetchCcusageTotals(): { totals: SpendTotals; totalCost: number } | null
     const allTimeCost: number = data.totals?.totalCost ?? 0
 
     const now = new Date()
-    const todayStr = now.toISOString().slice(0, 10)
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
     const weekStart = startOfWeek(now)
     const monthStart = startOfMonth(now)
 
@@ -74,7 +74,7 @@ function fetchCcusageTotals(): { totals: SpendTotals; totalCost: number } | null
     totals.month = Math.round(totals.month * 100) / 100
     totals.all_time = Math.round(totals.all_time * 100) / 100
 
-    return { totals, totalCost: allTimeCost }
+    return { totals, totalCost: allTimeCost, daily: dailyEntries }
   } catch (err) {
     console.error('[spend] ccusage failed:', err)
     return null
@@ -121,12 +121,9 @@ export function registerSpendRoutes(server: ViteDevServer) {
       const monthStart = startOfMonth(now)
 
       const items: SpendItem[] = []
-      const orchestratorTotals: SpendTotals = { today: 0, week: 0, month: 0, all_time: 0 }
-
       for (const item of queue.items || []) {
-        const spend = item.metadata?.spend as { total_usd?: number } | undefined
+        const spend = item.runtime?.spend as { total_usd?: number } | undefined
         const spendUsd = spend?.total_usd ?? 0
-
         if (spendUsd > 0) {
           items.push({
             id: item.id,
@@ -136,25 +133,38 @@ export function registerSpendRoutes(server: ViteDevServer) {
             activated_at: item.activated_at,
             completed_at: item.completed_at,
           })
-
-          orchestratorTotals.all_time += spendUsd
-
-          // Bucket by activation date (or completed_at for finished items)
-          const refDate = item.activated_at || item.completed_at || item.created_at
-          if (refDate) {
-            const d = new Date(refDate)
-            if (d >= todayStart) orchestratorTotals.today += spendUsd
-            if (d >= weekStart) orchestratorTotals.week += spendUsd
-            if (d >= monthStart) orchestratorTotals.month += spendUsd
-          }
         }
       }
 
-      // Round orchestrator totals
-      orchestratorTotals.today = Math.round(orchestratorTotals.today * 100) / 100
-      orchestratorTotals.week = Math.round(orchestratorTotals.week * 100) / 100
-      orchestratorTotals.month = Math.round(orchestratorTotals.month * 100) / 100
-      orchestratorTotals.all_time = Math.round(orchestratorTotals.all_time * 100) / 100
+      // Orchestrator spend = ccusage session cost for the orchestrator directory only.
+      // ccusage doesn't provide per-session daily breakdowns, so all time buckets
+      // use the session's total cost. This excludes worker and delegator sessions
+      // which run from their own directories.
+      let orchestratorSessionCost = 0
+      try {
+        const sessionOutput = execSync('npx ccusage session --json --offline', {
+          encoding: 'utf-8',
+          timeout: 30_000,
+          env: { ...process.env, HOME: process.env.HOME || '' },
+        })
+        const sessionData = JSON.parse(sessionOutput)
+        const orchestratorDir = (process.env.HOME || '') + '/orchestrator'
+        const orchestratorSid = orchestratorDir.replace(/\//g, '-').replace(/\./g, '-')
+        for (const s of sessionData.sessions || []) {
+          if (s.sessionId === orchestratorSid) {
+            orchestratorSessionCost = s.totalCost ?? 0
+            break
+          }
+        }
+      } catch { /* ccusage failed — leave at 0 */ }
+
+      const rounded = Math.round(orchestratorSessionCost * 100) / 100
+      const orchestratorTotals: SpendTotals = {
+        today: rounded,
+        week: rounded,
+        month: rounded,
+        all_time: rounded,
+      }
 
       // Fetch total user spend from ccusage
       const ccusage = fetchCcusageTotals()
@@ -164,6 +174,7 @@ export function registerSpendRoutes(server: ViteDevServer) {
         totals: orchestratorTotals,
         overall: ccusage?.totals ?? null,
         overall_total_cost: ccusage?.totalCost ?? null,
+        daily: ccusage?.daily ?? [],
       }
       writeCache(payload)
       res.setHeader('Content-Type', 'application/json')

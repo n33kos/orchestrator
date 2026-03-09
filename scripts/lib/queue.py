@@ -7,16 +7,16 @@ concurrent access corruption. Uses fcntl.flock for advisory locking.
 Usage from shell scripts:
     # Get a single field
     python3 -m lib.queue get <item-id> status
-    python3 -m lib.queue get <item-id> title branch status type
+    python3 -m lib.queue get <item-id> title environment.branch status
 
     # Get full item as JSON
     python3 -m lib.queue get-item <item-id>
 
     # Update fields on an item
-    python3 -m lib.queue update <item-id> status=active session_id=abc123
+    python3 -m lib.queue update <item-id> status=active environment.session_id=abc123
 
-    # Update nested metadata fields
-    python3 -m lib.queue update <item-id> metadata.delegator_status=monitoring
+    # Update nested fields
+    python3 -m lib.queue update <item-id> runtime.delegator_status=monitoring
 
     # Count items matching a status
     python3 -m lib.queue count --status active --type project
@@ -25,7 +25,7 @@ Usage from shell scripts:
     python3 -m lib.queue list --status queued --sort priority
 
     # Atomic read-modify-write (for complex updates)
-    python3 -m lib.queue update <item-id> status=active activated_at=NOW session_id=abc123 worktree_path=/path
+    python3 -m lib.queue update <item-id> status=active activated_at=NOW environment.session_id=abc123 environment.worktree_path=/path
 
 All operations acquire an exclusive lock on queue.json.lock before
 reading or writing, preventing race conditions between scheduler,
@@ -85,7 +85,7 @@ def find_item(data: dict, item_id: str) -> Optional[dict]:
 
 
 def get_fields(item: dict, fields: list[str]) -> list[str]:
-    """Extract fields from an item, supporting dotted paths like metadata.plan_file."""
+    """Extract fields from an item, supporting dotted paths like environment.branch or plan.file."""
     values = []
     for field in fields:
         obj = item
@@ -127,9 +127,9 @@ def _coerce_value(value: str) -> Any:
         return datetime.now(timezone.utc).isoformat()
     if value == "NULL":
         return None
-    if value == "TRUE":
+    if value.upper() == "TRUE":
         return True
-    if value == "FALSE":
+    if value.upper() == "FALSE":
         return False
     # Try int
     try:

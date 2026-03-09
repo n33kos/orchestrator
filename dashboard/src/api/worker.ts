@@ -26,12 +26,12 @@ export function registerWorkerRoutes(server: ViteDevServer) {
       if (targetStatus === 'completed') {
         item.completed_at = new Date().toISOString()
       }
-      if (body.prUrl) item.pr_url = body.prUrl
-      if (!item.metadata) item.metadata = {}
+      if (!item.runtime) item.runtime = {}
+      if (body.prUrl) item.runtime.pr_url = body.prUrl
       if (body.message) {
-        item.metadata.completion_message = body.message
+        item.runtime.completion_message = body.message
       }
-      item.metadata.last_activity = new Date().toISOString()
+      item.runtime.last_activity = new Date().toISOString()
 
       writeQueue(data)
 
@@ -52,13 +52,8 @@ export function registerWorkerRoutes(server: ViteDevServer) {
         execFile('bash', [scriptPath, body.itemId], { timeout: 60000, env: { ...process.env, HOME: homedir() } }, () => { /* fire and forget */ })
       }
 
-      // If moving to review and sessions are still active, suspend the stream
-      if (targetStatus === 'review' && (item.session_id || item.delegator_id)) {
-        const suspendScript = join(__dirname, '..', '..', '..', 'scripts', 'suspend-stream.sh')
-        execFile('bash', [suspendScript, body.itemId], { timeout: 30000, env: { ...process.env, HOME: homedir() } }, (err, _stdout, stderr) => {
-          if (err) console.error('suspend-stream failed:', stderr || String(err))
-        })
-      }
+      // Review items keep worker + delegator alive — no suspension needed.
+      // Teardown only happens when moving to completed (handled above).
 
       res.setHeader('Content-Type', 'application/json')
       res.end(JSON.stringify({ ok: true, itemId: body.itemId, prevStatus, newStatus: targetStatus }))

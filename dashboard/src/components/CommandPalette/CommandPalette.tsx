@@ -163,7 +163,7 @@ export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateTo
     return items.map(item => ({
       id: `item-${item.id}`,
       label: item.title,
-      description: `${item.status} — ${item.branch || 'no branch'}`,
+      description: `${item.status} — ${item.environment?.branch || 'no branch'}`,
       icon: 'status' as const,
       action: () => { onClose(); onNavigateToItem(item.id) },
     }))
@@ -180,11 +180,7 @@ export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateTo
         }
       }
       if (item.status === 'active') {
-        cmds.push({ id: `pause-${item.id}`, label: `Pause: ${item.title}`, icon: 'status', action: () => { onClose(); onStatusChange(item.id, 'paused') } })
         cmds.push({ id: `complete-${item.id}`, label: `Complete: ${item.title}`, icon: 'status', action: () => { onClose(); onStatusChange(item.id, 'completed') } })
-      }
-      if (item.status === 'paused') {
-        cmds.push({ id: `resume-${item.id}`, label: `Resume: ${item.title}`, icon: 'status', action: () => { onClose(); onStatusChange(item.id, 'active') } })
       }
     }
     return cmds

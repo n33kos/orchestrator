@@ -2,7 +2,7 @@
 
 Runs `npx ccusage session --json --offline` and matches sessions to active
 queue items by converting worktree/workspace paths to ccusage sessionId format.
-Updates metadata.spend on each matched item.
+Updates runtime.spend on each matched item.
 """
 
 import json
@@ -87,14 +87,20 @@ def _fetch_ccusage_sessions() -> list[dict]:
 def _match_sessions(
     item: dict,
     all_sessions: list[dict],
-) -> dict[str, float]:
-    """Find ccusage sessions matching a queue item. Returns {sessionId: cost}."""
-    matches: dict[str, float] = {}
+) -> dict[str, dict]:
+    """Find ccusage sessions matching a queue item.
+
+    Returns {sessionId: {"cost": float, "role": "worker"|"delegator"}}.
+    A session is classified as "delegator" if its sessionId path contains
+    "delegators"; everything else is "worker".
+    """
+    matches: dict[str, dict] = {}
 
     # Build list of path prefixes to match against
     paths_to_match: list[str] = []
 
-    worktree = item.get("worktree_path")
+    env = item.get("environment") or {}
+    worktree = env.get("worktree_path")
     if worktree:
         paths_to_match.append(_path_to_session_id(worktree))
 
@@ -104,12 +110,12 @@ def _match_sessions(
     paths_to_match.append(_path_to_session_id(workspace_path))
 
     delegator_path = os.path.expanduser(f"~/.claude/orchestrator/delegators/{item_id}")
-    paths_to_match.append(_path_to_session_id(delegator_path))
+    delegator_prefix = _path_to_session_id(delegator_path)
+    paths_to_match.append(delegator_prefix)
 
-    # Match local_directory if set (used by self-targeting items)
-    local_dir = (item.get("metadata") or {}).get("local_directory")
-    if local_dir:
-        paths_to_match.append(_path_to_session_id(os.path.expanduser(local_dir)))
+    # Match repo path for non-worktree items (self-targeting items)
+    if not env.get("use_worktree") and env.get("repo"):
+        paths_to_match.append(_path_to_session_id(os.path.expanduser(env["repo"])))
 
     for session in all_sessions:
         sid = session.get("sessionId", "")
@@ -118,7 +124,8 @@ def _match_sessions(
             continue
         for prefix in paths_to_match:
             if sid.startswith(prefix):
-                matches[sid] = cost
+                role = "delegator" if "delegators" in sid else "worker"
+                matches[sid] = {"cost": cost, "role": role}
                 break
 
     return matches
@@ -126,7 +133,7 @@ def _match_sessions(
 
 def update_spend(cfg: Config) -> None:
     """Update spend metadata for non-completed queue items."""
-    _TRACKABLE_STATUSES = {"active", "review", "paused", "planning"}
+    _TRACKABLE_STATUSES = {"active", "review", "planning"}
 
     with locked_queue() as ctx:
         data = ctx["data"]
@@ -134,10 +141,9 @@ def update_spend(cfg: Config) -> None:
             i for i in data["items"]
             if i["status"] in _TRACKABLE_STATUSES
             and (
-                i.get("worktree_path")
-                or i.get("session_id")
-                or i.get("delegator_id")
-                or (i.get("metadata") or {}).get("local_directory")
+                (i.get("environment") or {}).get("worktree_path")
+                or (i.get("environment") or {}).get("session_id")
+                or (i.get("environment") or {}).get("repo")
             )
         ]
 
@@ -154,15 +160,28 @@ def update_spend(cfg: Config) -> None:
         matched = _match_sessions(item, sessions)
         if not matched:
             continue
-        total_usd = round(sum(matched.values()), 4)
+
+        worker_usd = round(
+            sum(v["cost"] for v in matched.values() if v["role"] == "worker"), 4
+        )
+        delegator_usd = round(
+            sum(v["cost"] for v in matched.values() if v["role"] == "delegator"), 4
+        )
+        total_usd = round(worker_usd + delegator_usd, 4)
+
+        # Flatten sessions to {sessionId: cost} for backward compatibility
+        flat_sessions = {sid: v["cost"] for sid, v in matched.items()}
+
         spend = {
             "total_usd": total_usd,
+            "worker_usd": worker_usd,
+            "delegator_usd": delegator_usd,
             "last_updated": datetime.now(timezone.utc).isoformat(),
-            "sessions": matched,
+            "sessions": flat_sessions,
         }
 
         # Only update if value actually changed
-        existing = (item.get("metadata") or {}).get("spend", {})
+        existing = (item.get("runtime") or {}).get("spend", {})
         if isinstance(existing, dict) and abs(existing.get("total_usd", 0) - total_usd) < 0.001:
             continue
 
@@ -176,9 +195,9 @@ def update_spend(cfg: Config) -> None:
         data = ctx["data"]
         for item in data["items"]:
             if item["id"] in updates:
-                if "metadata" not in item or not isinstance(item.get("metadata"), dict):
-                    item["metadata"] = {}
-                item["metadata"]["spend"] = updates[item["id"]]
+                if "runtime" not in item or not isinstance(item.get("runtime"), dict):
+                    item["runtime"] = {}
+                item["runtime"]["spend"] = updates[item["id"]]
                 ctx["modified"] = True
 
     updated_ids = list(updates.keys())

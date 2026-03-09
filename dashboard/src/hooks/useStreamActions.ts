@@ -4,7 +4,7 @@ import type { WorkItemStatus, WorkItem, MessageEntry, SessionInfo } from '../typ
 interface UseStreamActionsOptions {
   items: WorkItem[]
   sessions: SessionInfo[]
-  updateItem: (id: string, updates: { status?: WorkItemStatus; priority?: number; delegator_enabled?: boolean; title?: string; description?: string; pr_url?: string | null }) => void
+  updateItem: (id: string, updates: { status?: WorkItemStatus; priority?: number; title?: string; description?: string; environment?: Partial<WorkItem['environment']>; worker?: Partial<WorkItem['worker']>; runtime?: Partial<WorkItem['runtime']> }) => void
   deleteItem: (id: string) => void
   reorderItems: (dragId: string, dropId: string) => void
   refresh: () => void
@@ -38,20 +38,18 @@ export function useStreamActions({
   const handleStatusChange = useCallback((id: string, status: WorkItemStatus) => {
     const item = items.find(i => i.id === id)
     const previousStatus = item?.status
-    const hasSession = !!item?.session_id
+    const hasSession = !!item?.environment?.session_id
     const labels: Record<string, string> = {
       active: 'activated',
-      paused: 'paused',
       completed: 'completed',
       queued: 'queued',
       review: 'moved to review',
       planning: 'moved to planning',
     }
 
-    // Suspend session when moving active -> review or active -> paused
-    if ((status === 'review' || status === 'paused') && previousStatus === 'active' && hasSession) {
-      const label = status === 'review' ? 'review' : 'paused'
-      addToast(`Suspending session (${label})...`, 'info')
+    // Suspend session when moving active -> review
+    if (status === 'review' && previousStatus === 'active' && hasSession) {
+      addToast('Suspending session (review)...', 'info')
       fetch('/api/stream/suspend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -59,10 +57,10 @@ export function useStreamActions({
       }).then(res => {
         if (res.ok) {
           refresh()
-          addToast(`${status === 'review' ? 'Moved to review' : 'Paused'} — session suspended`, 'success')
+          addToast('Moved to review — session suspended', 'success')
         } else {
           updateItem(id, { status })
-          addToast(`${status === 'review' ? 'Moved to review' : 'Paused'} (session suspend failed)`, 'warning')
+          addToast('Moved to review (session suspend failed)', 'warning')
         }
       }).catch(() => {
         updateItem(id, { status })
@@ -71,7 +69,7 @@ export function useStreamActions({
     }
 
     // Resume session when moving review -> active
-    if (status === 'active' && (previousStatus === 'review' || previousStatus === 'paused') && item?.worktree_path && !hasSession) {
+    if (status === 'active' && previousStatus === 'review' && item?.environment?.worktree_path && !hasSession) {
       addToast('Resuming session...', 'info')
       fetch('/api/stream/resume', {
         method: 'POST',
@@ -116,9 +114,9 @@ export function useStreamActions({
   }, [updateItem, addToast])
 
   const handleDelegatorToggle = useCallback(async (id: string, enabled: boolean) => {
-    updateItem(id, { delegator_enabled: enabled })
+    updateItem(id, { worker: { delegator_enabled: enabled } })
     const item = items.find(i => i.id === id)
-    if (item?.status === 'active' && enabled && !item.delegator_id) {
+    if (item?.status === 'active' && enabled) {
       addToast('Spawning delegator...', 'info')
       try {
         const res = await fetch('/api/delegators/spawn', {
@@ -176,9 +174,8 @@ export function useStreamActions({
         body: JSON.stringify({
           title: `${item.title} (copy)`,
           description: item.description,
-          type: item.type,
           priority: item.priority + 1,
-          branch: '',
+          branch: item.environment?.branch || '',
         }),
       })
       refresh()
@@ -204,7 +201,7 @@ export function useStreamActions({
   }, [items, deleteItem, addToast])
 
   const handlePrUrlChange = useCallback((id: string, prUrl: string) => {
-    updateItem(id, { pr_url: prUrl || null })
+    updateItem(id, { runtime: { pr_url: prUrl || null } })
     addToast('PR URL updated', 'success')
   }, [updateItem, addToast])
 

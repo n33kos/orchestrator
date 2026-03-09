@@ -12,7 +12,7 @@ When activating a work item or when the user asks to spin up a new environment:
 
 1. **Create the worktree** (must run from the main repo directory):
    - **Standard items**: `cd $CONFIG_REPO_PATH && rostrum setup <branch-name>` (use `--quick` to skip dependency install and build)
-   - **Graphite stacks** (`metadata.pr_type: graphite_stack`): `cd $CONFIG_REPO_PATH && rostrum setup <branch-prefix> --quick` — Rostrum creates the worktree on a branch matching the prefix (e.g., `nas/heartbeat/npm-extraction`), then `gt create` handles per-step branching from there
+   - **Graphite stacks** (`worker.commit_strategy: graphite_stack`): `cd $CONFIG_REPO_PATH && rostrum setup <branch-prefix> --quick` — Rostrum creates the worktree on a branch matching the prefix (e.g., `nas/heartbeat/npm-extraction`), then `gt create` handles per-step branching from there
 
 2. **Spawn a session** in the new worktree:
    ```bash
@@ -20,13 +20,13 @@ When activating a work item or when the user asks to spin up a new environment:
    ```
    The worktree path is discovered via `git worktree list --porcelain` after Rostrum creates it. NEVER construct the path manually — Rostrum may hash directory names.
 
-3. **Initialize delegator** (if `delegator_enabled` for this item) — creates state directory and `state.json`
+3. **Initialize delegator** (if `worker.delegator_enabled` for this item) — creates state directory and `state.json`
 
 4. **Confirm to the user** with the session ID, branch name, and delegator status
 
 ## Graphite Stack Workflow
 
-Items with `metadata.pr_type: graphite_stack` and `metadata.stack_steps` follow a special flow:
+Items with `worker.commit_strategy: graphite_stack` and `worker.stack_steps` follow a special flow:
 
 - Worktree is created via Rostrum: `rostrum setup <branch-prefix> --quick` from the main repo directory
 - The branch prefix (e.g., `nas/heartbeat/npm-extraction`) is passed to Rostrum, which creates the worktree and checks out a branch with that name
@@ -35,18 +35,19 @@ Items with `metadata.pr_type: graphite_stack` and `metadata.stack_steps` follow 
 - Worker uses `gt create <branch> --message "<desc>"` for each step
 - After all steps: `gt submit --stack` to push and create PRs
 
-## Suspending a Stream for Review
+## Suspending a Stream for Review (Manual)
 
 ```bash
 ./scripts/suspend-stream.sh <item-id>
 ```
-Kills worker session and delegator state. Preserves worktree for later resume.
+Kills worker session and delegator. Preserves worktree for later resume. For emergency manual use only -- not part of the automated lifecycle.
 
-## Resuming a Suspended Stream
+## Resuming a Suspended Stream (Manual)
 
 ```bash
 ./scripts/resume-stream.sh <item-id> [--no-delegator]
 ```
+For emergency manual use only -- not part of the automated lifecycle.
 
 ## Tearing Down a Worktree + Session
 
@@ -87,13 +88,13 @@ Delegators are **not** persistent sessions. They are stateless `claude --print` 
 - Always run worktree setup and teardown commands from within the main repo directory.
 - Respect the concurrency limit (`concurrency.max_active` in config, derived from `max_active_projects + quick_fix_limit` if not set explicitly).
 - **Never run all tests** — always target specific test files.
-- **Self-targeting items (orchestrator repo)**: When creating a work item that targets the orchestrator repo itself, ALWAYS use `metadata.local_directory` with a workspace subdirectory (e.g. `~/.claude/orchestrator/workspaces/<item-id>`). NEVER use `metadata.repo_path` pointing to the orchestrator root — this would cause vmux to spawn a worker session at the orchestrator's own directory, taking over the orchestrator's session. Also set `metadata.no_branch: true` and `metadata.commit_strategy: single_commit_to_main` since these items commit directly to main without branches or PRs.
+- **Self-targeting items (orchestrator repo)**: When creating a work item that targets the orchestrator repo itself, ALWAYS set `environment.repo` to a workspace subdirectory (e.g. `~/.claude/orchestrator/workspaces/<item-id>`) and `environment.use_worktree: false`. NEVER point `environment.repo` to the orchestrator root — this would cause vmux to spawn a worker session at the orchestrator's own directory, taking over the orchestrator's session. Also set `worker.commit_strategy: commit_to_main` since these items commit directly to main without branches or PRs.
 
 ## Work Queue Management
 
 - Queue file: `~/.claude/orchestrator/queue.json`
 - Queue operations: use `scripts/lib/queue.py` for all reads and writes (provides file locking)
-- All work items share a single concurrency pool (`max_active`). There is no distinction between "project" and "quick_fix" types — behavior is driven by per-item configuration (`delegator_enabled`, `branch`, `commit_strategy`, `pr_type`, etc.)
+- All work items share a single concurrency pool (`max_active`). There is no distinction between "project" and "quick_fix" types — behavior is driven by per-item configuration (`worker.delegator_enabled`, `environment.branch`, `worker.commit_strategy`, etc.)
 - Always pick the highest priority queued item when a slot opens
 - When a PR is merged, auto-complete the work stream and free the slot
 

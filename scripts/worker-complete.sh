@@ -53,8 +53,8 @@ PREV_STATUS="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" status)"
 # Build update arguments
 UPDATE_ARGS=("$ITEM_ID" "status=$TARGET_STATUS")
 [[ "$TARGET_STATUS" == "completed" ]] && UPDATE_ARGS+=("completed_at=NOW")
-[[ -n "$PR_URL" ]] && UPDATE_ARGS+=("pr_url=$PR_URL")
-[[ -n "$MESSAGE" ]] && UPDATE_ARGS+=("metadata.completion_message=$MESSAGE")
+[[ -n "$PR_URL" ]] && UPDATE_ARGS+=("runtime.pr_url=$PR_URL")
+[[ -n "$MESSAGE" ]] && UPDATE_ARGS+=("runtime.completion_message=$MESSAGE")
 
 cd "$SCRIPT_DIR" && $QUEUE_PY update "${UPDATE_ARGS[@]}"
 

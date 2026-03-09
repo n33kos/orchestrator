@@ -40,12 +40,12 @@ interface WorkStreamListProps {
 }
 
 function findSession(sessions: SessionInfo[], item: WorkItem): SessionInfo | undefined {
-  if (item.session_id) {
-    const byId = sessions.find(s => s.id === item.session_id)
+  if (item.environment?.session_id) {
+    const byId = sessions.find(s => s.id === item.environment!.session_id)
     if (byId) return byId
   }
-  if (item.worktree_path) {
-    return sessions.find(s => s.cwd === item.worktree_path || item.worktree_path!.startsWith(s.cwd))
+  if (item.environment?.worktree_path) {
+    return sessions.find(s => s.cwd === item.environment!.worktree_path || item.environment!.worktree_path!.startsWith(s.cwd))
   }
   return undefined
 }
@@ -144,8 +144,7 @@ export function WorkStreamList({ items, loading, hasSearch, emptyLabel, emptyTab
     review: 1,
     queued: 2,
     planning: 3,
-    paused: 4,
-    completed: 5,
+    completed: 4,
   }
 
   const dir = sortDirection === 'asc' ? 1 : -1

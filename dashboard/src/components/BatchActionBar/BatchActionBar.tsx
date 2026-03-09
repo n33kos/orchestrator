@@ -31,17 +31,6 @@ export function BatchActionBar({ selectedCount, onStatusChange, onDelete, onClea
         </button>
         <button
           className={styles.ActionButton}
-          onClick={() => onStatusChange('paused')}
-          title="Pause all selected"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="6" y="4" width="4" height="16" />
-            <rect x="14" y="4" width="4" height="16" />
-          </svg>
-          Pause
-        </button>
-        <button
-          className={styles.ActionButton}
           onClick={() => onStatusChange('completed')}
           title="Complete all selected"
         >

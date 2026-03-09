@@ -12,13 +12,12 @@ interface GroupedListProps {
   onNavigate: (id: string) => void
 }
 
-const STATUS_ORDER: WorkItemStatus[] = ['active', 'review', 'queued', 'planning', 'paused', 'completed']
+const STATUS_ORDER: WorkItemStatus[] = ['active', 'review', 'queued', 'planning', 'completed']
 const STATUS_LABELS: Record<string, string> = {
   active: 'Active',
   review: 'In Review',
   queued: 'Queued',
   planning: 'Planning',
-  paused: 'Paused',
   completed: 'Completed',
 }
 
@@ -26,7 +25,6 @@ function getQuickAction(status: WorkItemStatus): { label: string; nextStatus: Wo
   if (status === 'queued' || status === 'planning') return { label: 'Activate', nextStatus: 'active' }
   if (status === 'active') return { label: 'Review', nextStatus: 'review' }
   if (status === 'review') return { label: 'Complete', nextStatus: 'completed' }
-  if (status === 'paused') return { label: 'Resume', nextStatus: 'active' }
   return null
 }
 
@@ -93,7 +91,7 @@ export function GroupedList({ items, onStatusChange, onNavigate }: GroupedListPr
                       </span>
                       <span className={styles.ColTitle}>{item.title}</span>
                       <span className={styles.ColBranch}>
-                        <code>{item.branch || '--'}</code>
+                        <code>{item.environment?.branch || '--'}</code>
                       </span>
                       <span className={styles.ColTime}>{timeAgo(item.activated_at || item.created_at)}</span>
                       <span className={styles.ColAction} onClick={e => e.stopPropagation()}>

@@ -49,12 +49,12 @@ if [[ "$ITEM_STATUS" != "queued" && "$ITEM_STATUS" != "planning" ]]; then
 fi
 
 # Extract fields in a single call
-IFS=$'\x1f' read -r ITEM_TITLE ITEM_DESC ITEM_TYPE ITEM_BRANCH CUSTOM_REPO \
-    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" title description type branch metadata.repo_path)
-CUSTOM_REPO="$(echo "$CUSTOM_REPO" | sed "s|~|$HOME|")"
+IFS=$'\x1f' read -r ITEM_TITLE ITEM_DESC ITEM_BRANCH ENV_REPO \
+    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" title description environment.branch environment.repo)
+ENV_REPO="$(echo "$ENV_REPO" | sed "s|~|$HOME|")"
 
 # Determine the target repo for context
-TARGET_REPO="${CUSTOM_REPO:-$REPO_PATH}"
+TARGET_REPO="${ENV_REPO:-$REPO_PATH}"
 
 echo "Generating plan for: $ITEM_TITLE ($ITEM_ID)"
 echo "  Repo: $TARGET_REPO"
@@ -171,7 +171,7 @@ print(json.dumps(plan))
 fi
 
 # Update queue item: simple fields via queue.py, plan object via locked_queue
-cd "$SCRIPT_DIR" && $QUEUE_PY update "$ITEM_ID" metadata.plan_file="$PLAN_FILE"
+cd "$SCRIPT_DIR" && $QUEUE_PY update "$ITEM_ID" plan.file="$PLAN_FILE"
 
 # Set the plan object and conditionally update status (requires locked write)
 cd "$SCRIPT_DIR" && python3 -c "
@@ -182,7 +182,7 @@ plan = json.loads(sys.stdin.read())
 with locked_queue(write=True) as ctx:
     item = find_item(ctx['data'], '$ITEM_ID')
     if item:
-        item.setdefault('metadata', {})['plan'] = plan
+        item.setdefault('plan', {}).update(plan)
         if item['status'] == 'queued':
             item['status'] = 'planning'
         ctx['modified'] = True

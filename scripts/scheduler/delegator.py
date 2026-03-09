@@ -144,33 +144,20 @@ def recover_delegators(cfg: Config, dry_run: bool) -> None:
     with locked_queue() as ctx:
         data = ctx["data"]
 
-    # Bug 1 fix: filter on delegator_enabled, not delegator_id
+    # Include both "active" and "review" items — delegators stay alive during review
     active_items = [
         i for i in data["items"]
-        if i["status"] == "active"
-        and str(i.get("delegator_enabled", "")).lower() in ("true",)
+        if i["status"] in ("active", "review")
+        and (i.get("worker") or {}).get("delegator_enabled") is True
     ]
 
     if not active_items:
         return
 
-    # Get live sessions (only needed if any item still has a delegator_id)
-    live_sessions = ""
-    if any(i.get("delegator_id") for i in active_items):
-        try:
-            result = subprocess.run(
-                [cfg.tool_vmux, "sessions"],
-                capture_output=True, text=True, timeout=10,
-            )
-            live_sessions = result.stdout if result.returncode == 0 else ""
-        except Exception:
-            live_sessions = ""
-
     now = datetime.now(timezone.utc)
 
     for item in active_items:
         item_id = item["id"]
-        delegator_id = item.get("delegator_id") or ""
         state_file = delegators_dir / item_id / "state.json"
         status_file = delegators_dir / item_id / "status.json"
 
@@ -182,11 +169,7 @@ def recover_delegators(cfg: Config, dry_run: bool) -> None:
         needs_respawn = False
         reason = ""
 
-        # Check stale delegator_id against live sessions
-        if delegator_id and delegator_id not in live_sessions:
-            needs_respawn = True
-            reason = f"session {delegator_id} not found in live sessions (stale delegator_id)"
-        elif status_file.exists():
+        if status_file.exists():
             try:
                 with open(status_file) as f:
                     status = json.load(f)
@@ -265,16 +248,6 @@ def recover_delegators(cfg: Config, dry_run: bool) -> None:
                 f"Respawning delegator for {item_id} (attempt {respawn_count + 1}): {reason}",
                 item_id=item_id, severity="warn",
             )
-            # Kill existing session if there's a stale delegator_id
-            if delegator_id:
-                try:
-                    subprocess.run(
-                        [cfg.tool_vmux, "kill", delegator_id],
-                        capture_output=True, timeout=10,
-                    )
-                    time.sleep(1)
-                except Exception:
-                    pass
             # Respawn
             try:
                 result = subprocess.run(
@@ -292,15 +265,7 @@ def recover_delegators(cfg: Config, dry_run: bool) -> None:
                         item_id=item_id, severity="error",
                     )
                 else:
-                    # Bug 1 fix: clear stale delegator_id after successful respawn
-                    try:
-                        subprocess.run(
-                            ["python3", "-m", "lib.queue", "update", item_id, "delegator_id=NULL"],
-                            cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
-                        )
-                    except Exception:
-                        pass
-                    # Bug 2 fix: only count successful respawns toward the limit
+                    # Only count successful respawns toward the limit
                     _update_respawn_state(state_file, respawn_count + 1, now)
             except subprocess.TimeoutExpired:
                 _update_respawn_state(state_file, respawn_count + 1, now)
@@ -324,7 +289,7 @@ def _update_status_timestamp(item_id: str) -> None:
 
 
 def trigger_delegator_cycles(cfg: Config, dry_run: bool) -> None:
-    """Run delegator one-shot cycles for active items with delegator enabled."""
+    """Run delegator one-shot cycles for active/review items with delegator enabled."""
     pause_file = os.path.expanduser("~/.claude/orchestrator/paused")
     if os.path.isfile(pause_file):
         print("[scheduler] Paused — skipping delegator cycles")
@@ -333,11 +298,12 @@ def trigger_delegator_cycles(cfg: Config, dry_run: bool) -> None:
     with locked_queue() as ctx:
         data = ctx["data"]
 
+    # Include both "active" and "review" items — delegators continue cycling during review.
+    # Review items may not have a session_id (worker could be idle), so don't require it.
     active_items = [
         i for i in data["items"]
-        if i["status"] == "active"
-        and str(i.get("delegator_enabled", "")).lower() in ("true",)
-        and i.get("session_id")
+        if i["status"] in ("active", "review")
+        and (i.get("worker") or {}).get("delegator_enabled") is True
     ]
 
     processes = []
@@ -376,6 +342,11 @@ def trigger_delegator_cycles(cfg: Config, dry_run: bool) -> None:
         # Run the full pipeline: preprocess → triage → (optional escalate) → postprocess
         # Run in background subprocess to allow parallel execution
         try:
+            # Set cwd to the delegator directory so ccusage attributes
+            # costs to the correct session (delegator vs worker)
+            delegator_cwd = str(delegator_dir)
+            os.makedirs(delegator_cwd, exist_ok=True)
+
             proc = subprocess.Popen(
                 [
                     "bash", "-c",
@@ -449,6 +420,7 @@ except Exception:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 env=EXEC_ENV,
+                cwd=delegator_cwd,
             )
             processes.append((item_id, proc))
         except Exception as e:

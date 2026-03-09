@@ -97,7 +97,6 @@ for item in data['items']:
         'active': '●',
         'queued': '○',
         'planning': '◇',
-        'paused': '◎',
         'review': '◆',
         'completed': '✓',
     }.get(item['status'], '?')

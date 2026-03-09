@@ -23,9 +23,9 @@ bash ~/orchestrator/scripts/health-check.sh
 
 3. For each issue, suggest a fix:
    - Zombie: `vmux reconnect <path>` or auto-recover all
-   - Stalled: Check on the worker, or pause the stream
+   - Stalled: Check on the worker, or move the stream to review
    - Blocked: Complete the blocking dependencies or remove them
-   - Concurrency: Pause or complete an active item
+   - Concurrency: Complete an active item or move one to review
 
 4. If the user wants to auto-recover zombies:
 

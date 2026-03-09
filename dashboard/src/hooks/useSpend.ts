@@ -7,11 +7,18 @@ interface SpendTotals {
   all_time: number
 }
 
+export interface DailySpendEntry {
+  date: string
+  totalCost: number
+}
+
 interface SpendData {
   /** Orchestrator-managed item spend totals (from queue metadata) */
   orchestrator: SpendTotals
   /** Total user spend across all Claude usage (from ccusage) */
   overall: SpendTotals | null
+  /** Daily spend breakdown from ccusage */
+  daily: DailySpendEntry[]
   loading: boolean
   /** Trigger a fresh fetch (calls /api/spend which runs ccusage — slow) */
   refresh: () => void
@@ -22,6 +29,7 @@ const EMPTY_TOTALS: SpendTotals = { today: 0, week: 0, month: 0, all_time: 0 }
 export function useSpend(): SpendData {
   const [orchestrator, setOrchestrator] = useState<SpendTotals>(EMPTY_TOTALS)
   const [overall, setOverall] = useState<SpendTotals | null>(null)
+  const [daily, setDaily] = useState<DailySpendEntry[]>([])
   const [loading, setLoading] = useState(true)
 
   // On mount, load cached data for instant display
@@ -35,6 +43,7 @@ export function useSpend(): SpendData {
         if (data) {
           setOrchestrator(data.totals ?? EMPTY_TOTALS)
           setOverall(data.overall ?? null)
+          setDaily(data.daily ?? [])
         }
       })
       .catch(() => {})
@@ -50,11 +59,12 @@ export function useSpend(): SpendData {
         if (data) {
           setOrchestrator(data.totals ?? EMPTY_TOTALS)
           setOverall(data.overall ?? null)
+          setDaily(data.daily ?? [])
         }
       })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
-  return { orchestrator, overall, loading, refresh }
+  return { orchestrator, overall, daily, loading, refresh }
 }

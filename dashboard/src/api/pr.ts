@@ -90,7 +90,7 @@ export function registerPrRoutes(server: ViteDevServer) {
         const parts = branch.split('/')
         const prefix = parts.length > 3 ? parts.slice(0, 3).join('/') : branch
 
-        execFile('gh', ['pr', 'list', '--repo', `${owner}/${repo}`, '--author', author, '--search', `is:pr head:${prefix}`, '--json', 'number,title,state,reviewDecision,statusCheckRollup,additions,deletions,changedFiles,headRefName', '--limit', '20'], { timeout: 15000 }, (err2, stdout2) => {
+        execFile('gh', ['pr', 'list', '--repo', `${owner}/${repo}`, '--author', author, '--search', `is:pr head:${prefix}`, '--state', 'all', '--json', 'number,title,state,reviewDecision,statusCheckRollup,additions,deletions,changedFiles,headRefName,isDraft', '--limit', '20'], { timeout: 15000 }, (err2, stdout2) => {
           if (err2) { res.end(JSON.stringify({ prs: [], error: 'Failed to list stack PRs' })); return }
 
           try {

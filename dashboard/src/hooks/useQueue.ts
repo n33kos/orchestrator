@@ -5,7 +5,6 @@ function normalizeItem(raw: Record<string, unknown>): WorkItem {
   return {
     ...raw,
     blocked_by: Array.isArray(raw.blocked_by) ? raw.blocked_by as string[] : [],
-    pr_url: (raw.pr_url as string) ?? null,
   } as WorkItem
 }
 
@@ -42,7 +41,7 @@ export function useQueue(pollIntervalMs = 5000) {
     }
   }, [fetchQueue, pollIntervalMs])
 
-  const updateItem = useCallback(async (id: string, updates: { status?: WorkItemStatus; priority?: number; delegator_enabled?: boolean; title?: string; description?: string; pr_url?: string | null; branch?: string }) => {
+  const updateItem = useCallback(async (id: string, updates: { status?: WorkItemStatus; priority?: number; title?: string; description?: string; environment?: Partial<WorkItem['environment']>; worker?: Partial<WorkItem['worker']>; plan?: Partial<WorkItem['plan']>; runtime?: Partial<WorkItem['runtime']> }) => {
     // Optimistic update: apply changes locally before API responds
     setItems(prev => prev.map(item => {
       if (item.id !== id) return item
@@ -70,7 +69,7 @@ export function useQueue(pollIntervalMs = 5000) {
 
   const reorderItems = useCallback(async (dragId: string, dropId: string) => {
     // Optimistic: reorder locally using the same visual sort logic
-    const statusOrder: Record<string, number> = { active: 0, review: 1, queued: 2, planning: 3, paused: 4, completed: 5 }
+    const statusOrder: Record<string, number> = { active: 0, review: 1, queued: 2, planning: 3, completed: 4 }
     setItems(prev => {
       const sorted = [...prev].sort((a, b) => {
         const sd = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99)
@@ -128,7 +127,6 @@ export function useQueue(pollIntervalMs = 5000) {
   const activeItems = items.filter(i => i.status === 'active')
   const queuedItems = items.filter(i => i.status === 'queued')
   const planningItems = items.filter(i => i.status === 'planning')
-  const pausedItems = items.filter(i => i.status === 'paused')
   const reviewItems = items.filter(i => i.status === 'review')
   const completedItems = items.filter(i => i.status === 'completed')
   const blockedItems = items.filter(i => (i.blocked_by || []).length > 0 && (i.blocked_by || []).some(depId => {
@@ -141,7 +139,6 @@ export function useQueue(pollIntervalMs = 5000) {
     activeItems,
     queuedItems,
     planningItems,
-    pausedItems,
     reviewItems,
     completedItems,
     blockedItems,

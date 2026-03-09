@@ -37,19 +37,15 @@ ITEM_JSON="$(cd "$SCRIPT_DIR" && $QUEUE_PY get-item "$ITEM_ID")"
 
 # Validate item state
 ITEM_STATUS="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('status',''))")"
-ITEM_SESSION="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('session_id',''))")"
-if [[ "$ITEM_STATUS" != "active" ]]; then
-    echo "ERROR: Item $ITEM_ID is $ITEM_STATUS, expected active" >&2
-    exit 1
-fi
-if [[ -z "$ITEM_SESSION" ]]; then
-    echo "ERROR: Item $ITEM_ID has no worker session" >&2
+ITEM_SESSION="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print((json.load(sys.stdin).get('environment') or {}).get('session_id',''))")"
+if [[ "$ITEM_STATUS" != "active" && "$ITEM_STATUS" != "review" ]]; then
+    echo "ERROR: Item $ITEM_ID is $ITEM_STATUS, expected active or review" >&2
     exit 1
 fi
 
 # Extract fields
 IFS=$'\x1f' read -r WORKER_SESSION_ID WORKTREE_PATH ITEM_TITLE ITEM_BRANCH \
-    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" session_id worktree_path title branch)
+    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" environment.session_id environment.worktree_path title environment.branch)
 
 echo "Initializing delegator for: $ITEM_TITLE ($ITEM_ID)"
 echo "  Worker session: $WORKER_SESSION_ID"
@@ -120,9 +116,9 @@ with open('$DELEGATOR_DIR/state.json', 'w') as f:
     f.write('\n')
 "
 
-# Update queue item metadata
+# Update queue item runtime status
 cd "$SCRIPT_DIR" && $QUEUE_PY update "$ITEM_ID" \
-    metadata.delegator_status=initializing
+    runtime.delegator_status=initializing
 
 echo ""
 echo "Delegator initialized!"

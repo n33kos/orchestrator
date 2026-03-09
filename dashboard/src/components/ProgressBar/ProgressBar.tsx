@@ -11,7 +11,6 @@ const LABEL: Record<string, string> = {
   planning: 'Planning',
   active: 'Active',
   review: 'In Review',
-  paused: 'Paused',
   completed: 'Completed',
 }
 
@@ -25,7 +24,6 @@ function getProgress(status: WorkItemStatus): number {
 function getColor(status: WorkItemStatus): string {
   if (status === 'completed') return 'var(--color-success)'
   if (status === 'review') return 'var(--color-warning)'
-  if (status === 'paused') return 'var(--color-text-muted)'
   return 'var(--color-primary)'
 }
 

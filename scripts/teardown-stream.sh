@@ -39,21 +39,15 @@ done
 
 # Read item from queue
 QUEUE_PY="python3 -m lib.queue"
-IFS=$'\x1f' read -r ITEM_BRANCH ITEM_TITLE SESSION_ID DELEGATOR_ID \
-    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" branch title session_id delegator_id)
+IFS=$'\x1f' read -r ITEM_BRANCH ITEM_TITLE SESSION_ID \
+    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" environment.branch title environment.session_id)
 
 echo "Tearing down: $ITEM_TITLE ($ITEM_ID)"
 echo "  Branch: $ITEM_BRANCH"
 
-# Step 1: Kill delegator if running
-if [[ -n "$DELEGATOR_ID" ]]; then
-    echo ""
-    echo "Step 1: Killing delegator ($DELEGATOR_ID)..."
-    $VMUX kill "$DELEGATOR_ID" 2>&1 || echo "  Delegator already stopped"
-else
-    echo ""
-    echo "Step 1: No delegator to kill"
-fi
+# Step 1: Clean up delegator
+echo ""
+echo "Step 1: Cleaning up delegator..."
 
 # Clean up delegator status directory
 DELEGATOR_DIR="$HOME/.claude/orchestrator/delegators/$ITEM_ID"
@@ -88,7 +82,7 @@ fi
 echo ""
 echo "Step 4: Updating queue..."
 cd "$SCRIPT_DIR" && $QUEUE_PY update "$ITEM_ID" \
-    status=completed completed_at=NOW session_id=NULL delegator_id=NULL worktree_path=NULL
+    status=completed completed_at=NOW environment.session_id=NULL environment.worktree_path=NULL
 echo "  Status: completed"
 
 # Step 5: Auto-train profile from the session transcript

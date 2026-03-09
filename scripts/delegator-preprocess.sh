@@ -78,20 +78,20 @@ ITEM_JSON="$(cd "$SCRIPT_DIR" && $QUEUE_PY get-item "$ITEM_ID" 2>/dev/null)" || 
 }
 
 # Step 2: Extract fields from queue
-WORKER_SESSION_ID="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('session_id',''))" 2>/dev/null)" || WORKER_SESSION_ID=""
-WORKTREE_PATH="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('worktree_path',''))" 2>/dev/null)" || WORKTREE_PATH=""
-BRANCH="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('branch',''))" 2>/dev/null)" || BRANCH=""
+WORKER_SESSION_ID="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print((json.load(sys.stdin).get('environment') or {}).get('session_id',''))" 2>/dev/null)" || WORKER_SESSION_ID=""
+WORKTREE_PATH="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print((json.load(sys.stdin).get('environment') or {}).get('worktree_path',''))" 2>/dev/null)" || WORKTREE_PATH=""
+BRANCH="$(echo "$ITEM_JSON" | python3 -c "import json,sys; print((json.load(sys.stdin).get('environment') or {}).get('branch',''))" 2>/dev/null)" || BRANCH=""
 
 # Resolve actual git repo path (may differ from worktree_path for workspace-based items)
 GIT_REPO_PATH="$(echo "$ITEM_JSON" | python3 -c "
 import json, sys, os
 data = json.load(sys.stdin)
-meta = data.get('metadata', {})
-repo = meta.get('actual_repo_path') or meta.get('repo_path', '')
+env = data.get('environment') or {}
+repo = env.get('repo', '')
 if repo:
     print(os.path.expanduser(repo))
 else:
-    print(data.get('worktree_path', ''))
+    print(env.get('worktree_path', ''))
 " 2>/dev/null)" || GIT_REPO_PATH="$WORKTREE_PATH"
 
 # ============================================================
@@ -170,8 +170,17 @@ fi
 # Step 8: Check for PR
 # ============================================================
 PR_JSON=""
+IS_GRAPHITE_STACK="$(echo "$ITEM_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print('true' if (d.get('worker') or {}).get('commit_strategy')=='graphite_stack' else 'false')" 2>/dev/null)" || IS_GRAPHITE_STACK="false"
+
 if [[ -n "$GIT_REPO_PATH" && -d "$GIT_REPO_PATH" && -n "$BRANCH" ]]; then
-    PR_JSON="$(cd "$GIT_REPO_PATH" && gh pr list --head "$BRANCH" --json number,title,state,url --limit 1 2>/dev/null)" || PR_JSON="[]"
+    if [[ "$IS_GRAPHITE_STACK" == "true" ]]; then
+        # Graphite stacks: branch is a prefix, actual PR branches are children.
+        # Use --search with head: prefix to find all stack PRs, --state all to include drafts.
+        PR_JSON="$(cd "$GIT_REPO_PATH" && gh pr list --search "head:$BRANCH" --state all --json number,title,state,url,isDraft --limit 20 2>/dev/null)" || PR_JSON="[]"
+    else
+        # Standard items: exact branch match, --state all to include drafts
+        PR_JSON="$(cd "$GIT_REPO_PATH" && gh pr list --head "$BRANCH" --state all --json number,title,state,url,isDraft --limit 1 2>/dev/null)" || PR_JSON="[]"
+    fi
 fi
 
 # ============================================================
@@ -180,12 +189,40 @@ fi
 CI_CHECKS_RAW=""
 MERGE_STATUS_JSON=""
 PR_NUMBER=""
+# Per-PR CI checks and merge status for Graphite stacks (JSON array)
+PER_PR_CI_JSON="[]"
 
 if [[ -n "$PR_JSON" && "$PR_JSON" != "[]" ]]; then
-    PR_NUMBER="$(echo "$PR_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d[0]['number'] if d else '')" 2>/dev/null)" || PR_NUMBER=""
-    if [[ -n "$PR_NUMBER" ]]; then
-        CI_CHECKS_RAW="$(cd "$GIT_REPO_PATH" && gh pr checks "$PR_NUMBER" 2>/dev/null)" || CI_CHECKS_RAW=""
-        MERGE_STATUS_JSON="$(cd "$GIT_REPO_PATH" && gh pr view "$PR_NUMBER" --json mergeable,mergeStateStatus 2>/dev/null)" || MERGE_STATUS_JSON=""
+    if [[ "$IS_GRAPHITE_STACK" == "true" ]]; then
+        # Graphite stack: collect CI checks and merge status for ALL PRs
+        PR_NUMBERS="$(echo "$PR_JSON" | python3 -c "import json,sys; [print(p['number']) for p in json.load(sys.stdin)]" 2>/dev/null)" || PR_NUMBERS=""
+        PER_PR_ENTRIES="["
+        FIRST_ENTRY="true"
+        while IFS= read -r NUM; do
+            [[ -z "$NUM" ]] && continue
+            PR_CI="$(cd "$GIT_REPO_PATH" && gh pr checks "$NUM" 2>/dev/null || true)"
+            PR_MERGE="$(cd "$GIT_REPO_PATH" && gh pr view "$NUM" --json mergeable,mergeStateStatus 2>/dev/null)" || PR_MERGE="{}"
+            # Escape for JSON embedding
+            PR_CI_ESCAPED="$(echo "$PR_CI" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" 2>/dev/null)" || PR_CI_ESCAPED='""'
+            PR_MERGE_ESCAPED="$(echo "$PR_MERGE" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" 2>/dev/null)" || PR_MERGE_ESCAPED='"{}"'
+            if [[ "$FIRST_ENTRY" == "true" ]]; then
+                FIRST_ENTRY="false"
+            else
+                PER_PR_ENTRIES+=","
+            fi
+            PER_PR_ENTRIES+="{\"number\":$NUM,\"ci_raw\":$PR_CI_ESCAPED,\"merge_raw\":$PR_MERGE_ESCAPED}"
+        done <<< "$PR_NUMBERS"
+        PER_PR_ENTRIES+="]"
+        PER_PR_CI_JSON="$PER_PR_ENTRIES"
+        # Set PR_NUMBER to first for backward compat; CI_CHECKS_RAW stays empty (per-PR used instead)
+        PR_NUMBER="$(echo "$PR_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d[0]['number'] if d else '')" 2>/dev/null)" || PR_NUMBER=""
+    else
+        # Standard (non-stack) item: single PR
+        PR_NUMBER="$(echo "$PR_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d[0]['number'] if d else '')" 2>/dev/null)" || PR_NUMBER=""
+        if [[ -n "$PR_NUMBER" ]]; then
+            CI_CHECKS_RAW="$(cd "$GIT_REPO_PATH" && gh pr checks "$PR_NUMBER" 2>/dev/null || true)"
+            MERGE_STATUS_JSON="$(cd "$GIT_REPO_PATH" && gh pr view "$PR_NUMBER" --json mergeable,mergeStateStatus 2>/dev/null)" || MERGE_STATUS_JSON=""
+        fi
     fi
 fi
 
@@ -200,43 +237,75 @@ fi
 # ============================================================
 # Step 12: Compile JSON payload via Python
 # ============================================================
-ITEM_ID_ENV="$ITEM_ID" \
-TIMESTAMP_ENV="$TIMESTAMP" \
-SESSION_ALIVE_ENV="$SESSION_ALIVE" \
-IDLE_CHECK_ENV="$IDLE_CHECK" \
-ACTIVITY_SUMMARY_ENV="$ACTIVITY_SUMMARY" \
-NEW_COMMITS_RAW_ENV="$NEW_COMMITS_RAW" \
-DIFF_STAT_ENV="$DIFF_STAT" \
-DIFF_CONTENT_ENV="$DIFF_CONTENT" \
-PR_JSON_ENV="$PR_JSON" \
-CI_CHECKS_RAW_ENV="$CI_CHECKS_RAW" \
-MERGE_STATUS_JSON_ENV="$MERGE_STATUS_JSON" \
-PREVIOUS_STATE_ENV="$PREVIOUS_STATE" \
-CONVERSATION_RECENT_ENV="$CONVERSATION_RECENT" \
-ITEM_JSON_ENV="$ITEM_JSON" \
-PROFILE_CONTENT_ENV="$PROFILE_CONTENT" \
-OUTPUT_FILE_ENV="$OUTPUT_FILE" \
-python3 << 'PYEOF'
+# Pipe all data as null-delimited fields through stdin to a Python script that
+# creates a single JSON payload file. This avoids the "Argument list too long"
+# error from exceeding macOS's ~256KB execve limit when passing large
+# diffs/transcripts as environment variables. Bash printf+pipe uses write()
+# syscalls, not execve, so there is no size limit.
+PAYLOAD_FILE="$DELEGATOR_DIR/preprocess-payload.json"
+
+# Step 12a: Serialize all raw inputs into a single JSON file via stdin pipe.
+# Fields are null-delimited (\0) so they can contain any content safely.
+printf '%s\0' \
+    "$ITEM_ID" \
+    "$TIMESTAMP" \
+    "$SESSION_ALIVE" \
+    "$IDLE_CHECK" \
+    "$ACTIVITY_SUMMARY" \
+    "$NEW_COMMITS_RAW" \
+    "$DIFF_STAT" \
+    "$DIFF_CONTENT" \
+    "$PR_JSON" \
+    "$CI_CHECKS_RAW" \
+    "$MERGE_STATUS_JSON" \
+    "$PREVIOUS_STATE" \
+    "$CONVERSATION_RECENT" \
+    "$ITEM_JSON" \
+    "$PROFILE_CONTENT" \
+    "$OUTPUT_FILE" \
+    "$PER_PR_CI_JSON" \
+| python3 -c '
+import json, sys
+fields = sys.stdin.buffer.read().split(b"\0")
+# Last split element is empty (trailing delimiter)
+keys = [
+    "item_id", "timestamp", "session_alive", "idle_check",
+    "activity_summary", "new_commits_raw", "diff_stat", "diff_content",
+    "pr_json", "ci_checks_raw", "merge_status_json", "previous_state",
+    "conversation_recent", "item_json", "profile_content", "output_file",
+    "per_pr_ci_json",
+]
+data = {k: fields[i].decode("utf-8", errors="replace") if i < len(fields) else "" for i, k in enumerate(keys)}
+json.dump(data, sys.stdout)
+' > "$PAYLOAD_FILE"
+
+# Step 12b: Process the single payload file into the final output.
+python3 - "$PAYLOAD_FILE" << 'PYEOF'
 import json
 import os
 import re
+import sys
 
-item_id = os.environ["ITEM_ID_ENV"]
-timestamp = os.environ["TIMESTAMP_ENV"]
-session_alive = os.environ["SESSION_ALIVE_ENV"] == "true"
-idle_check = os.environ["IDLE_CHECK_ENV"]
-activity_summary_raw = os.environ["ACTIVITY_SUMMARY_ENV"]
-new_commits_raw = os.environ["NEW_COMMITS_RAW_ENV"]
-diff_stat = os.environ["DIFF_STAT_ENV"]
-diff_content = os.environ["DIFF_CONTENT_ENV"]
-pr_json_raw = os.environ["PR_JSON_ENV"]
-ci_checks_raw = os.environ["CI_CHECKS_RAW_ENV"]
-merge_status_raw = os.environ["MERGE_STATUS_JSON_ENV"]
-previous_state_raw = os.environ["PREVIOUS_STATE_ENV"]
-conversation_recent = os.environ.get("CONVERSATION_RECENT_ENV", "")
-item_json_raw = os.environ.get("ITEM_JSON_ENV", "{}")
-profile_content = os.environ.get("PROFILE_CONTENT_ENV", "")
-output_file = os.environ["OUTPUT_FILE_ENV"]
+with open(sys.argv[1], "r") as f:
+    raw = json.load(f)
+
+item_id = raw.get("item_id", "")
+timestamp = raw.get("timestamp", "")
+session_alive = raw.get("session_alive", "") == "true"
+idle_check = raw.get("idle_check", "")
+activity_summary_raw = raw.get("activity_summary", "")
+new_commits_raw = raw.get("new_commits_raw", "")
+diff_stat = raw.get("diff_stat", "")
+diff_content = raw.get("diff_content", "")
+pr_json_raw = raw.get("pr_json", "")
+ci_checks_raw = raw.get("ci_checks_raw", "")
+merge_status_raw = raw.get("merge_status_json", "")
+per_pr_ci_json_raw = raw.get("per_pr_ci_json", "[]")
+previous_state_raw = raw.get("previous_state", "")
+conversation_recent = raw.get("conversation_recent", "")
+item_json_raw = raw.get("item_json", "") or "{}"
+profile_content = raw.get("profile_content", "")
+output_file = raw.get("output_file", "")
 
 # Parse activity summary (may be JSON or plain text)
 try:
@@ -265,6 +334,7 @@ pr_exists = False
 pr_url = ""
 pr_state = ""
 pr_number = None
+all_prs = []
 try:
     pr_list = json.loads(pr_json_raw) if pr_json_raw else []
     if pr_list:
@@ -272,37 +342,102 @@ try:
         pr_url = pr_list[0].get("url", "")
         pr_state = pr_list[0].get("state", "")
         pr_number = pr_list[0].get("number")
+        # For Graphite stacks, capture all PRs
+        all_prs = [
+            {
+                "number": p.get("number"),
+                "title": p.get("title", ""),
+                "state": p.get("state", ""),
+                "url": p.get("url", ""),
+                "isDraft": p.get("isDraft", False),
+            }
+            for p in pr_list
+        ]
 except (json.JSONDecodeError, ValueError):
     pass
 
-# Parse CI checks
+def parse_ci_checks(raw_text):
+    """Parse gh pr checks output into structured counts."""
+    total = 0
+    passing = 0
+    failing = 0
+    failing_names_list = []
+    for line in raw_text.strip().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        total += 1
+        if re.search(r'\bpass\b', line, re.IGNORECASE):
+            passing += 1
+        elif re.search(r'\bfail\b', line, re.IGNORECASE):
+            failing += 1
+            name = re.split(r'\t|\s{2,}', line)[0]
+            failing_names_list.append(name)
+    return total, passing, failing, failing_names_list
+
+def parse_merge_status(raw_text):
+    """Parse gh pr view merge status JSON."""
+    try:
+        if raw_text:
+            data = json.loads(raw_text)
+            return (data.get("mergeable") == "MERGEABLE", data.get("mergeStateStatus"))
+    except (json.JSONDecodeError, ValueError):
+        pass
+    return None, None
+
+# Parse per-PR CI data (Graphite stacks) or fall back to single-PR parsing
+per_pr_ci = []
 ci_total = 0
 ci_passing = 0
 ci_failing = 0
 failing_names = []
-for line in ci_checks_raw.strip().splitlines():
-    line = line.strip()
-    if not line:
-        continue
-    ci_total += 1
-    if re.search(r'\bpass\b', line, re.IGNORECASE):
-        ci_passing += 1
-    elif re.search(r'\bfail\b', line, re.IGNORECASE):
-        ci_failing += 1
-        # Extract check name (first column before any tab/multiple spaces)
-        name = re.split(r'\t|\s{2,}', line)[0]
-        failing_names.append(name)
-
-# Parse merge status
 mergeable = None
 merge_state_status = None
+
 try:
-    if merge_status_raw:
-        merge_data = json.loads(merge_status_raw)
-        mergeable = merge_data.get("mergeable") == "MERGEABLE"
-        merge_state_status = merge_data.get("mergeStateStatus")
+    per_pr_entries = json.loads(per_pr_ci_json_raw) if per_pr_ci_json_raw else []
 except (json.JSONDecodeError, ValueError):
-    pass
+    per_pr_entries = []
+
+if per_pr_entries:
+    # Graphite stack: aggregate CI and merge status across all PRs
+    any_unmergeable = False
+    unmergeable_prs = []
+    for entry in per_pr_entries:
+        pr_num = entry.get("number")
+        pr_ci_raw = entry.get("ci_raw", "")
+        pr_merge_raw = entry.get("merge_raw", "")
+        t, p, f, fn = parse_ci_checks(pr_ci_raw)
+        ci_total += t
+        ci_passing += p
+        ci_failing += f
+        failing_names.extend(fn)
+        per_pr_ci.append({
+            "number": pr_num,
+            "total": t,
+            "passing": p,
+            "failing": f,
+            "failing_names": fn,
+            "no_checks": t == 0,
+        })
+        # Parse merge status for this PR
+        pr_mergeable, pr_merge_state = parse_merge_status(pr_merge_raw)
+        per_pr_ci[-1]["mergeable"] = pr_mergeable
+        per_pr_ci[-1]["merge_state_status"] = pr_merge_state
+        if pr_mergeable is False:
+            any_unmergeable = True
+            unmergeable_prs.append(pr_num)
+    # Aggregate: unmergeable if ANY PR is unmergeable
+    if any_unmergeable:
+        mergeable = False
+        merge_state_status = f"UNMERGEABLE_PRS:{','.join(str(n) for n in unmergeable_prs)}"
+    elif any(e.get("mergeable") is True for e in per_pr_ci):
+        mergeable = True
+        merge_state_status = "MERGEABLE"
+else:
+    # Standard single-PR path
+    ci_total, ci_passing, ci_failing, failing_names = parse_ci_checks(ci_checks_raw)
+    mergeable, merge_state_status = parse_merge_status(merge_status_raw)
 
 # Parse previous state
 try:
@@ -320,12 +455,16 @@ except (json.JSONDecodeError, ValueError):
 item_context = {
     "title": item_data.get("title", ""),
     "description": item_data.get("description", ""),
-    "metadata": item_data.get("metadata", {}),
+    "status": item_data.get("status", ""),
+    "environment": item_data.get("environment", {}),
+    "worker": item_data.get("worker", {}),
+    "plan": item_data.get("plan", {}),
+    "runtime": item_data.get("runtime", {}),
 }
 
-# Read plan file if specified in metadata
+# Read plan file if specified
 plan_content = ""
-plan_file = item_data.get("metadata", {}).get("plan_file", "")
+plan_file = (item_data.get("plan") or {}).get("file", "")
 if plan_file:
     try:
         with open(os.path.expanduser(plan_file)) as pf:
@@ -359,11 +498,14 @@ payload = {
         "exists": pr_exists,
         "url": pr_url,
         "state": pr_state,
+        "all_prs": all_prs,
         "ci_checks": {
             "total": ci_total,
             "passing": ci_passing,
             "failing": ci_failing,
             "failing_names": failing_names,
+            "some_prs_missing_checks": any(e.get("no_checks") for e in per_pr_ci) if per_pr_ci else (ci_total == 0 and pr_exists),
+            "per_pr": per_pr_ci if per_pr_ci else None,
         },
         "mergeable": mergeable,
         "merge_state_status": merge_state_status,

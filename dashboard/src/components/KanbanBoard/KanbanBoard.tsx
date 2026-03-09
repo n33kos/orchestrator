@@ -2,7 +2,6 @@ import { useState } from 'react'
 import styles from './KanbanBoard.module.scss'
 import classnames from 'classnames'
 import { StatusBadge } from '../StatusBadge/StatusBadge.tsx'
-import { PriorityBadge } from '../PriorityBadge/PriorityBadge.tsx'
 import { timeAgo } from '../../utils/time.ts'
 import { useTimeRefresh } from '../../hooks/useTimeRefresh.ts'
 import type { WorkItem, WorkItemStatus } from '../../types.ts'
@@ -87,15 +86,16 @@ export function KanbanBoard({ items, sortField = 'priority', sortDirection = 'as
   const grouped: Record<ColumnKey, WorkItem[]> = {
     plan_review: [],
     queued: [],
+    planning: [],
     active: [],
     review: [],
     completed: [],
   }
 
   for (const item of items) {
-    if (item.status === 'planning' && (item.metadata.plan as Record<string, unknown>)?.approved !== true) {
+    if (item.status === 'planning' && item.plan?.approved !== true) {
       grouped.plan_review.push(item)
-    } else if (item.status === 'queued' || item.status === 'paused' || (item.status === 'planning' && (item.metadata.plan as Record<string, unknown>)?.approved === true)) {
+    } else if (item.status === 'queued' || (item.status === 'planning' && item.plan?.approved === true)) {
       grouped.queued.push(item)
     } else if (item.status in grouped) {
       grouped[item.status as ColumnKey].push(item)
@@ -134,12 +134,33 @@ export function KanbanBoard({ items, sortField = 'priority', sortDirection = 'as
               >
                 <div className={styles.CardHeader}>
                   <span className={styles.CardTitle}>{item.title}</span>
-                  <PriorityBadge priority={item.priority} />
+                  {(() => {
+                    const isActive = item.worker?.delegator_enabled && (item.status === 'active' || item.status === 'review')
+                    const isIdle = item.worker?.delegator_enabled && !isActive
+                    const tooltip = !item.worker?.delegator_enabled
+                      ? 'Delegator disabled'
+                      : isActive
+                        ? 'Delegator active — monitoring this work stream'
+                        : 'Delegator enabled — waiting for activation'
+                    return (
+                      <span
+                        className={classnames(
+                          styles.DelegatorIndicator,
+                          !item.worker?.delegator_enabled && styles.DelegatorDisabled,
+                          isIdle && styles.DelegatorIdle,
+                          isActive && styles.DelegatorActive,
+                        )}
+                        title={tooltip}
+                      >
+                        {'\u25C9'}
+                      </span>
+                    )
+                  })()}
                 </div>
                 <div className={styles.CardMeta}>
                   <span className={styles.CardType}>{item.id.toUpperCase()}</span>
                   {(() => {
-                    const spendUsd = (item.metadata.spend as { total_usd?: number } | undefined)?.total_usd
+                    const spendUsd = (item.runtime?.spend as { total_usd?: number } | undefined)?.total_usd
                     return spendUsd != null && spendUsd > 0 ? (
                       <span
                         className={classnames(

@@ -62,13 +62,12 @@ done
 QUEUE_PY="python3 -m lib.queue"
 ITEM_JSON="$(cd "$SCRIPT_DIR" && $QUEUE_PY get-item "$ITEM_ID")"
 
-IFS=$'\x1f' read -r ITEM_STATUS ITEM_TYPE ITEM_BRANCH ITEM_TITLE DELEGATOR_ENABLED CUSTOM_REPO LOCAL_DIR PR_TYPE <<< \
-    "$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" status type branch title delegator_enabled metadata.repo_path metadata.local_directory metadata.pr_type)"
+IFS=$'\x1f' read -r ITEM_STATUS ITEM_BRANCH ITEM_TITLE DELEGATOR_ENABLED ENV_REPO USE_WORKTREE COMMIT_STRATEGY <<< \
+    "$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" status environment.branch title worker.delegator_enabled environment.repo environment.use_worktree worker.commit_strategy)"
 
-# Apply defaults for delegator_enabled and expand ~ in paths
+# Apply defaults for delegator_enabled and expand ~ in repo path
 [[ -z "$DELEGATOR_ENABLED" || "$DELEGATOR_ENABLED" == "None" ]] && DELEGATOR_ENABLED="$DELEGATOR_DEFAULT"
-CUSTOM_REPO="${CUSTOM_REPO/#\~/$HOME}"
-LOCAL_DIR="${LOCAL_DIR/#\~/$HOME}"
+ENV_REPO="${ENV_REPO/#\~/$HOME}"
 
 # Validate status
 if [[ "$ITEM_STATUS" != "queued" && "$ITEM_STATUS" != "planning" ]]; then
@@ -83,34 +82,20 @@ if [[ "$ACTIVE_COUNT" -ge "$MAX_ACTIVE" ]]; then
     exit 1
 fi
 
-# Local directory items: no worktree, just spawn session in the directory
-if [[ -n "$LOCAL_DIR" ]]; then
+# Non-worktree items: use repo path directly (local directory or cross-repo)
+if [[ "$USE_WORKTREE" == "False" && -n "$ENV_REPO" ]]; then
     echo "Activating: $ITEM_TITLE ($ITEM_ID)"
-    echo "  Directory: $LOCAL_DIR (local)"
+    echo "  Directory: $ENV_REPO (no worktree)"
     echo ""
-    echo "Step 1: Preparing local directory..."
-    if [[ ! -d "$LOCAL_DIR" ]]; then
-        mkdir -p "$LOCAL_DIR"
-        echo "  Created: $LOCAL_DIR"
+    echo "Step 1: Preparing directory..."
+    if [[ ! -d "$ENV_REPO" ]]; then
+        mkdir -p "$ENV_REPO"
+        echo "  Created: $ENV_REPO"
     else
-        echo "  Already exists: $LOCAL_DIR"
+        echo "  Already exists: $ENV_REPO"
     fi
-    WORKTREE_PATH="$LOCAL_DIR"
-# Cross-repo items use the custom repo path directly (no worktree).
-# Only applies when repo_path differs from the main configured repo —
-# if they match, fall through to the standard/graphite worktree flow.
-elif [[ -n "$CUSTOM_REPO" && "$(cd "$CUSTOM_REPO" 2>/dev/null && pwd -P)" != "$(cd "$REPO_PATH" 2>/dev/null && pwd -P)" ]]; then
-    if [[ ! -d "$CUSTOM_REPO" ]]; then
-        echo "ERROR: Custom repo path does not exist: $CUSTOM_REPO" >&2
-        exit 1
-    fi
-    WORKTREE_PATH="$CUSTOM_REPO"
-    echo "Activating: $ITEM_TITLE ($ITEM_ID)"
-    echo "  Repo: $CUSTOM_REPO (cross-repo)"
-    echo ""
-    echo "Step 1: Using existing repo (no worktree needed)"
-    echo "  Path: $WORKTREE_PATH"
-elif [[ "$PR_TYPE" == "graphite_stack" ]]; then
+    WORKTREE_PATH="$ENV_REPO"
+elif [[ "$COMMIT_STRATEGY" == "graphite_stack" ]]; then
     # Graphite stack: create worktree from main — gt create will make branches
     if [[ -z "$ITEM_BRANCH" ]]; then
         echo "ERROR: Stack item $ITEM_ID has no branch prefix configured" >&2
@@ -121,7 +106,7 @@ elif [[ "$PR_TYPE" == "graphite_stack" ]]; then
     STACK_STEPS_JSON="$(cd "$SCRIPT_DIR" && python3 -c "
 import json, sys
 item = json.loads(sys.stdin.read())
-steps = item.get('metadata', {}).get('stack_steps', [])
+steps = item.get('worker', {}).get('stack_steps', [])
 print(json.dumps(steps))
 " <<< "$ITEM_JSON")"
 
@@ -142,7 +127,7 @@ print(json.dumps(steps))
         '
     }
 
-    EXISTING_WORKTREE="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" worktree_path)"
+    EXISTING_WORKTREE="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" environment.worktree_path)"
     if [[ -n "$EXISTING_WORKTREE" && -d "$EXISTING_WORKTREE" ]]; then
         WORKTREE_PATH="$EXISTING_WORKTREE"
         echo "  Worktree already exists at $WORKTREE_PATH"
@@ -183,7 +168,7 @@ else
 
     # Step 1: Create worktree
     # Use existing worktree_path from queue item if available, otherwise compute from prefix
-    EXISTING_WORKTREE="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" worktree_path)"
+    EXISTING_WORKTREE="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" environment.worktree_path)"
     if [[ -n "$EXISTING_WORKTREE" && -d "$EXISTING_WORKTREE" ]]; then
         WORKTREE_PATH="$EXISTING_WORKTREE"
     else
@@ -290,16 +275,16 @@ echo ""
 echo "Step 2b: Sending task instructions to worker..."
 
 # Build a concise task message that references the plan file
-PLAN_FILE="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" metadata.plan_file)"
+PLAN_FILE="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" plan.file)"
 PLAN_FILE="${PLAN_FILE/#\~/$HOME}"
 
-if [[ "$PR_TYPE" == "graphite_stack" ]]; then
+if [[ "$COMMIT_STRATEGY" == "graphite_stack" ]]; then
     # Build stack workflow instructions with step details
     STACK_INSTRUCTIONS="$(cd "$SCRIPT_DIR" && python3 -c "
 import json, sys
 item = json.loads(sys.stdin.read())
-branch = item.get('branch', '')
-steps = item.get('metadata', {}).get('stack_steps', [])
+branch = (item.get('environment') or {}).get('branch', '')
+steps = (item.get('worker') or {}).get('stack_steps', [])
 lines = []
 lines.append('')
 lines.append('## Stack Workflow')
@@ -356,7 +341,7 @@ fi
 echo ""
 echo "Step 3: Updating queue..."
 cd "$SCRIPT_DIR" && $QUEUE_PY update "$ITEM_ID" status=active activated_at=NOW \
-    worktree_path="$WORKTREE_PATH" session_id="$SESSION_ID"
+    environment.worktree_path="$WORKTREE_PATH" environment.session_id="$SESSION_ID"
 echo "  Status: active"
 echo "  Session ID: $SESSION_ID"
 

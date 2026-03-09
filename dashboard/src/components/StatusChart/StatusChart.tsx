@@ -4,7 +4,6 @@ interface Props {
   active: number
   queued: number
   review: number
-  paused: number
   completed: number
 }
 
@@ -12,19 +11,17 @@ const COLORS: Record<string, string> = {
   active: 'var(--color-success)',
   queued: 'var(--color-warning)',
   review: 'var(--color-primary)',
-  paused: 'var(--color-error)',
   completed: 'var(--color-text-muted)',
 }
 
-export function StatusChart({ active, queued, review, paused, completed }: Props) {
-  const total = active + queued + review + paused + completed
+export function StatusChart({ active, queued, review, completed }: Props) {
+  const total = active + queued + review + completed
   if (total === 0) return null
 
   const segments = [
     { key: 'active', count: active },
     { key: 'queued', count: queued },
     { key: 'review', count: review },
-    { key: 'paused', count: paused },
     { key: 'completed', count: completed },
   ].filter(s => s.count > 0)
 
@@ -34,7 +31,7 @@ export function StatusChart({ active, queued, review, paused, completed }: Props
   let offset = 0
 
   return (
-    <div className={styles.Root} title={`${active} active, ${queued} queued, ${review} review, ${paused} paused, ${completed} completed`}>
+    <div className={styles.Root} title={`${active} active, ${queued} queued, ${review} review, ${completed} completed`}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         {segments.map(seg => {
           const pct = seg.count / total
