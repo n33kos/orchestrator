@@ -15,7 +15,9 @@ function queueApiPlugin(): Plugin {
 export default defineConfig({
   plugins: [react(), queueApiPlugin()],
   server: {
+    host: '0.0.0.0',
     port: 3201,
+    allowedHosts: true,
     hmr: {
       overlay: false,
     },
