@@ -3,18 +3,17 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.orchestrator.scheduler</string>
+    <string>com.orchestrator.dashboard</string>
 
     <key>ProgramArguments</key>
     <array>
         <string>/usr/bin/env</string>
-        <string>python3</string>
-        <string>-m</string>
-        <string>scripts.scheduler</string>
+        <string>npx</string>
+        <string>vite</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>$HOME/orchestrator</string>
+    <string>$HOME/orchestrator/dashboard</string>
 
     <key>RunAtLoad</key>
     <true/>
@@ -23,10 +22,10 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>$HOME/.claude/orchestrator/logs/orchestrator-scheduler.log</string>
+    <string>$HOME/.claude/orchestrator/logs/orchestrator-dashboard.log</string>
 
     <key>StandardErrorPath</key>
-    <string>$HOME/.claude/orchestrator/logs/orchestrator-scheduler.err</string>
+    <string>$HOME/.claude/orchestrator/logs/orchestrator-dashboard.err</string>
 
     <key>EnvironmentVariables</key>
     <dict>
