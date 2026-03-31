@@ -698,11 +698,14 @@ def _send_task_instructions(cfg: Config, item_id: str, session_id: str) -> None:
         title = parts[0] if len(parts) > 0 else ""
         branch = parts[1] if len(parts) > 1 else ""
         plan_file = parts[2] if len(parts) > 2 else ""
-        if plan_file.startswith("~"):
-            plan_file = os.path.expanduser(plan_file)
 
         if not plan_file or plan_file == "None":
             plan_file = os.path.expanduser(f"~/.claude/orchestrator/plans/{item_id}.md")
+        elif not os.path.isabs(plan_file) and not plan_file.startswith("~"):
+            # Relative filename — resolve against configured plans directory
+            plan_file = os.path.join(os.path.expanduser(cfg.plans_dir), plan_file)
+        else:
+            plan_file = os.path.expanduser(plan_file)
 
         branch_line = f"Branch: {branch}" if branch and branch != "None" else "Branch: (none — direct commit to main)"
         task_message = (
