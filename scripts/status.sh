@@ -38,7 +38,7 @@ by_status = {}
 by_type = {}
 for item in items:
     by_status[item['status']] = by_status.get(item['status'], 0) + 1
-    by_type[item['type']] = by_type.get(item['type'], 0) + 1
+    by_type[item.get('type', 'project')] = by_type.get(item.get('type', 'project'), 0) + 1
 
 active_projects = sum(1 for i in items if i['status'] == 'active')
 queued = [i for i in items if i['status'] in ('queued', 'planning')]
