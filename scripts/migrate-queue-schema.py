@@ -18,7 +18,25 @@ QUEUE_PATH = os.path.expanduser("~/.claude/orchestrator/queue.json")
 BACKUP_PATH = QUEUE_PATH + f".backup-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}"
 
 # The main configured repo path (used to determine use_worktree)
-MAIN_REPO = os.path.expanduser("~/babylist-web")
+# Read from config if available, fall back to environment variable or default
+_config_repo = os.environ.get("ORCHESTRATOR_REPO_PATH", "")
+if not _config_repo:
+    try:
+        import subprocess
+        _script_dir = os.path.dirname(os.path.abspath(__file__))
+        _project_root = os.path.dirname(_script_dir)
+        _cfg = os.path.join(_project_root, "config", "environment.yml")
+        _result = subprocess.run(
+            ["bash", os.path.join(_script_dir, "parse-config.sh"), _cfg],
+            capture_output=True, text=True, timeout=5,
+        )
+        for line in _result.stdout.splitlines():
+            if line.startswith("CONFIG_REPO_PATH="):
+                _config_repo = line.split("=", 1)[1].strip("'\"")
+                break
+    except Exception:
+        pass
+MAIN_REPO = os.path.expanduser(_config_repo) if _config_repo else os.path.expanduser("~/my-project")
 
 
 def migrate_item(item: dict) -> dict:

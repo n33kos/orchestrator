@@ -12,7 +12,7 @@ When activating a work item or when the user asks to spin up a new environment:
 
 1. **Create the worktree** (must run from the main repo directory):
    - **Standard items**: `cd $CONFIG_REPO_PATH && rostrum setup <branch-name>` (use `--quick` to skip dependency install and build)
-   - **Graphite stacks** (`worker.commit_strategy: graphite_stack`): `cd $CONFIG_REPO_PATH && rostrum setup <branch-prefix> --quick` — Rostrum creates the worktree on a branch matching the prefix (e.g., `nas/heartbeat/npm-extraction`), then `gt create` handles per-step branching from there
+   - **Graphite stacks** (`worker.commit_strategy: graphite_stack`): `cd $CONFIG_REPO_PATH && rostrum setup <branch-prefix> --quick` — Rostrum creates the worktree on a branch matching the prefix (e.g., `me/design-system/some-task`), then `gt create` handles per-step branching from there
 
 2. **Spawn a session** in the new worktree:
    ```bash
@@ -29,7 +29,7 @@ When activating a work item or when the user asks to spin up a new environment:
 Items with `worker.commit_strategy: graphite_stack` and `worker.stack_steps` follow a special flow:
 
 - Worktree is created via Rostrum: `rostrum setup <branch-prefix> --quick` from the main repo directory
-- The branch prefix (e.g., `nas/heartbeat/npm-extraction`) is passed to Rostrum, which creates the worktree and checks out a branch with that name
+- The branch prefix (e.g., `me/design-system/some-task`) is passed to Rostrum, which creates the worktree and checks out a branch with that name
 - Rostrum handles path naming and hashing — NEVER construct worktree paths manually; use `git worktree list --porcelain` to discover the actual path
 - The task message includes per-step instructions with branch names derived from `branch/{position}/{suffix}`
 - Worker uses `gt create <branch> --message "<desc>"` for each step

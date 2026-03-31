@@ -19,7 +19,7 @@ def _path_to_session_id(path: str) -> str:
     """Convert a filesystem path to ccusage's sessionId format.
 
     ccusage replaces `/` with `-` and strips the leading `-`.
-    e.g. /Users/nicholassuski/babylist-web -> Users-nicholassuski-babylist-web
+    e.g. /Users/me/my-project -> Users-me-my-project
     """
     expanded = os.path.expanduser(path)
     # ccusage replaces both `/` and `.` with `-`

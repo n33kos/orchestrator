@@ -154,7 +154,9 @@ def extract_user_messages(session_file: Path) -> list[dict]:
 def extract_project_domain(project_name: str) -> str:
     """Infer the project domain from the session directory name."""
     name = project_name.lower()
-    if "nautilus" in name or "heartbeat" in name or "baby-design" in name:
+    # Domain keywords are configurable — check environment or use generic detection
+    design_keywords = os.environ.get("ORCHESTRATOR_DESIGN_KEYWORDS", "design-system,design,ui-kit").split(",")
+    if any(kw.strip() in name for kw in design_keywords):
         return "design-system"
     if "react-18" in name or "bootstrap" in name:
         return "react-migration"
@@ -301,11 +303,10 @@ def extract_quality_priorities(concerns: list[str]) -> list[str]:
             "abstraction",
         ],
         "Design system compliance": [
-            "heartbeat",
             "design system",
             "token",
             "figma",
-            "nautilus",
+            "component library",
         ],
         "CSS/Styling": ["css", "scss", "style", "layout", "responsive"],
     }
