@@ -440,26 +440,6 @@ export function App() {
     }
   }
 
-  async function handleTrainProfile() {
-    addToast('Training profile from latest session...', 'info')
-    try {
-      const res = await fetch('/api/training/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lastN: 30 }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        const lastLine = data.output?.trim().split('\n').pop() || 'Training complete'
-        addToast(lastLine, 'success')
-      } else {
-        addToast('Training failed', 'error')
-      }
-    } catch {
-      addToast('Failed to train profile', 'error')
-    }
-  }
-
   async function handleAutoRecover() {
     const zombies = sessions.filter(s => s.state === 'zombie')
     if (zombies.length === 0) return
@@ -927,7 +907,6 @@ export function App() {
           onHealthCheck={() => setShowHealthPanel(true)}
           onActivateStream={actions.handleActivateStream}
           onRunScheduler={handleRunScheduler}
-          onTrainProfile={handleTrainProfile}
         />
       )}
       {showHealthPanel && (

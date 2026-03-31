@@ -12,11 +12,11 @@
 #   CONFIG_USER_INITIALS, CONFIG_USER_NAME
 #   CONFIG_REPO_PATH, CONFIG_WORKTREE_PREFIX
 #   CONFIG_TOOL_ROSTRUM, CONFIG_TOOL_VMUX, CONFIG_TOOL_GRAPHITE
-#   CONFIG_QUEUE_FILE, CONFIG_PROFILE_FILE
+#   CONFIG_QUEUE_FILE
 #   CONFIG_MAX_ACTIVE_PROJECTS, CONFIG_QUICK_FIX_LIMIT
 #   CONFIG_AUTO_ACTIVATE, CONFIG_AUTO_APPROVE_PLANS, CONFIG_REQUIRE_APPROVED_PLAN
 #   CONFIG_ASK_BEFORE_TEARDOWN, CONFIG_PLANS_DIR
-#   CONFIG_DELEGATOR_ENABLED, CONFIG_DELEGATOR_TRAINING_MODE
+#   CONFIG_DELEGATOR_ENABLED
 #   CONFIG_DELEGATOR_COMMUNICATION, CONFIG_DELEGATOR_CYCLE_INTERVAL
 #   CONFIG_BRANCH_PATTERN
 #   CONFIG_DASHBOARD_PORT, CONFIG_API_PORT
@@ -100,7 +100,6 @@ emit('CONFIG_TOOL_GRAPHITE', values.get('tools.graphite', ''))
 
 # State
 emit('CONFIG_QUEUE_FILE', expand(values.get('state.queue_file', '')))
-emit('CONFIG_PROFILE_FILE', expand(values.get('state.profile_file', '')))
 
 # Concurrency
 emit('CONFIG_MAX_ACTIVE_PROJECTS', values.get('concurrency.max_active_projects', '2'))
@@ -122,7 +121,6 @@ emit('CONFIG_PLANS_DIR', expand(values.get('plans.plans_directory', '~/.claude/o
 
 # Delegator
 emit('CONFIG_DELEGATOR_ENABLED', values.get('delegator.enabled_by_default', 'true'))
-emit('CONFIG_DELEGATOR_TRAINING_MODE', values.get('delegator.training_mode', 'true'))
 emit('CONFIG_DELEGATOR_COMMUNICATION', values.get('delegator.communication', 'text'))
 emit('CONFIG_DELEGATOR_CYCLE_INTERVAL', values.get('delegator.cycle_interval', '300'))
 

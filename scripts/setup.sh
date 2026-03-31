@@ -37,7 +37,6 @@ echo "[ok] Config file found"
 eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
 
 QUEUE_FILE="$CONFIG_QUEUE_FILE"
-PROFILE_FILE="$CONFIG_PROFILE_FILE"
 VMUX="$CONFIG_TOOL_VMUX"
 ROSTRUM="$CONFIG_TOOL_ROSTRUM"
 GRAPHITE="$CONFIG_TOOL_GRAPHITE"
@@ -107,13 +106,6 @@ if [[ ! -f "$QUEUE_FILE" ]]; then
     echo "[created] Queue file: $QUEUE_FILE"
 else
     echo "[ok] Queue file exists: $QUEUE_FILE"
-fi
-
-if [[ ! -f "$PROFILE_FILE" ]]; then
-    echo "[warn] Profile not found: $PROFILE_FILE"
-    echo "  Run: python3 $PROJECT_ROOT/scripts/preseed-profile.py"
-else
-    echo "[ok] Profile exists: $PROFILE_FILE"
 fi
 
 EVENTS_FILE="$QUEUE_DIR/events.jsonl"

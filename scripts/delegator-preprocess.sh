@@ -24,8 +24,6 @@ CONFIG="$PROJECT_ROOT/config/environment.yml"
 eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
 
 VMUX="$CONFIG_TOOL_VMUX"
-PROFILE_FILE="${CONFIG_PROFILE_FILE:-}"
-
 # --- Inputs ---
 ITEM_ID="${1:?Usage: delegator-preprocess.sh <item-id> [state-file-path]}"
 DELEGATOR_DIR="$HOME/.claude/orchestrator/delegators/$ITEM_ID"
@@ -118,14 +116,6 @@ ACTIVITY_SUMMARY="$(python3 "$SCRIPT_DIR/delegator-summarize-transcript.py" "$WO
 # Step 5b: Get recent conversation transcript (raw text for triage context)
 # ============================================================
 CONVERSATION_RECENT="$(python3 "$SCRIPT_DIR/read-worker-transcript.py" "$WORKTREE_PATH" --lines 30 --format summary 2>/dev/null)" || CONVERSATION_RECENT=""
-
-# ============================================================
-# Step 5c: Read user profile
-# ============================================================
-PROFILE_CONTENT=""
-if [[ -n "$PROFILE_FILE" && -f "$PROFILE_FILE" ]]; then
-    PROFILE_CONTENT="$(cat "$PROFILE_FILE" 2>/dev/null)" || PROFILE_CONTENT=""
-fi
 
 # ============================================================
 # Step 6-7: Check for new commits and get diffs
@@ -261,7 +251,6 @@ printf '%s\0' \
     "$PREVIOUS_STATE" \
     "$CONVERSATION_RECENT" \
     "$ITEM_JSON" \
-    "$PROFILE_CONTENT" \
     "$OUTPUT_FILE" \
     "$PER_PR_CI_JSON" \
 | python3 -c '
@@ -272,7 +261,7 @@ keys = [
     "item_id", "timestamp", "session_alive", "idle_check",
     "activity_summary", "new_commits_raw", "diff_stat", "diff_content",
     "pr_json", "ci_checks_raw", "merge_status_json", "previous_state",
-    "conversation_recent", "item_json", "profile_content", "output_file",
+    "conversation_recent", "item_json", "output_file",
     "per_pr_ci_json",
 ]
 data = {k: fields[i].decode("utf-8", errors="replace") if i < len(fields) else "" for i, k in enumerate(keys)}
@@ -304,7 +293,6 @@ per_pr_ci_json_raw = raw.get("per_pr_ci_json", "[]")
 previous_state_raw = raw.get("previous_state", "")
 conversation_recent = raw.get("conversation_recent", "")
 item_json_raw = raw.get("item_json", "") or "{}"
-profile_content = raw.get("profile_content", "")
 output_file = raw.get("output_file", "")
 
 # Parse activity summary (may be JSON or plain text)
@@ -482,7 +470,6 @@ payload = {
     "item_id": item_id,
     "item_context": item_context,
     "plan": plan_content,
-    "user_profile": profile_content,
     "worker": {
         "session_alive": session_alive,
         "idle_check": idle_check,

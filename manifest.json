@@ -39,11 +39,6 @@
       "description": "Run the queue scheduler to auto-activate ready items",
       "user_invocable": true
     },
-    "train": {
-      "path": "skills/train.md",
-      "description": "Train the delegator profile from recent session interactions",
-      "user_invocable": true
-    },
     "plan": {
       "path": "skills/plan.md",
       "description": "Generate an implementation plan for a queued work item",

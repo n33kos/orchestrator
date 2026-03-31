@@ -35,7 +35,6 @@ interface CommandPaletteProps {
   onHealthCheck?: () => void
   onActivateStream?: (id: string) => void
   onRunScheduler?: () => void
-  onTrainProfile?: () => void
 }
 
 const ICONS: Record<string, React.JSX.Element> = {
@@ -120,7 +119,7 @@ const ICONS: Record<string, React.JSX.Element> = {
   ),
 }
 
-export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateToItem, onStatusChange, onAddItem, onOpenSettings, onRefresh, onToggleTheme, onMessageSession, onGoToSessions, onToggleViewMode, onDiscoverWork, onHealthCheck, onActivateStream, onRunScheduler, onTrainProfile }: CommandPaletteProps) {
+export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateToItem, onStatusChange, onAddItem, onOpenSettings, onRefresh, onToggleTheme, onMessageSession, onGoToSessions, onToggleViewMode, onDiscoverWork, onHealthCheck, onActivateStream, onRunScheduler }: CommandPaletteProps) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -153,11 +152,8 @@ export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateTo
     if (onRunScheduler) {
       cmds.push({ id: 'cmd-scheduler', label: 'Run scheduler', description: 'Auto-activate ready items based on concurrency slots', icon: 'scheduler', action: () => { onClose(); onRunScheduler() } })
     }
-    if (onTrainProfile) {
-      cmds.push({ id: 'cmd-train', label: 'Train profile', description: 'Update delegator profile from latest session', icon: 'training', action: () => { onClose(); onTrainProfile() } })
-    }
     return cmds
-  }, [onClose, onAddItem, onOpenSettings, onRefresh, onToggleTheme, onGoToSessions, onToggleViewMode, onDiscoverWork, onHealthCheck, onRunScheduler, onTrainProfile])
+  }, [onClose, onAddItem, onOpenSettings, onRefresh, onToggleTheme, onGoToSessions, onToggleViewMode, onDiscoverWork, onHealthCheck, onRunScheduler])
 
   const itemCommands: Command[] = useMemo(() => {
     return items.map(item => ({

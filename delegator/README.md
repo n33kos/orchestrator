@@ -4,7 +4,7 @@ A quality assurance sub-module of the Orchestrator that mirrors the user's revie
 
 ## Purpose
 
-The Delegator is not a generic code reviewer — it's a **digital clone of the user's personal review process**. Through a training system that observes real user-worker interactions, the delegator learns exactly how the user thinks about code quality, what they check, and how they communicate. It then applies this learned behavior to review worker output autonomously.
+The Delegator is not a generic code reviewer — it's a quality assurance layer that reviews worker output against the implementation plan, coding standards, and project conventions.
 
 For each active **project** work stream (not quick fixes), a delegator instance runs alongside the worker Claude session to:
 
@@ -14,44 +14,6 @@ For each active **project** work stream (not quick fixes), a delegator instance 
 - **Check pull requests** for correctness, completeness, and style
 - **Run targeted tests** to verify changes don't break existing functionality
 - **Report issues** back to the orchestrator for triage
-
-## Training System
-
-The delegator's effectiveness comes from its behavioral profile, built through observation of real interactions.
-
-### How Training Works
-
-1. A hook fires after every voice relay exchange between the user and a worker session
-2. The hook triggers a lightweight Claude instance (the training agent)
-3. The training agent reads the interaction context — including the full Claude session transcripts (JSONL files at `~/.claude/projects/*/`)
-4. It extracts patterns: what the user asks about, what they care about, how they phrase feedback, what they flag as issues, what they praise
-5. It checks the existing profile for redundancy and only adds new insights
-6. It updates the profile document at `~/.claude/orchestrator/profile.md`
-
-### Data Sources
-
-- **Voice relay transcripts**: Every message between user and workers
-- **Claude session transcripts**: Full JSONL files with tool calls, code changes, and reasoning
-- **Commit history**: What was requested vs. what was actually produced
-- **PR review comments**: The user's explicit review feedback
-
-### Pre-seeding
-
-On first setup, the training system can mine existing Claude session transcripts to bootstrap an initial profile. This scans all available session files, extracts patterns from user messages, and generates a draft profile for user review.
-
-### Profile Document
-
-The behavioral profile lives at `~/.claude/orchestrator/profile.md` and contains:
-
-- **Communication style** — How the user talks to workers
-- **Quality priorities** — What the user consistently checks
-- **Common review patterns** — Recurring themes in feedback
-- **Domain-specific concerns** — Per-area things always checked
-- **Invariants** — Things the user never skips
-- **Trust areas** — Things the user rarely micro-manages
-- **Interaction examples** — Representative exchanges
-
-The user can manually edit this file to correct or refine the profile at any time.
 
 ## Communication Model
 
@@ -98,7 +60,7 @@ Runtime:
 ### Lifecycle
 1. Orchestrator activates a project work stream
 2. Orchestrator spins up a delegator instance for that stream
-3. Delegator loads the user profile + the implementation plan
+3. Delegator loads the implementation plan
 4. Delegator monitors worker activity and intervenes when needed
 5. Worker signals completion → delegator performs final review
 6. Delegator reports assessment to orchestrator (approve / needs-work / blocked)

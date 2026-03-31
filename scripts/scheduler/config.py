@@ -69,7 +69,6 @@ class Config:
 
         # State
         self.queue_file: str = ""
-        self.profile_file: str = ""
 
         # Concurrency
         self.max_active: int = 6
@@ -85,7 +84,6 @@ class Config:
 
         # Delegator
         self.delegator_enabled: bool = True
-        self.delegator_training_mode: bool = True
         self.delegator_communication: str = "text"
         self.delegator_cycle_interval: int = 300
 
@@ -156,7 +154,6 @@ def load_config(project_root: Optional[str] = None) -> Config:
 
     # State
     cfg.queue_file = _expand(values.get("state.queue_file", ""))
-    cfg.profile_file = _expand(values.get("state.profile_file", ""))
 
     # Concurrency — single unified limit (sum of old max_active_projects + quick_fix_limit)
     max_projects = cfg._int(values.get("concurrency.max_active_projects", "2"), 2)
@@ -190,9 +187,6 @@ def load_config(project_root: Optional[str] = None) -> Config:
     cfg.delegator_enabled = cfg._bool(
         values.get("delegator.enabled_by_default", "true")
     )
-    cfg.delegator_training_mode = cfg._bool(
-        values.get("delegator.training_mode", "true")
-    )
     cfg.delegator_communication = values.get("delegator.communication", "text")
     cfg.delegator_cycle_interval = cfg._int(
         values.get("delegator.cycle_interval", "300"), 300
@@ -219,7 +213,7 @@ def load_config(project_root: Optional[str] = None) -> Config:
         "project.design_keywords", "design-system,design,ui-kit"
     )
 
-    # Export config-driven env vars so subprocesses (preseed-profile, etc.) can read them.
+    # Export config-driven env vars so subprocesses can read them.
     # Only set if not already overridden by the system environment.
     if "ORCHESTRATOR_DESIGN_KEYWORDS" not in os.environ:
         os.environ["ORCHESTRATOR_DESIGN_KEYWORDS"] = cfg.design_keywords

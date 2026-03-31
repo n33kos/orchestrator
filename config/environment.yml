@@ -20,7 +20,6 @@ tools:
 # Orchestrator State
 state:
   queue_file: ~/.claude/orchestrator/queue.json
-  profile_file: ~/.claude/orchestrator/profile.md
 
 # Concurrency
 concurrency:
@@ -42,7 +41,6 @@ plans:
 # Delegator
 delegator:
   enabled_by_default: true
-  training_mode: true
   communication: text
   cycle_interval: 900  # seconds between monitoring cycle triggers
   default_model: haiku

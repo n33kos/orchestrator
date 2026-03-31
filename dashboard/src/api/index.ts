@@ -5,7 +5,6 @@ import { registerSystemRoutes } from './system'
 import { registerDelegatorRoutes } from './delegators'
 import { registerPrRoutes } from './pr'
 import { registerPlanRoutes } from './plans'
-import { registerTrainingRoutes } from './training'
 import { registerWorkerRoutes } from './worker'
 import { registerSchedulerLogRoutes } from './scheduler-log'
 import { registerSpendRoutes } from './spend'
@@ -17,7 +16,6 @@ export function registerAllRoutes(server: ViteDevServer) {
   registerDelegatorRoutes(server)
   registerPrRoutes(server)
   registerPlanRoutes(server)
-  registerTrainingRoutes(server)
   registerWorkerRoutes(server)
   registerSchedulerLogRoutes(server)
   registerSpendRoutes(server)

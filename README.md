@@ -26,9 +26,9 @@ A Claude Code plugin that autonomously manages parallel development work streams
 │  └──────────┘               │  ││ Worker ││ ││ Worker ││   │            │
 │                              │  │└────────┘│ │└────────┘│   │            │
 │  ┌──────────┐               │  │┌────────┐│ │┌────────┐│   │            │
-│  │ Profile  │               │  ││ Deleg. ││ ││ Deleg. ││   │            │
-│  │ Training │               │  │└────────┘│ │└────────┘│   │            │
-│  └──────────┘               │  └──────────┘ └──────────┘   │            │
+│                              │  ││ Deleg. ││ ││ Deleg. ││   │            │
+│                              │  │└────────┘│ │└────────┘│   │            │
+│                              │  └──────────┘ └──────────┘   │            │
 │                              └──────────────────────────────┘            │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -39,7 +39,6 @@ A Claude Code plugin that autonomously manages parallel development work streams
 - **Scheduler**: A background Python service (launchd) that continuously reconciles queue state — auto-activates ready items, recovers zombie sessions, triggers delegator cycles, enforces planning timeouts, and cleans up completed streams.
 - **Worker Sessions**: Individual Claude Code sessions running in isolated git worktrees. These do the actual implementation work.
 - **Delegator** (sub-module): Quality assurance layer that mirrors the user's review process. Uses a two-tier model — Haiku triage for routine checks, escalating to Opus for deep reviews. See [`delegator/`](delegator/).
-- **Profile Training System**: Observes user-worker interactions and distills them into a behavioral profile that instructs the delegator how to act.
 - **Web Dashboard (PWA)**: Dedicated web interface for managing work streams, priorities, delegators, and PR status.
 
 ## Quick Start
@@ -84,7 +83,6 @@ orchestrator/
 │   ├── discover.md        # /discover — scan sources for new work
 │   ├── health.md          # /health — detect zombies and stalls
 │   ├── schedule.md        # /schedule — run queue scheduler
-│   ├── train.md           # /train — update delegator profile
 │   └── plan.md            # /plan — generate implementation plan
 ├── scripts/               # Backend scripts
 │   ├── activate-stream.sh          # Full stream activation
@@ -104,8 +102,6 @@ orchestrator/
 │   ├── migrate-plans.sh            # Migrate inline plans to markdown files
 │   ├── sync-plan-metadata.sh       # Sync metadata headers in plan files
 │   ├── read-worker-transcript.py   # Read and summarize session transcripts
-│   ├── train-profile.py            # Incremental profile training
-│   ├── preseed-profile.py          # Bootstrap profile from session history
 │   ├── next-ws-id.sh               # Atomic work stream ID generation
 │   ├── emit-event.sh               # Event emission utility
 │   ├── parse-config.sh             # Parse environment.yml and export variables
@@ -245,7 +241,7 @@ delegator-preprocess.sh → Claude (triage/review) → delegator-postprocess.sh
 3. **Review** (Opus) is invoked on escalation for deep code review, PR assessment, and quality validation.
 4. **Postprocess** executes the resulting actions: send messages to workers, update queue status, trigger transitions.
 
-See [`delegator/README.md`](delegator/README.md) for the full training system and behavioral profile documentation.
+See [`delegator/README.md`](delegator/README.md) for the delegator documentation.
 
 ## Dashboard
 
@@ -264,7 +260,6 @@ The web dashboard is a PWA built with Vite 7, React 19, TypeScript 5.9, and Sass
 - **Health Monitoring**: Zombie detection, stall alerts, auto-recovery
 - **Scheduler Log**: View scheduler events and cycle history
 - **Work Discovery**: Scan GitHub Issues and markdown plans for new work
-- **Training Controls**: Bootstrap and incrementally train the delegator profile
 - **Command Palette**: Cmd+K for quick access to all actions
 - **Batch Operations**: Multi-select items for bulk status changes
 - **Import/Export**: JSON and CSV export, JSON import, file drop support
@@ -294,9 +289,6 @@ The web dashboard is a PWA built with Vite 7, React 19, TypeScript 5.9, and Sass
 | `/api/delegators` | GET | Delegator status |
 | `/api/delegators/spawn` | POST | Spawn a delegator |
 | `/api/pr-status` | GET | Fetch GitHub PR metadata |
-| `/api/training/run` | POST | Run incremental training |
-| `/api/training/profile` | GET | Read the user profile |
-| `/api/training/preseed` | POST | Bootstrap initial profile |
 | `/api/scheduler/run` | POST | Run the queue scheduler |
 
 ## Configuration
@@ -310,11 +302,11 @@ All site-specific values. Override with `config/environment.local.yml` (gitignor
 | `user` | `initials`, `name` |
 | `repo` | `path`, `worktree_prefix` |
 | `tools` | `rostrum`, `vmux`, `graphite` |
-| `state` | `queue_file`, `profile_file` |
+| `state` | `queue_file` |
 | `concurrency` | `max_active_projects` (2), `quick_fix_limit` (4), `queue_strategy` |
 | `autonomy` | `auto_activate`, `auto_approve_plans`, `require_approved_plan`, `ask_before_teardown` |
 | `plans` | `plans_directory` |
-| `delegator` | `enabled_by_default`, `training_mode`, `cycle_interval`, `default_model` (haiku), `review_model` (opus), `transcript_lines_triage`/`_deep` |
+| `delegator` | `enabled_by_default`, `cycle_interval`, `default_model` (haiku), `review_model` (opus), `transcript_lines_triage`/`_deep` |
 | `branches` | `pattern` (naming template) |
 | `dashboard` | `port` (3201) |
 | `scheduler` | `poll_interval` (120s), `cleanup_every`, `archive_after_days` |

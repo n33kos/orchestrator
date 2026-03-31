@@ -15,7 +15,6 @@ Same payload as triage:
 - `commits` — `{new_commits, diff_stat, diff_content}`. Note: if `item_context.worker.commit_strategy` is `commit_to_main`, commits go directly to main.
 - `pr` — `{exists, url, state, ci_checks, mergeable, merge_state_status}`. `mergeable` is a boolean; `merge_state_status` is a string (`CLEAN`, `DIRTY`, `UNSTABLE`, `BEHIND`, `BLOCKED`, `UNKNOWN`). May not exist for no-branch projects.
 - `conversation_recent` — Summary of recent worker transcript. Check for completion signals.
-- `user_profile` — User preferences, quality priorities, review patterns, and domain concerns. Use to calibrate your review focus and communication style.
 - `previous_state` — State from the last cycle
 
 ## Code Review Standards
@@ -34,7 +33,7 @@ When reviewing commits or PRs, evaluate against these criteria in order of prior
 - Are new behaviors and edge cases tested? Are test descriptions meaningful?
 
 ### 4. Code Style and Conventions
-- Follows project patterns? Naming consistent? Reference `user_profile` conventions.
+- Follows project patterns? Naming consistent?
 
 ### 5. Performance
 - Unnecessary re-renders (React)? N+1 queries (backend)? Memory leaks? Unbounded growth?

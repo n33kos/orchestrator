@@ -12,7 +12,6 @@ You are a delegator triage agent. You analyze a pre-processed monitoring payload
 - `commits` — `{new_commits: [{hash, message}], diff_stat, diff_content}`. Note: if `item_context.worker.commit_strategy` is `commit_to_main`, there may be no branch to diff against — check `new_commits` for direct commits to main.
 - `pr` — `{exists, url, state, ci_checks: {total, passing, failing, failing_names}, mergeable, merge_state_status}`. `mergeable` is a boolean; `merge_state_status` is a string (`CLEAN`, `DIRTY`, `UNSTABLE`, `BEHIND`, `BLOCKED`, `UNKNOWN`). Note: some projects commit directly to main without PRs — check `item_context.worker.commit_strategy`.
 - `conversation_recent` — Human-readable summary of recent worker transcript (tool usage, assistant output, user messages). **Always check this for completion signals.**
-- `user_profile` — User preferences, quality priorities, review patterns, and domain concerns. Use to understand the user's expectations and communication style.
 - `previous_state` — State from the last cycle
 
 ## Decision Criteria
