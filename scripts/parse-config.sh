@@ -11,7 +11,9 @@
 # Exported variables (with CONFIG_ prefix):
 #   CONFIG_USER_INITIALS, CONFIG_USER_NAME
 #   CONFIG_REPO_PATH, CONFIG_WORKTREE_PREFIX
-#   CONFIG_TOOL_ROSTRUM, CONFIG_TOOL_VMUX, CONFIG_TOOL_GRAPHITE
+#   CONFIG_TOOL_VMUX, CONFIG_TOOL_GRAPHITE
+#   CONFIG_WORKTREE_SETUP, CONFIG_WORKTREE_SETUP_QUICK
+#   CONFIG_WORKTREE_TEARDOWN, CONFIG_WORKTREE_LIST, CONFIG_WORKTREE_DEV
 #   CONFIG_QUEUE_FILE
 #   CONFIG_MAX_ACTIVE_PROJECTS, CONFIG_QUICK_FIX_LIMIT
 #   CONFIG_AUTO_ACTIVATE, CONFIG_AUTO_APPROVE_PLANS, CONFIG_REQUIRE_APPROVED_PLAN
@@ -94,9 +96,15 @@ emit('CONFIG_REPO_PATH', expand(values.get('repo.path', '')))
 emit('CONFIG_WORKTREE_PREFIX', expand(values.get('repo.worktree_prefix', '')))
 
 # Tools
-emit('CONFIG_TOOL_ROSTRUM', expand(values.get('tools.rostrum', '')))
 emit('CONFIG_TOOL_VMUX', expand(values.get('tools.vmux', '')))
 emit('CONFIG_TOOL_GRAPHITE', values.get('tools.graphite', ''))
+
+# Worktree commands
+emit('CONFIG_WORKTREE_SETUP', values.get('worktree.setup', 'git worktree add -b {branch} {path} main'))
+emit('CONFIG_WORKTREE_SETUP_QUICK', values.get('worktree.setup_quick', 'git worktree add -b {branch} {path} main'))
+emit('CONFIG_WORKTREE_TEARDOWN', values.get('worktree.teardown', 'git worktree remove {path}'))
+emit('CONFIG_WORKTREE_LIST', values.get('worktree.list', 'git worktree list --porcelain'))
+emit('CONFIG_WORKTREE_DEV', values.get('worktree.dev', ''))
 
 # State
 emit('CONFIG_QUEUE_FILE', expand(values.get('state.queue_file', '')))

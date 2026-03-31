@@ -19,11 +19,23 @@ eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
 
 QUEUE_FILE="$CONFIG_QUEUE_FILE"
 REPO_PATH="$CONFIG_REPO_PATH"
-ROSTRUM="$CONFIG_TOOL_ROSTRUM"
 VMUX="$CONFIG_TOOL_VMUX"
+WORKTREE_TEARDOWN_CMD="$CONFIG_WORKTREE_TEARDOWN"
 
 # shellcheck source=validate-env.sh
 source "$SCRIPT_DIR/validate-env.sh"
+
+# Helper: interpolate worktree command template variables
+run_worktree_cmd() {
+    local template="$1"
+    local branch="${2:-}"
+    local path="${3:-}"
+    local cmd="$template"
+    cmd="${cmd//\{branch\}/$branch}"
+    cmd="${cmd//\{path\}/$path}"
+    cmd="${cmd//\{repo_path\}/$REPO_PATH}"
+    eval "$cmd"
+}
 
 ITEM_ID="${1:?Usage: teardown-stream.sh <item-id> [--force]}"
 FORCE_FLAG=""
@@ -39,8 +51,8 @@ done
 
 # Read item from queue
 QUEUE_PY="python3 -m lib.queue"
-IFS=$'\x1f' read -r ITEM_BRANCH ITEM_TITLE SESSION_ID \
-    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" environment.branch title environment.session_id)
+IFS=$'\x1f' read -r ITEM_BRANCH ITEM_TITLE SESSION_ID WORKTREE_PATH \
+    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" environment.branch title environment.session_id environment.worktree_path)
 
 echo "Tearing down: $ITEM_TITLE ($ITEM_ID)"
 echo "  Branch: $ITEM_BRANCH"
@@ -71,7 +83,18 @@ if [[ -n "$ITEM_BRANCH" ]]; then
     echo ""
     echo "Step 3: Removing worktree..."
     cd "$REPO_PATH"
-    $ROSTRUM teardown "$ITEM_BRANCH" $FORCE_FLAG 2>&1 || echo "  Worktree already removed or teardown failed"
+    # Discover worktree path if not stored in queue
+    if [[ -z "$WORKTREE_PATH" || "$WORKTREE_PATH" == "None" ]]; then
+        WORKTREE_PATH="$(git worktree list --porcelain | awk -v branch="refs/heads/$ITEM_BRANCH" '
+            /^worktree / { wt=substr($0, 10) }
+            /^branch / && $2 == branch { print wt; exit }
+        ')"
+    fi
+    if [[ -n "$WORKTREE_PATH" && "$WORKTREE_PATH" != "None" ]]; then
+        run_worktree_cmd "$WORKTREE_TEARDOWN_CMD" "$ITEM_BRANCH" "$WORKTREE_PATH" 2>&1 || echo "  Worktree already removed or teardown failed"
+    else
+        echo "  No worktree path found, skipping removal"
+    fi
     echo "  Branch '$ITEM_BRANCH' preserved (not deleted)"
 else
     echo ""

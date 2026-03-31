@@ -128,7 +128,7 @@ def _activate_nonblocking(cfg: Config, item: dict) -> None:
 
     Sets status to active immediately, then determines setup needs:
     - non-worktree items: mkdir or use existing repo directly
-    - worktree items: kick off Rostrum in the background; reconcile_state()
+    - worktree items: kick off worktree setup in the background; reconcile_state()
       will discover the worktree and spawn the session once it's ready.
     """
     item_id = item["id"]
@@ -154,7 +154,7 @@ def _activate_nonblocking(cfg: Config, item: dict) -> None:
             raise RuntimeError(f"Item {item_id} has use_worktree=false but no repo path")
 
     elif branch:
-        # Worktree items — needs Rostrum setup (background)
+        # Worktree items — needs worktree setup (background)
         subprocess.run(update_args, cwd=SCRIPTS_DIR, capture_output=True, timeout=10)
         _start_worktree_setup(cfg, item_id, branch)
     else:
@@ -162,13 +162,14 @@ def _activate_nonblocking(cfg: Config, item: dict) -> None:
 
 
 def _start_worktree_setup(cfg: Config, item_id: str, branch: str) -> None:
-    """Kick off worktree creation via Rostrum in the background.
+    """Kick off worktree creation in the background using the configured setup command.
 
     If a worktree already exists for this branch, sets worktree_path immediately.
-    Otherwise, launches Rostrum as a background subprocess — reconcile_state()
-    will discover the worktree once it's ready and spawn the session.
+    Otherwise, launches the worktree setup command as a background subprocess —
+    reconcile_state() will discover the worktree once it's ready and spawn the session.
     """
     main_repo = os.path.expanduser(cfg.repo_path)
+    worktree_prefix = os.path.expanduser(cfg.worktree_prefix)
 
     # Check if worktree already exists
     existing = _find_worktree_by_branch(main_repo, branch)
@@ -181,17 +182,20 @@ def _start_worktree_setup(cfg: Config, item_id: str, branch: str) -> None:
         print(f"[scheduler] Worktree already exists for {item_id}: {existing}")
         return
 
-    # Launch Rostrum setup in background
+    # Launch worktree setup in background
     log_dir = Path.home() / ".claude" / "orchestrator" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir / f"rostrum-{item_id}.log"
+    log_file = log_dir / f"worktree-setup-{item_id}.log"
 
-    rostrum_cmd = [cfg.tool_rostrum, "setup", branch]
+    worktree_path = f"{worktree_prefix}{branch}"
+    setup_cmd = cfg.worktree_setup.format(
+        branch=branch, path=worktree_path, repo_path=main_repo,
+    )
 
     print(f"[scheduler] Starting background worktree setup for {item_id} (branch: {branch})")
     with open(log_file, "w") as lf:
         subprocess.Popen(
-            rostrum_cmd,
+            setup_cmd, shell=True,
             stdout=lf, stderr=subprocess.STDOUT,
             cwd=main_repo, env=EXEC_ENV,
         )
@@ -391,7 +395,7 @@ def reconcile_state(cfg: Config, dry_run: bool) -> None:
                         )
 
             # Worktree discovery: active items without a worktree_path may be
-            # waiting for a background Rostrum setup to complete.
+            # waiting for a background worktree setup to complete.
             if not worktree_path and use_worktree:
                 branch = env.get("branch", "")
                 if branch:

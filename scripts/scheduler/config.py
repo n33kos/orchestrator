@@ -63,9 +63,15 @@ class Config:
         self.worktree_prefix: str = ""
 
         # Tools
-        self.tool_rostrum: str = ""
         self.tool_vmux: str = ""
         self.tool_graphite: str = ""
+
+        # Worktree commands
+        self.worktree_setup: str = "git worktree add -b {branch} {path} main"
+        self.worktree_setup_quick: str = "git worktree add -b {branch} {path} main"
+        self.worktree_teardown: str = "git worktree remove {path}"
+        self.worktree_list: str = "git worktree list --porcelain"
+        self.worktree_dev: str = ""
 
         # State
         self.queue_file: str = ""
@@ -148,9 +154,15 @@ def load_config(project_root: Optional[str] = None) -> Config:
     cfg.worktree_prefix = _expand(values.get("repo.worktree_prefix", ""))
 
     # Tools
-    cfg.tool_rostrum = _expand(values.get("tools.rostrum", ""))
     cfg.tool_vmux = _expand(values.get("tools.vmux", ""))
     cfg.tool_graphite = values.get("tools.graphite", "")
+
+    # Worktree commands
+    cfg.worktree_setup = values.get("worktree.setup", "git worktree add -b {branch} {path} main")
+    cfg.worktree_setup_quick = values.get("worktree.setup_quick", "git worktree add -b {branch} {path} main")
+    cfg.worktree_teardown = values.get("worktree.teardown", "git worktree remove {path}")
+    cfg.worktree_list = values.get("worktree.list", "git worktree list --porcelain")
+    cfg.worktree_dev = values.get("worktree.dev", "")
 
     # State
     cfg.queue_file = _expand(values.get("state.queue_file", ""))

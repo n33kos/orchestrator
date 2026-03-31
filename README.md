@@ -133,7 +133,7 @@ orchestrator/
 │   ├── vite.config.ts     # Vite config with inline API middleware
 │   └── index.html         # Entry point with PWA meta tags
 └── knowledge/
-    └── cli-reference.md   # Rostrum and vmux command reference
+    └── cli-reference.md   # Worktree and vmux command reference
 ```
 
 ## Work Stream Lifecycle
@@ -301,7 +301,8 @@ All site-specific values. Override with `config/environment.local.yml` (gitignor
 |---------|-------------|
 | `user` | `initials`, `name` |
 | `repo` | `path`, `worktree_prefix` |
-| `tools` | `rostrum`, `vmux`, `graphite` |
+| `tools` | `vmux`, `graphite` |
+| `worktree` | `setup`, `setup_quick`, `teardown`, `list`, `dev` (command templates) |
 | `state` | `queue_file` |
 | `concurrency` | `max_active_projects` (2), `quick_fix_limit` (4), `queue_strategy` |
 | `autonomy` | `auto_activate`, `auto_approve_plans`, `require_approved_plan`, `ask_before_teardown` |
@@ -321,7 +322,7 @@ Defines where the orchestrator discovers work. Supported adapters:
 
 ## Dependencies
 
-- **Rostrum** — Git worktree lifecycle management
+- **Worktree commands** — Configurable worktree lifecycle (defaults to `git worktree`, overridable in `environment.local.yml`)
 - **vmux** — Claude Code session spawning and management (voice multiplexer)
 - **Claude Code** — Worker and delegator sessions
 - **gh** — GitHub CLI for PR status and issue discovery

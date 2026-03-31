@@ -1,21 +1,28 @@
 # CLI Reference
 
-Full command reference for Rostrum (worktree manager) and vmux (session manager). Load this file when you need detailed CLI options.
+Full command reference for worktree management and vmux (session manager). Load this file when you need detailed CLI options.
 
-## Worktree Manager (Rostrum)
+## Worktree Management
 
-| Command | Description |
-|---------|-------------|
-| `rostrum setup BRANCH` | Create worktree with full env setup |
-| `rostrum setup BRANCH --quick` | Create worktree, skip deps/build |
-| `rostrum setup BRANCH --open` | Create and open in editor |
-| `rostrum teardown BRANCH` | Remove worktree and cleanup |
-| `rostrum teardown BRANCH --delete-branch` | Also delete the git branch |
-| `rostrum teardown BRANCH --force` | Force removal with uncommitted changes |
-| `rostrum list` | List active worktrees |
-| `rostrum list --verbose` | List with URLs and details |
-| `rostrum dev` | Start webpack dev server (run from worktree dir) |
-| `rostrum open BRANCH` | Open worktree in editor |
+Worktree lifecycle commands are configured in `config/environment.yml` under the `worktree` section. Each command is a shell command template with variable interpolation:
+
+| Variable | Description |
+|----------|-------------|
+| `{branch}` | The git branch name |
+| `{path}` | The target worktree directory path |
+| `{repo_path}` | The main repository path |
+
+### Default Commands (plain git)
+
+| Config Key | Default Command | Description |
+|------------|----------------|-------------|
+| `worktree.setup` | `git worktree add -b {branch} {path} main` | Create worktree with full setup |
+| `worktree.setup_quick` | `git worktree add -b {branch} {path} main` | Create worktree, skip deps/build |
+| `worktree.teardown` | `git worktree remove {path}` | Remove worktree and cleanup |
+| `worktree.list` | `git worktree list --porcelain` | List active worktrees |
+| `worktree.dev` | *(empty)* | Start dev server (optional) |
+
+These can be overridden in `config/environment.local.yml` to use any worktree management tool.
 
 ## Session Manager (vmux)
 

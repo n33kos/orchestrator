@@ -20,13 +20,26 @@ eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
 QUEUE_FILE="$CONFIG_QUEUE_FILE"
 REPO_PATH="$CONFIG_REPO_PATH"
 WORKTREE_PREFIX="$CONFIG_WORKTREE_PREFIX"
-ROSTRUM="$CONFIG_TOOL_ROSTRUM"
 VMUX="$CONFIG_TOOL_VMUX"
+WORKTREE_SETUP_CMD="$CONFIG_WORKTREE_SETUP"
+WORKTREE_SETUP_QUICK_CMD="$CONFIG_WORKTREE_SETUP_QUICK"
 MAX_ACTIVE="$CONFIG_MAX_ACTIVE"
 DELEGATOR_DEFAULT="$CONFIG_DELEGATOR_ENABLED"
 
 # shellcheck source=validate-env.sh
 source "$SCRIPT_DIR/validate-env.sh"
+
+# Helper: interpolate worktree command template variables
+run_worktree_cmd() {
+    local template="$1"
+    local branch="${2:-}"
+    local path="${3:-}"
+    local cmd="$template"
+    cmd="${cmd//\{branch\}/$branch}"
+    cmd="${cmd//\{path\}/$path}"
+    cmd="${cmd//\{repo_path\}/$REPO_PATH}"
+    eval "$cmd"
+}
 
 # Pre-flight checks
 if [[ ! -x "$VMUX" ]]; then
@@ -114,9 +127,9 @@ print(json.dumps(steps))
     echo "  Branch prefix: $ITEM_BRANCH (graphite_stack)"
     echo "  Stack steps: $(echo "$STACK_STEPS_JSON" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")"
 
-    # Step 1: Create worktree via Rostrum using the branch prefix
+    # Step 1: Create worktree using the branch prefix
     echo ""
-    echo "Step 1: Creating worktree via Rostrum..."
+    echo "Step 1: Creating worktree..."
     cd "$REPO_PATH"
 
     # Reuse find_worktree_by_branch helper (defined in standard flow too)
@@ -136,12 +149,12 @@ print(json.dumps(steps))
         if [[ -n "$EXISTING_GIT_WORKTREE" && -d "$EXISTING_GIT_WORKTREE" ]]; then
             WORKTREE_PATH="$EXISTING_GIT_WORKTREE"
             echo "  Worktree already exists at $WORKTREE_PATH"
-        elif $ROSTRUM setup "$ITEM_BRANCH" --quick; then
+        elif run_worktree_cmd "$WORKTREE_SETUP_QUICK_CMD" "$ITEM_BRANCH" "${WORKTREE_PREFIX}${ITEM_BRANCH}"; then
             ACTUAL_WORKTREE="$(find_worktree_by_branch "$ITEM_BRANCH")"
             if [[ -n "$ACTUAL_WORKTREE" && -d "$ACTUAL_WORKTREE" ]]; then
                 WORKTREE_PATH="$ACTUAL_WORKTREE"
             else
-                echo "  ERROR: Rostrum created worktree but could not find it" >&2
+                echo "  ERROR: Worktree setup succeeded but could not find it" >&2
                 exit 1
             fi
             echo "  Created: $WORKTREE_PATH"
@@ -149,15 +162,15 @@ print(json.dumps(steps))
             ACTUAL_WORKTREE="$(find_worktree_by_branch "$ITEM_BRANCH")"
             if [[ -n "$ACTUAL_WORKTREE" && -d "$ACTUAL_WORKTREE" ]]; then
                 WORKTREE_PATH="$ACTUAL_WORKTREE"
-                echo "  Rostrum failed but worktree exists at $WORKTREE_PATH"
+                echo "  Setup failed but worktree exists at $WORKTREE_PATH"
             else
-                echo "  ERROR: Rostrum setup failed and no existing worktree found" >&2
+                echo "  ERROR: Worktree setup failed and no existing worktree found" >&2
                 exit 1
             fi
         fi
     fi
 else
-    # Standard flow: validate branch and create worktree via Rostrum
+    # Standard flow: validate branch and create worktree
     if [[ -z "$ITEM_BRANCH" ]]; then
         echo "ERROR: Item $ITEM_ID has no branch name configured" >&2
         exit 1
@@ -191,7 +204,9 @@ else
     elif [[ -d "$WORKTREE_PATH" ]]; then
         echo "  Worktree already exists at $WORKTREE_PATH"
     else
-        if $ROSTRUM setup "$ITEM_BRANCH" $QUICK_FLAG; then
+        SETUP_CMD="$WORKTREE_SETUP_CMD"
+        [[ -n "$QUICK_FLAG" ]] && SETUP_CMD="$WORKTREE_SETUP_QUICK_CMD"
+        if run_worktree_cmd "$SETUP_CMD" "$ITEM_BRANCH" "$WORKTREE_PATH"; then
             ACTUAL_WORKTREE="$(find_worktree_by_branch "$ITEM_BRANCH")"
             if [[ -n "$ACTUAL_WORKTREE" && -d "$ACTUAL_WORKTREE" ]]; then
                 WORKTREE_PATH="$ACTUAL_WORKTREE"
@@ -201,9 +216,9 @@ else
             ACTUAL_WORKTREE="$(find_worktree_by_branch "$ITEM_BRANCH")"
             if [[ -n "$ACTUAL_WORKTREE" && -d "$ACTUAL_WORKTREE" ]]; then
                 WORKTREE_PATH="$ACTUAL_WORKTREE"
-                echo "  Rostrum failed but worktree exists at $WORKTREE_PATH"
+                echo "  Setup failed but worktree exists at $WORKTREE_PATH"
             else
-                echo "  ERROR: Rostrum setup failed and no existing worktree found" >&2
+                echo "  ERROR: Worktree setup failed and no existing worktree found" >&2
                 exit 1
             fi
         fi

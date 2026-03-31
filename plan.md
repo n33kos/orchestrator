@@ -224,7 +224,7 @@ Refinement and scaling capabilities.
 - ~~Support work items across different repositories~~ ✓ metadata.repo_path
 - ~~Configure worktree manager targets per work item~~ ✓ activate-stream.sh cross-repo
 - Handle cross-repo dependencies
-- Auto-detect repo tooling (Rostrum if available, git worktree for others)
+- Configurable worktree commands (defaults to git worktree, overridable in environment.local.yml)
 
 ### 5.5 Worker Completion Automation
 - Workers self-report completion via API endpoint or vmux message
@@ -259,7 +259,6 @@ repo:
 
 # CLI Tools
 tools:
-  rostrum: /usr/local/bin/rostrum         # Worktree management CLI
   vmux: ~/.local/bin/vmux                 # Voice session management CLI
   graphite: gt                            # Stacked PR CLI (optional)
 

@@ -14,7 +14,7 @@ eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
 
 QUEUE_FILE="$CONFIG_QUEUE_FILE"
 VMUX="$CONFIG_TOOL_VMUX"
-ROSTRUM="$CONFIG_TOOL_ROSTRUM"
+WORKTREE_LIST_CMD="$CONFIG_WORKTREE_LIST"
 REPO_PATH="$CONFIG_REPO_PATH"
 MAX_ACTIVE="$CONFIG_MAX_ACTIVE"
 
@@ -62,7 +62,7 @@ print(json.dumps({
 SESSIONS_RAW="$($VMUX sessions 2>&1)" || SESSIONS_RAW="(no sessions)"
 
 # Worktree summary
-WORKTREE_RAW="$(cd "$REPO_PATH" && $ROSTRUM list 2>&1)" || WORKTREE_RAW="(no worktrees)"
+WORKTREE_RAW="$(cd "$REPO_PATH" && eval "$WORKTREE_LIST_CMD" 2>&1)" || WORKTREE_RAW="(no worktrees)"
 
 if [[ "$JSON_OUTPUT" == "true" ]]; then
     echo "$QUEUE_SUMMARY"

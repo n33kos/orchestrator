@@ -11,14 +11,16 @@ All site-specific values are defined in `config/environment.yml`, with personal 
 When activating a work item or when the user asks to spin up a new environment:
 
 1. **Create the worktree** (must run from the main repo directory):
-   - **Standard items**: `cd $CONFIG_REPO_PATH && rostrum setup <branch-name>` (use `--quick` to skip dependency install and build)
-   - **Graphite stacks** (`worker.commit_strategy: graphite_stack`): `cd $CONFIG_REPO_PATH && rostrum setup <branch-prefix> --quick` — Rostrum creates the worktree on a branch matching the prefix (e.g., `me/design-system/some-task`), then `gt create` handles per-step branching from there
+   - Worktree lifecycle commands are configured in `config/environment.yml` under the `worktree` section
+   - **Standard items**: uses the configured `worktree.setup` command template with `{branch}` and `{path}` interpolated
+   - **Quick setup**: uses the configured `worktree.setup_quick` command template (skips dependency install and build)
+   - **Graphite stacks** (`worker.commit_strategy: graphite_stack`): uses `worktree.setup_quick` with the branch prefix, then `gt create` handles per-step branching from there
 
 2. **Spawn a session** in the new worktree:
    ```bash
    vmux spawn <worktree-path>
    ```
-   The worktree path is discovered via `git worktree list --porcelain` after Rostrum creates it. NEVER construct the path manually — Rostrum may hash directory names.
+   The worktree path is discovered via `git worktree list --porcelain` after the setup command runs. NEVER construct the path manually — some worktree managers may hash directory names.
 
 3. **Initialize delegator** (if `worker.delegator_enabled` for this item) — creates state directory and `state.json`
 
@@ -28,9 +30,9 @@ When activating a work item or when the user asks to spin up a new environment:
 
 Items with `worker.commit_strategy: graphite_stack` and `worker.stack_steps` follow a special flow:
 
-- Worktree is created via Rostrum: `rostrum setup <branch-prefix> --quick` from the main repo directory
-- The branch prefix (e.g., `me/design-system/some-task`) is passed to Rostrum, which creates the worktree and checks out a branch with that name
-- Rostrum handles path naming and hashing — NEVER construct worktree paths manually; use `git worktree list --porcelain` to discover the actual path
+- Worktree is created using the configured `worktree.setup_quick` command from the main repo directory
+- The branch prefix (e.g., `me/design-system/some-task`) is passed to the setup command, which creates the worktree and checks out a branch with that name
+- NEVER construct worktree paths manually; use `git worktree list --porcelain` to discover the actual path
 - The task message includes per-step instructions with branch names derived from `branch/{position}/{suffix}`
 - Worker uses `gt create <branch> --message "<desc>"` for each step
 - After all steps: `gt submit --stack` to push and create PRs
@@ -52,17 +54,17 @@ For emergency manual use only -- not part of the automated lifecycle.
 ## Tearing Down a Worktree + Session
 
 1. Kill the delegator, then the session: `vmux kill <session-id>`
-2. Remove the worktree: `cd $CONFIG_REPO_PATH && rostrum teardown <branch-name>`
+2. Remove the worktree using the configured `worktree.teardown` command template
 
 ## Listing Active Environments
 
 - **Sessions**: `vmux sessions`
-- **Worktrees**: `cd $CONFIG_REPO_PATH && rostrum list`
+- **Worktrees**: run the configured `worktree.list` command from within `$CONFIG_REPO_PATH`
 - **Full status**: `vmux status`
 
 ## CLI Reference
 
-For the full command reference for Rostrum and vmux, see `knowledge/cli-reference.md`.
+For the full vmux command reference, see `knowledge/cli-reference.md`.
 
 ## Debugging & Recovery
 
@@ -100,6 +102,6 @@ Delegators are **not** persistent sessions. They are stateless `claude --print` 
 
 ## Important Notes
 
-- Rostrum manages worktree paths (which may be hashed) — always use `git worktree list --porcelain` to discover actual paths rather than constructing them from the prefix
+- Some worktree managers may hash or rename paths — always use `git worktree list --porcelain` to discover actual paths rather than constructing them from the prefix
 - If a branch is already checked out in another worktree, setup will fail — use the open command instead
 - The relay session ID is derived from the working directory, so each worktree gets a unique session

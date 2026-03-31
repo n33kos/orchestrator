@@ -13,9 +13,17 @@ repo:
 
 # CLI Tools
 tools:
-  rostrum: /usr/local/bin/rostrum
   vmux: ~/.local/bin/vmux
   graphite: gt
+
+# Worktree lifecycle commands
+# Variables available: {branch}, {path}, {repo_path}
+worktree:
+  setup: "git worktree add -b {branch} {path} main"
+  setup_quick: "git worktree add -b {branch} {path} main"
+  teardown: "git worktree remove {path}"
+  list: "git worktree list --porcelain"
+  dev: ""
 
 # Orchestrator State
 state:

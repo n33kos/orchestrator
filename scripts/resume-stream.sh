@@ -20,8 +20,20 @@ QUEUE_FILE="$CONFIG_QUEUE_FILE"
 QUEUE_PY="python3 -m lib.queue"
 VMUX="$CONFIG_TOOL_VMUX"
 REPO_PATH="$CONFIG_REPO_PATH"
-ROSTRUM="$CONFIG_TOOL_ROSTRUM"
 WORKTREE_PREFIX="$CONFIG_WORKTREE_PREFIX"
+WORKTREE_SETUP_QUICK_CMD="$CONFIG_WORKTREE_SETUP_QUICK"
+
+# Helper: interpolate worktree command template variables
+run_worktree_cmd() {
+    local template="$1"
+    local branch="${2:-}"
+    local path="${3:-}"
+    local cmd="$template"
+    cmd="${cmd//\{branch\}/$branch}"
+    cmd="${cmd//\{path\}/$path}"
+    cmd="${cmd//\{repo_path\}/$REPO_PATH}"
+    eval "$cmd"
+}
 MAX_ACTIVE="$CONFIG_MAX_ACTIVE"
 
 # shellcheck source=validate-env.sh
@@ -86,7 +98,7 @@ fi
 if [[ "$USE_WORKTREE" != "False" && ! -d "$WORKTREE_PATH" ]]; then
     echo "  Worktree missing — recreating..."
     cd "$REPO_PATH"
-    $ROSTRUM setup "$ITEM_BRANCH" --quick
+    run_worktree_cmd "$WORKTREE_SETUP_QUICK_CMD" "$ITEM_BRANCH" "${WORKTREE_PREFIX}${ITEM_BRANCH}"
 fi
 
 # Spawn worker session

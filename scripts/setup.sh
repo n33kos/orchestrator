@@ -38,8 +38,8 @@ eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
 
 QUEUE_FILE="$CONFIG_QUEUE_FILE"
 VMUX="$CONFIG_TOOL_VMUX"
-ROSTRUM="$CONFIG_TOOL_ROSTRUM"
 GRAPHITE="$CONFIG_TOOL_GRAPHITE"
+WORKTREE_SETUP="$CONFIG_WORKTREE_SETUP"
 REPO_PATH="$CONFIG_REPO_PATH"
 
 # 3. Check prerequisites
@@ -53,10 +53,10 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
-if [[ -x "$ROSTRUM" ]]; then
-    echo "[ok] rostrum: $ROSTRUM"
+if [[ -n "$WORKTREE_SETUP" ]]; then
+    echo "[ok] worktree setup command configured"
 else
-    echo "[MISSING] rostrum not found at $ROSTRUM"
+    echo "[MISSING] No worktree setup command configured in environment.yml"
     ERRORS=$((ERRORS + 1))
 fi
 
