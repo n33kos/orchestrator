@@ -101,6 +101,9 @@ class Config:
         # Stall Detection
         self.stall_threshold_min: int = 30
 
+        # Project-specific
+        self.design_keywords: str = "design-system,design,ui-kit"
+
     def _bool(self, val: str) -> bool:
         return val.lower() in ("true", "yes", "1")
 
@@ -210,5 +213,15 @@ def load_config(project_root: Optional[str] = None) -> Config:
     cfg.stall_threshold_min = cfg._int(
         values.get("stall_detection.threshold_minutes", "30"), 30
     )
+
+    # Project-specific
+    cfg.design_keywords = values.get(
+        "project.design_keywords", "design-system,design,ui-kit"
+    )
+
+    # Export config-driven env vars so subprocesses (preseed-profile, etc.) can read them.
+    # Only set if not already overridden by the system environment.
+    if "ORCHESTRATOR_DESIGN_KEYWORDS" not in os.environ:
+        os.environ["ORCHESTRATOR_DESIGN_KEYWORDS"] = cfg.design_keywords
 
     return cfg
