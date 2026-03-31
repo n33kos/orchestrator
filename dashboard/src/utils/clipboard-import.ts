@@ -23,7 +23,7 @@ export function parseClipboardItems(text: string): ClipboardWorkItem[] {
         .map((i: Record<string, unknown>) => ({
           title: String(i.title),
           description: i.description ? String(i.description) : undefined,
-          type: i.type ? String(i.type) : undefined,
+
           priority: typeof i.priority === 'number' ? i.priority : undefined,
         }))
     }

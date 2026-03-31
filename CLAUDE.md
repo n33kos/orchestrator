@@ -96,7 +96,7 @@ Delegators are **not** persistent sessions. They are stateless `claude --print` 
 
 - Queue file: `~/.claude/orchestrator/queue.json`
 - Queue operations: use `scripts/lib/queue.py` for all reads and writes (provides file locking)
-- All work items share a single concurrency pool (`max_active`). There is no distinction between "project" and "quick_fix" types — behavior is driven by per-item configuration (`worker.delegator_enabled`, `environment.branch`, `worker.commit_strategy`, etc.)
+- All work items share a single concurrency pool (`max_active`). Behavior is driven by per-item configuration (`worker.delegator_enabled`, `environment.branch`, `worker.commit_strategy`, etc.)
 - Always pick the highest priority queued item when a slot opens
 - When a PR is merged, auto-complete the work stream and free the slot
 

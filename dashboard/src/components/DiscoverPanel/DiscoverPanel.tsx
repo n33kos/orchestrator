@@ -4,7 +4,6 @@ import { useFocusTrap } from '../../hooks/useFocusTrap.ts'
 
 interface DiscoveredItem {
   title: string
-  type: string
   priority: number
   description?: string
   source?: string

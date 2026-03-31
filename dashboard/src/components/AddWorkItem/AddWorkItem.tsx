@@ -42,7 +42,7 @@ export function AddWorkItem({ onAdd, onCancel }: AddWorkItemProps) {
     onAdd({
       title: title.trim(),
       description: description.trim(),
-      type: 'work_item',
+
       priority,
       branch: branch.trim(),
       ...(isGraphiteStack ? { prType: 'graphite_stack' } : {}),

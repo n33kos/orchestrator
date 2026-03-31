@@ -382,7 +382,7 @@ export function App() {
           body: JSON.stringify({
             title: item.title,
             description: item.description || '',
-            type: item.type || 'work_item',
+
             priority: item.priority ?? 50,
             branch: item.environment?.branch || '',
           }),
@@ -807,7 +807,7 @@ export function App() {
                   body: JSON.stringify({
                     title: item.title,
                     description: item.description || '',
-                    type: item.type || 'work_item',
+
                     priority: item.priority ?? 50,
                     branch: '',
                   }),

@@ -106,7 +106,7 @@ def parse_markdown_source(path: Path) -> list[dict]:
                     "title": title,
                     "description": f"From: {current_section}" if current_section else "",
                     "source_ref": f"{path.name}:{current_section}",
-                    "type": infer_work_type(title),
+
                     "priority": infer_priority(title),
                 }
             )
@@ -122,7 +122,7 @@ def parse_markdown_source(path: Path) -> list[dict]:
                         "title": title,
                         "description": f"From: {current_section}",
                         "source_ref": f"{path.name}:{current_section}",
-                        "type": infer_work_type(title),
+    
                         "priority": infer_priority(title),
                     }
                 )
@@ -157,14 +157,6 @@ def has_action_verb(text: str) -> bool:
     lower = text.lower()
     return any(lower.startswith(v) or f" {v} " in lower for v in action_verbs)
 
-
-def infer_work_type(title: str) -> str:
-    """Infer whether a work item is a project or quick fix."""
-    lower = title.lower()
-    quick_indicators = ["fix", "typo", "tweak", "config", "bump", "minor", "small"]
-    if any(ind in lower for ind in quick_indicators):
-        return "quick_fix"
-    return "project"
 
 
 def infer_priority(title: str) -> int:
@@ -294,17 +286,6 @@ def poll_github_issues(source_name: str, config: dict) -> list[dict]:
             if label_lower in priority_labels:
                 priority = min(priority, priority_labels[label_lower])
 
-        # Determine type from labels
-        work_type = infer_work_type(title)
-        for label in labels_list:
-            ll = label.lower()
-            if "bug" in ll or "fix" in ll or "quick" in ll:
-                work_type = "quick_fix"
-                break
-            if "feature" in ll or "epic" in ll or "project" in ll:
-                work_type = "project"
-                break
-
         # Truncate body for description
         description = body[:500].strip()
         if len(body) > 500:
@@ -315,7 +296,6 @@ def poll_github_issues(source_name: str, config: dict) -> list[dict]:
             "description": description,
             "source": source_name,
             "source_ref": issue_url,
-            "type": work_type,
             "priority": priority,
         })
 
@@ -402,24 +382,11 @@ def poll_jira_issues(source_name: str, config: dict) -> list[dict]:
         priority_name = (fields.get("priority") or {}).get("name", "").lower()
         priority = priority_mapping.get(priority_name, 3)
 
-        # Map type
-        issue_type = (fields.get("issuetype") or {}).get("name", "").lower()
-        labels = [l for l in fields.get("labels", [])]
-
-        work_type = "project"
-        if issue_type in ("bug", "task", "sub-task"):
-            work_type = "quick_fix"
-        if any("bug" in l.lower() or "quick" in l.lower() for l in labels):
-            work_type = "quick_fix"
-        if issue_type in ("story", "epic"):
-            work_type = "project"
-
         items.append({
             "title": f"{key}: {summary}",
             "description": description,
             "source": source_name,
             "source_ref": f"https://{domain}/browse/{key}",
-            "type": work_type,
             "priority": priority,
         })
 
@@ -491,7 +458,6 @@ def main():
             print(json.dumps([{
                 "title": item["title"],
                 "description": item.get("description", ""),
-                "type": item["type"],
                 "priority": item["priority"],
                 "source": item.get("source", "discovery"),
                 "source_ref": item.get("source_ref", ""),
@@ -499,7 +465,7 @@ def main():
         else:
             print("\n--- NEW ITEMS (dry run) ---")
             for item in unique:
-                print(f"  [{item['type']}] p{item['priority']} {item['title']}")
+                print(f"  p{item['priority']} {item['title']}")
                 if item.get("description"):
                     print(f"    {item['description']}")
         return

@@ -1,27 +1,5 @@
 # Orchestrator Implementation Plan
 
-## Work Stream Types
-
-Two distinct categories of work with different resource profiles:
-
-### Projects
-- Larger-scale work: multi-file changes, Graphite stacks, feature implementations
-- Require a delegator instance for quality assurance
-- **Concurrency limit: 2** (configurable)
-- Full lifecycle: plan → activate → execute → review → complete
-- Each consumes: 1 worktree + 1 worker session + 1 delegator instance
-
-### Quick Fixes
-- Small, self-contained changes: bug fixes, config tweaks, one-file adjustments
-- **No delegator** — overhead isn't justified for small changes
-- **No concurrency limit** — churn through them as fast as they come in
-- Simplified lifecycle: activate → execute → complete
-- Each consumes: 1 worktree + 1 worker session
-
-The orchestrator determines the type based on source metadata (e.g., Jira issue type, label, estimated scope) or user override. When in doubt, default to project.
-
----
-
 ## Phase 1: Foundation
 
 Core infrastructure for the plugin, work queue, and environment abstraction.
@@ -39,8 +17,7 @@ Core infrastructure for the plugin, work queue, and environment abstraction.
 - Validate environment config on startup and surface missing/invalid values clearly
 
 ### 1.3 Work Queue System
-- Define work item schema (source, title, description, priority, status, type, metadata)
-- Implement separate queues for projects and quick fixes
+- Define work item schema (source, title, description, priority, status, metadata)
 - Implement queue storage (start with JSON file, path from environment config)
 - Implement priority sorting logic (explicit priority + user overrides + orchestrator judgment)
 - Create dashboard markdown generator — temporary UI until web dashboard is built
@@ -48,8 +25,7 @@ Core infrastructure for the plugin, work queue, and environment abstraction.
 ### 1.4 Worktree + Session Management
 - Formalize the create/spawn/teardown workflow using environment config for CLI paths
 - Add queue-aware activation: pick highest priority queued item when a slot opens
-- Implement concurrency limiter for projects (default from environment config)
-- Quick fixes bypass the concurrency limit
+- Implement concurrency limiter (default from environment config)
 - Add health monitoring: detect zombie sessions and auto-recover
 
 ## Phase 2: Work Discovery
@@ -333,7 +309,7 @@ concurrency:
   "source": "react-18-plan",
   "title": "Enzyme Migration - Consumer Registry",
   "description": "Convert 30 enzyme test files to RTL in registry/",
-  "type": "project",
+
   "priority": 1,
   "status": "queued",
   "branch": "me/react-18/enzyme-migration/1/consumer-registry",

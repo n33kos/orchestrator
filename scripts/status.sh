@@ -35,10 +35,8 @@ with locked_queue() as ctx:
 
 items = data['items']
 by_status = {}
-by_type = {}
 for item in items:
     by_status[item['status']] = by_status.get(item['status'], 0) + 1
-    by_type[item.get('type', 'project')] = by_type.get(item.get('type', 'project'), 0) + 1
 
 active_projects = sum(1 for i in items if i['status'] == 'active')
 queued = [i for i in items if i['status'] in ('queued', 'planning')]
@@ -48,13 +46,12 @@ blocked = [i for i in items if i.get('blocked_by') and any(all_by_id.get(dep, {}
 print(json.dumps({
     'total': len(items),
     'by_status': by_status,
-    'by_type': by_type,
     'active_projects': active_projects,
     'max_active': $MAX_ACTIVE,
     'slots_available': max(0, $MAX_ACTIVE - active_projects),
-    'queued': [{'id': i['id'], 'title': i['title'], 'priority': i['priority'], 'type': i['type']} for i in queued],
+    'queued': [{'id': i['id'], 'title': i['title'], 'priority': i['priority']} for i in queued],
     'blocked': [{'id': i['id'], 'title': i['title']} for i in blocked],
-    'items': [{'id': i['id'], 'title': i['title'], 'status': i['status'], 'type': i['type'], 'priority': i['priority']} for i in items],
+    'items': [{'id': i['id'], 'title': i['title'], 'status': i['status'], 'priority': i['priority']} for i in items],
 }))
 ")"
 

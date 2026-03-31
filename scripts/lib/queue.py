@@ -19,7 +19,7 @@ Usage from shell scripts:
     python3 -m lib.queue update <item-id> runtime.delegator_status=monitoring
 
     # Count items matching a status
-    python3 -m lib.queue count --status active --type project
+    python3 -m lib.queue count --status active
 
     # List item IDs matching criteria
     python3 -m lib.queue list --status queued --sort priority
@@ -147,14 +147,11 @@ def _coerce_value(value: str) -> Any:
 def count_items(
     data: dict,
     status: Optional[str] = None,
-    item_type: Optional[str] = None,
 ) -> int:
-    """Count items matching optional status and type filters."""
+    """Count items matching optional status filter."""
     count = 0
     for item in data["items"]:
         if status and item.get("status") != status:
-            continue
-        if item_type and item.get("type") != item_type:
             continue
         count += 1
     return count
@@ -163,15 +160,12 @@ def count_items(
 def list_items(
     data: dict,
     status: Optional[str] = None,
-    item_type: Optional[str] = None,
     sort_by: Optional[str] = None,
 ) -> list[dict]:
     """List items matching optional filters, optionally sorted."""
     items = data["items"]
     if status:
         items = [i for i in items if i.get("status") == status]
-    if item_type:
-        items = [i for i in items if i.get("type") == item_type]
     if sort_by:
         items = sorted(items, key=lambda i: i.get(sort_by, 0))
     return items
@@ -241,37 +235,29 @@ def _cli_update(args: list[str], queue_path: str) -> None:
 
 
 def _cli_count(args: list[str], queue_path: str) -> None:
-    """count [--status STATUS] [--type TYPE]"""
+    """count [--status STATUS]"""
     status = None
-    item_type = None
     i = 0
     while i < len(args):
         if args[i] == "--status" and i + 1 < len(args):
             status = args[i + 1]
             i += 2
-        elif args[i] == "--type" and i + 1 < len(args):
-            item_type = args[i + 1]
-            i += 2
         else:
             i += 1
 
     with locked_queue(queue_path) as ctx:
-        print(count_items(ctx["data"], status=status, item_type=item_type))
+        print(count_items(ctx["data"], status=status))
 
 
 def _cli_list(args: list[str], queue_path: str) -> None:
-    """list [--status STATUS] [--type TYPE] [--sort FIELD] [--field FIELD ...]"""
+    """list [--status STATUS] [--sort FIELD] [--field FIELD ...]"""
     status = None
-    item_type = None
     sort_by = None
     fields = ["id"]
     i = 0
     while i < len(args):
         if args[i] == "--status" and i + 1 < len(args):
             status = args[i + 1]
-            i += 2
-        elif args[i] == "--type" and i + 1 < len(args):
-            item_type = args[i + 1]
             i += 2
         elif args[i] == "--sort" and i + 1 < len(args):
             sort_by = args[i + 1]
@@ -285,7 +271,7 @@ def _cli_list(args: list[str], queue_path: str) -> None:
             i += 1
 
     with locked_queue(queue_path) as ctx:
-        items = list_items(ctx["data"], status=status, item_type=item_type, sort_by=sort_by)
+        items = list_items(ctx["data"], status=status, sort_by=sort_by)
         for item in items:
             values = get_fields(item, fields)
             print("\t".join(values))

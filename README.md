@@ -152,20 +152,6 @@ Discover → Queue → Plan → Activate → Execute → Review → Complete
 8. **Review** — Delegator performs final review, surfaces PR for user sign-off
 9. **Complete** — PR merged, worktree torn down, slot freed for next item
 
-## Two Work Stream Types
-
-**Projects** — Larger-scale work requiring quality oversight:
-- Multi-file changes, feature implementations, Graphite stacks
-- Gets: worktree + worker session + delegator instance
-- Concurrency limit: 2 (configurable)
-- Full lifecycle with planning phase
-
-**Quick Fixes** — Small, self-contained changes:
-- Bug fixes, config tweaks, one-file adjustments
-- Gets: worktree + worker session (no delegator)
-- Concurrency limit: 4 (configurable)
-- Simplified lifecycle (skip planning)
-
 ## Queue Schema
 
 Work items are stored in `~/.claude/orchestrator/queue.json`:
@@ -178,7 +164,7 @@ Work items are stored in `~/.claude/orchestrator/queue.json`:
       "id": "ws-001",
       "source": "manual",
       "description": "Short description of the work",
-      "type": "project",
+
       "priority": 100,
       "status": "queued",
       "branch": "branch-name",

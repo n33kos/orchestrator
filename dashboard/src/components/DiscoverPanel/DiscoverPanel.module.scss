@@ -183,15 +183,7 @@
   background: var(--color-surface-active);
   color: var(--color-text-muted);
 
-  &[data-type="quick_fix"] {
-    background: color-mix(in srgb, var(--color-success) 15%, transparent);
-    color: var(--color-success);
-  }
 
-  &[data-type="project"] {
-    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
-    color: var(--color-accent);
-  }
 }
 
 .PreviewPriority {
