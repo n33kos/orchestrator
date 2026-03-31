@@ -18,6 +18,26 @@ from collections import Counter, defaultdict
 from datetime import datetime
 
 
+def _read_config_value(key: str, default: str = "") -> str:
+    """Read a config value from environment.yml (with local overrides) via parse-config.sh."""
+    try:
+        import subprocess
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(script_dir)
+        cfg_path = os.path.join(project_root, "config", "environment.yml")
+        config_key = "CONFIG_" + key.upper().replace(".", "_")
+        result = subprocess.run(
+            ["bash", os.path.join(script_dir, "parse-config.sh"), cfg_path],
+            capture_output=True, text=True, timeout=5,
+        )
+        for line in result.stdout.splitlines():
+            if line.startswith(f"{config_key}="):
+                return line.split("=", 1)[1].strip("'\"")
+    except Exception:
+        pass
+    return default
+
+
 def find_session_files(projects_dir: Path, max_files: int = 50) -> list[Path]:
     """Find the most recent JSONL session files, prioritizing larger ones."""
     files = []
@@ -154,8 +174,11 @@ def extract_user_messages(session_file: Path) -> list[dict]:
 def extract_project_domain(project_name: str) -> str:
     """Infer the project domain from the session directory name."""
     name = project_name.lower()
-    # Domain keywords are configurable — check environment or use generic detection
-    design_keywords = os.environ.get("ORCHESTRATOR_DESIGN_KEYWORDS", "design-system,design,ui-kit").split(",")
+    # Domain keywords: config > env var > defaults
+    design_keywords_str = os.environ.get("ORCHESTRATOR_DESIGN_KEYWORDS", "")
+    if not design_keywords_str:
+        design_keywords_str = _read_config_value("project.design_keywords", "design-system,design,ui-kit")
+    design_keywords = design_keywords_str.split(",")
     if any(kw.strip() in name for kw in design_keywords):
         return "design-system"
     if "react-18" in name or "bootstrap" in name:

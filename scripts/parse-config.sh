@@ -140,4 +140,7 @@ emit('CONFIG_ARCHIVE_AFTER_DAYS', values.get('scheduler.archive_after_days', '7'
 
 # Stall Detection
 emit('CONFIG_STALL_THRESHOLD_MIN', values.get('stall_detection.threshold_minutes', '30'))
+
+# Project-specific
+emit('CONFIG_PROJECT_DESIGN_KEYWORDS', values.get('project.design_keywords', 'design-system,design,ui-kit'))
 " "$CONFIG_FILE" "$LOCAL_CONFIG_FILE"

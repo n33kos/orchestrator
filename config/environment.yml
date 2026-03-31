@@ -68,3 +68,7 @@ scheduler:
 # Stall Detection
 stall_detection:
   threshold_minutes: 30
+
+# Project-specific keywords for domain detection in profile training
+project:
+  design_keywords: design-system,design,ui-kit
