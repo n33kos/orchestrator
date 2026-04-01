@@ -296,16 +296,8 @@ def load_config(project_root: Optional[str] = None) -> Config:
     # State
     cfg.queue_file = _expand(values.get("state.queue_file", ""))
 
-    # Concurrency — single unified limit (sum of old max_active_projects + quick_fix_limit)
-    max_projects = cfg._int(values.get("concurrency.max_active_projects", "2"), 2)
-    qf_val = values.get("concurrency.quick_fix_limit", "4")
-    qf_limit = 999 if qf_val == "unlimited" else cfg._int(qf_val, 4)
-    # Prefer explicit max_active if set, otherwise derive from legacy values
-    explicit_max = values.get("concurrency.max_active")
-    if explicit_max:
-        cfg.max_active = cfg._int(explicit_max, 6)
-    else:
-        cfg.max_active = max_projects + qf_limit
+    # Concurrency
+    cfg.max_active = cfg._int(values.get("concurrency.max_active", "2"), 2)
 
     # Autonomy
     cfg.auto_activate = cfg._bool(values.get("autonomy.auto_activate", "false"))

@@ -290,7 +290,7 @@ All site-specific values. Override with `config/environment.local.yml` (gitignor
 | `tools` | `vmux`, `graphite` |
 | `worktree` | `setup`, `setup_quick`, `teardown`, `list`, `dev` (command templates) |
 | `state` | `queue_file` |
-| `concurrency` | `max_active_projects` (2), `quick_fix_limit` (4), `queue_strategy` |
+| `concurrency` | `max_active` (2), `queue_strategy` |
 | `autonomy` | `auto_activate`, `auto_approve_plans`, `require_approved_plan`, `ask_before_teardown` |
 | `plans` | `plans_directory` |
 | `delegator` | `enabled_by_default`, `cycle_interval`, `default_model` (haiku), `review_model` (opus), `transcript_lines_triage`/`_deep` |

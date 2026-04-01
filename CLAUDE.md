@@ -96,7 +96,7 @@ Delegators are **not** persistent sessions. They are stateless `claude --print` 
 
 - **NEVER delete git branches** unless the user explicitly tells you to. When tearing down worktrees, do NOT use `--delete-branch`.
 - Always run worktree setup and teardown commands from within the main repo directory.
-- Respect the concurrency limit (`concurrency.max_active` in config, derived from `max_active_projects + quick_fix_limit` if not set explicitly).
+- Respect the concurrency limit (`concurrency.max_active` in config).
 - **Never run all tests** — always target specific test files.
 - **Self-targeting items (orchestrator repo)**: When creating a work item that targets the orchestrator repo itself, ALWAYS set `environment.repo` to a workspace subdirectory (e.g. `~/.claude/orchestrator/workspaces/<item-id>`) and `environment.use_worktree: false`. NEVER point `environment.repo` to the orchestrator root — this would cause vmux to spawn a worker session at the orchestrator's own directory, taking over the orchestrator's session. Also set `worker.commit_strategy: commit_to_main` since these items commit directly to main without branches or PRs.
 

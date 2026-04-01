@@ -233,7 +233,7 @@ export function registerSystemRoutes(server: ViteDevServer) {
 
         // Map setting keys to YAML key names and their sections
         const mappings: Record<string, { key: string; section: string }> = {
-          maxConcurrentProjects: { key: 'max_active_projects', section: 'concurrency' },
+          maxConcurrentProjects: { key: 'max_active', section: 'concurrency' },
           autoActivate: { key: 'auto_activate', section: 'autonomy' },
           requireApprovedPlan: { key: 'require_approved_plan', section: 'autonomy' },
           defaultDelegatorEnabled: { key: 'enabled_by_default', section: 'delegator' },
@@ -300,7 +300,7 @@ export function registerSystemRoutes(server: ViteDevServer) {
 
       res.setHeader('Content-Type', 'application/json')
       res.end(JSON.stringify({
-        maxConcurrentProjects: parseInt(getVal('max_active_projects') || '2', 10),
+        maxConcurrentProjects: parseInt(getVal('max_active') || '2', 10),
         autoActivate: getVal('auto_activate') === 'true',
         requireApprovedPlan: getVal('require_approved_plan') === 'true',
         plansDirectory: getVal('plans_directory') || '~/.claude/orchestrator/plans',
