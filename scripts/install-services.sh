@@ -59,7 +59,7 @@ detect_shim_paths() {
     [[ -d "/usr/local/bin" ]] && paths+=("/usr/local/bin")
 
     # Always include standard system paths and user local bin
-    paths+=("$HOME/.local/bin" "/usr/bin" "/bin")
+    paths+=("$HOME/.local/bin" "/usr/bin" "/bin" "/usr/sbin" "/sbin")
 
     # Deduplicate while preserving order
     local seen=()
