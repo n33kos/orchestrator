@@ -172,15 +172,15 @@ def _activate_nonblocking(cfg: Config, item: dict) -> None:
                    "status=active", "activated_at=NOW"]
 
     if not use_worktree:
-        # Non-worktree items — use repo path directly
-        expanded = os.path.expanduser(repo) if repo else ""
-        if expanded:
-            os.makedirs(expanded, exist_ok=True)
-            update_args.append(f"environment.worktree_path={expanded}")
-            subprocess.run(update_args, cwd=SCRIPTS_DIR, capture_output=True, timeout=10)
-            print(f"[scheduler] Activated {item_id} with repo: {expanded}")
-        else:
-            raise RuntimeError(f"Item {item_id} has use_worktree=false but no repo path")
+        # Non-worktree items — always create an isolated workspace directory.
+        # Workers cd to the actual repo to make changes, but the session runs
+        # from the workspace so teardown can safely kill it without affecting
+        # any permanent sessions at the repo path.
+        workspace = os.path.expanduser(f"~/.claude/orchestrator/workspaces/{item_id}")
+        os.makedirs(workspace, exist_ok=True)
+        update_args.append(f"environment.worktree_path={workspace}")
+        subprocess.run(update_args, cwd=SCRIPTS_DIR, capture_output=True, timeout=10)
+        print(f"[scheduler] Activated {item_id} with workspace: {workspace} (repo: {repo})")
 
     elif branch:
         # Worktree items — needs worktree setup (background)
@@ -356,6 +356,13 @@ def process_worker_completions(cfg: Config, dry_run: bool) -> None:
                 print(f"[scheduler] Worker reported done — tearing down: {item_id} — {item_title}")
                 emit_event("scheduler.worker_teardown", f"Auto-teardown after worker completion: {item_title}", item_id=item_id)
                 _run_script("teardown-stream.sh", [item_id], timeout=60)
+                # Safety: always clear session/worktree fields even if teardown partially fails,
+                # to prevent the scheduler from retrying teardown every cycle.
+                subprocess.run(
+                    ["python3", "-m", "lib.queue", "update", item_id,
+                     "environment.session_id=NULL", "environment.worktree_path=NULL"],
+                    cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
+                )
 
         elif item["status"] == "review":
             runtime = item.get("runtime") or {}
@@ -413,22 +420,19 @@ def reconcile_state(cfg: Config, dry_run: bool) -> None:
             title = item.get("title", "")
             use_worktree = env.get("use_worktree", True)
 
-            # Non-worktree items use their repo path directly
+            # Non-worktree items always use an isolated workspace directory
             if not use_worktree and not worktree_path:
-                repo = env.get("repo", "")
-                if repo:
-                    expanded_repo = os.path.expanduser(repo)
-                    # Create workspace directory if it doesn't exist (handles manual activation)
-                    os.makedirs(expanded_repo, exist_ok=True)
-                    worktree_path = expanded_repo
-                    update_fields = [f"environment.worktree_path={worktree_path}"]
-                    # Also set activated_at if missing (manual activation case)
-                    if not item.get("activated_at"):
-                        update_fields.append("activated_at=NOW")
-                    subprocess.run(
-                        ["python3", "-m", "lib.queue", "update", item_id] + update_fields,
-                        cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
-                    )
+                workspace = os.path.expanduser(f"~/.claude/orchestrator/workspaces/{item_id}")
+                os.makedirs(workspace, exist_ok=True)
+                worktree_path = workspace
+                update_fields = [f"environment.worktree_path={worktree_path}"]
+                # Also set activated_at if missing (manual activation case)
+                if not item.get("activated_at"):
+                    update_fields.append("activated_at=NOW")
+                subprocess.run(
+                    ["python3", "-m", "lib.queue", "update", item_id] + update_fields,
+                    cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
+                )
 
             # Worktree discovery: active items without a worktree_path may be
             # waiting for a background worktree setup to complete.

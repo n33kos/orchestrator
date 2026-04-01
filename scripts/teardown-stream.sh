@@ -68,8 +68,8 @@ done
 
 # Read item from queue
 QUEUE_PY="python3 -m lib.queue"
-IFS=$'\x1f' read -r ITEM_BRANCH ITEM_TITLE SESSION_ID WORKTREE_PATH REPO_KEY \
-    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" environment.branch title environment.session_id environment.worktree_path repo_key)
+IFS=$'\x1f' read -r ITEM_BRANCH ITEM_TITLE SESSION_ID WORKTREE_PATH REPO_KEY USE_WORKTREE \
+    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" environment.branch title environment.session_id environment.worktree_path repo_key environment.use_worktree)
 
 # Resolve per-repo config
 [[ -z "$REPO_KEY" || "$REPO_KEY" == "None" ]] && REPO_KEY="_defaults"
@@ -99,8 +99,14 @@ else
     echo "Step 2: No session to kill"
 fi
 
-# Step 3: Remove worktree (never delete the branch)
-if [[ -n "$ITEM_BRANCH" ]]; then
+# Step 3: Remove worktree or workspace
+# Determine mode: worktree items have use_worktree=true, workspace items have use_worktree=false
+IS_WORKTREE="false"
+if [[ "$USE_WORKTREE" == "true" || "$USE_WORKTREE" == "True" ]]; then
+    IS_WORKTREE="true"
+fi
+
+if [[ "$IS_WORKTREE" == "true" && -n "$ITEM_BRANCH" ]]; then
     echo ""
     echo "Step 3: Removing worktree..."
     cd "$REPO_PATH"
@@ -118,8 +124,15 @@ if [[ -n "$ITEM_BRANCH" ]]; then
     fi
     echo "  Branch '$ITEM_BRANCH' preserved (not deleted)"
 else
+    # Workspace mode: clean up the workspace directory
+    WORKSPACE_DIR="$HOME/.claude/orchestrator/workspaces/$ITEM_ID"
     echo ""
-    echo "Step 3: No branch configured, skipping worktree removal"
+    if [[ -d "$WORKSPACE_DIR" ]]; then
+        echo "Step 3: Removing workspace directory ($WORKSPACE_DIR)..."
+        rm -rf "$WORKSPACE_DIR"
+    else
+        echo "Step 3: No workspace to remove"
+    fi
 fi
 
 # Step 4: Update queue item
