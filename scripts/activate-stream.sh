@@ -18,16 +18,39 @@ CONFIG="$PROJECT_ROOT/config/environment.yml"
 eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
 
 QUEUE_FILE="$CONFIG_QUEUE_FILE"
-REPO_PATH="$CONFIG_REPO_PATH"
-WORKTREE_PREFIX="$CONFIG_WORKTREE_PREFIX"
 VMUX="$CONFIG_TOOL_VMUX"
-WORKTREE_SETUP_CMD="$CONFIG_WORKTREE_SETUP"
-WORKTREE_SETUP_QUICK_CMD="$CONFIG_WORKTREE_SETUP_QUICK"
 MAX_ACTIVE="$CONFIG_MAX_ACTIVE"
 DELEGATOR_DEFAULT="$CONFIG_DELEGATOR_ENABLED"
+REPOSITORIES_JSON="$CONFIG_REPOSITORIES_JSON"
 
 # shellcheck source=validate-env.sh
 source "$SCRIPT_DIR/validate-env.sh"
+
+# Helper: resolve per-repo config from REPOSITORIES_JSON
+# Sets: REPO_PATH, WORKTREE_PREFIX, WORKTREE_SETUP_CMD, WORKTREE_SETUP_QUICK_CMD,
+#        WORKTREE_TEARDOWN_CMD, REPO_COMMIT_STRATEGY, REPO_USE_WORKTREE
+resolve_repo_config() {
+    local repo_key="${1:-_defaults}"
+    eval "$(python3 -c "
+import json, os, sys
+repos = json.loads(sys.argv[1])
+key = sys.argv[2]
+defaults = repos.get('_defaults', {})
+repo = repos.get(key, defaults)
+home = os.path.expanduser('~')
+def e(v):
+    return v.replace('~', home) if v else v
+wt = repo.get('worktree', defaults.get('worktree', {}))
+print(f\"REPO_PATH='{e(repo.get('path', ''))}'\" )
+print(f\"WORKTREE_PREFIX='{e(repo.get('worktree_prefix', ''))}'\" )
+print(f\"WORKTREE_SETUP_CMD='{wt.get('setup', 'git worktree add -b {branch} {path} main')}'\" )
+print(f\"WORKTREE_SETUP_QUICK_CMD='{wt.get('setup_quick', 'git worktree add -b {branch} {path} main')}'\" )
+print(f\"WORKTREE_TEARDOWN_CMD='{wt.get('teardown', 'git worktree remove {path}')}'\" )
+print(f\"REPO_COMMIT_STRATEGY='{repo.get('commit_strategy', 'branch_and_pr')}'\" )
+use_wt = repo.get('use_worktree', True)
+print(f\"REPO_USE_WORKTREE={'true' if use_wt else 'false'}\")
+" "$REPOSITORIES_JSON" "$repo_key")"
+}
 
 # Helper: interpolate worktree command template variables
 run_worktree_cmd() {
@@ -45,10 +68,6 @@ run_worktree_cmd() {
 if [[ ! -x "$VMUX" ]]; then
     echo "ERROR: vmux not found or not executable at $VMUX" >&2
     echo "  Install vmux or update config/environment.yml" >&2
-    exit 1
-fi
-if [[ ! -d "$REPO_PATH" ]]; then
-    echo "ERROR: Main repo not found at $REPO_PATH" >&2
     exit 1
 fi
 if ! "$VMUX" status &>/dev/null; then
@@ -75,12 +94,30 @@ done
 QUEUE_PY="python3 -m lib.queue"
 ITEM_JSON="$(cd "$SCRIPT_DIR" && $QUEUE_PY get-item "$ITEM_ID")"
 
-IFS=$'\x1f' read -r ITEM_STATUS ITEM_BRANCH ITEM_TITLE DELEGATOR_ENABLED ENV_REPO USE_WORKTREE COMMIT_STRATEGY <<< \
-    "$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" status environment.branch title worker.delegator_enabled environment.repo environment.use_worktree worker.commit_strategy)"
+IFS=$'\x1f' read -r ITEM_STATUS ITEM_BRANCH ITEM_TITLE DELEGATOR_ENABLED ENV_REPO USE_WORKTREE COMMIT_STRATEGY REPO_KEY <<< \
+    "$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" status environment.branch title worker.delegator_enabled environment.repo environment.use_worktree worker.commit_strategy repo_key)"
 
 # Apply defaults for delegator_enabled and expand ~ in repo path
 [[ -z "$DELEGATOR_ENABLED" || "$DELEGATOR_ENABLED" == "None" ]] && DELEGATOR_ENABLED="$DELEGATOR_DEFAULT"
-ENV_REPO="${ENV_REPO/#\~/$HOME}"
+
+# Resolve per-repo config from repo_key (or _defaults)
+[[ -z "$REPO_KEY" || "$REPO_KEY" == "None" ]] && REPO_KEY="_defaults"
+resolve_repo_config "$REPO_KEY"
+
+# Per-item overrides take precedence over repo config
+if [[ -n "$ENV_REPO" && "$ENV_REPO" != "None" ]]; then
+    ENV_REPO="${ENV_REPO/#\~/$HOME}"
+    REPO_PATH="$ENV_REPO"
+fi
+if [[ -n "$USE_WORKTREE" && "$USE_WORKTREE" != "None" ]]; then
+    [[ "$USE_WORKTREE" == "True" ]] && REPO_USE_WORKTREE="true" || REPO_USE_WORKTREE="false"
+fi
+if [[ -n "$COMMIT_STRATEGY" && "$COMMIT_STRATEGY" != "None" ]]; then
+    REPO_COMMIT_STRATEGY="$COMMIT_STRATEGY"
+fi
+# Reassign for backward compat with downstream logic
+USE_WORKTREE="$([[ "$REPO_USE_WORKTREE" == "true" ]] && echo "True" || echo "False")"
+COMMIT_STRATEGY="$REPO_COMMIT_STRATEGY"
 
 # Validate status
 if [[ "$ITEM_STATUS" != "queued" && "$ITEM_STATUS" != "planning" ]]; then
@@ -96,18 +133,18 @@ if [[ "$ACTIVE_COUNT" -ge "$MAX_ACTIVE" ]]; then
 fi
 
 # Non-worktree items: use repo path directly (local directory or cross-repo)
-if [[ "$USE_WORKTREE" == "False" && -n "$ENV_REPO" ]]; then
+if [[ "$USE_WORKTREE" == "False" && -n "$REPO_PATH" ]]; then
     echo "Activating: $ITEM_TITLE ($ITEM_ID)"
-    echo "  Directory: $ENV_REPO (no worktree)"
+    echo "  Directory: $REPO_PATH (no worktree)"
     echo ""
     echo "Step 1: Preparing directory..."
-    if [[ ! -d "$ENV_REPO" ]]; then
-        mkdir -p "$ENV_REPO"
-        echo "  Created: $ENV_REPO"
+    if [[ ! -d "$REPO_PATH" ]]; then
+        mkdir -p "$REPO_PATH"
+        echo "  Created: $REPO_PATH"
     else
-        echo "  Already exists: $ENV_REPO"
+        echo "  Already exists: $REPO_PATH"
     fi
-    WORKTREE_PATH="$ENV_REPO"
+    WORKTREE_PATH="$REPO_PATH"
 elif [[ "$COMMIT_STRATEGY" == "graphite_stack" ]]; then
     # Graphite stack: create worktree from main — gt create will make branches
     if [[ -z "$ITEM_BRANCH" ]]; then

@@ -18,12 +18,29 @@ CONFIG="$PROJECT_ROOT/config/environment.yml"
 eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
 
 QUEUE_FILE="$CONFIG_QUEUE_FILE"
-REPO_PATH="$CONFIG_REPO_PATH"
 VMUX="$CONFIG_TOOL_VMUX"
-WORKTREE_TEARDOWN_CMD="$CONFIG_WORKTREE_TEARDOWN"
+REPOSITORIES_JSON="$CONFIG_REPOSITORIES_JSON"
 
 # shellcheck source=validate-env.sh
 source "$SCRIPT_DIR/validate-env.sh"
+
+# Helper: resolve per-repo config from REPOSITORIES_JSON
+resolve_repo_config() {
+    local repo_key="${1:-_defaults}"
+    eval "$(python3 -c "
+import json, os, sys
+repos = json.loads(sys.argv[1])
+key = sys.argv[2]
+defaults = repos.get('_defaults', {})
+repo = repos.get(key, defaults)
+home = os.path.expanduser('~')
+def e(v):
+    return v.replace('~', home) if v else v
+wt = repo.get('worktree', defaults.get('worktree', {}))
+print(f\"REPO_PATH='{e(repo.get('path', ''))}'\" )
+print(f\"WORKTREE_TEARDOWN_CMD='{wt.get('teardown', 'git worktree remove {path}')}'\" )
+" "$REPOSITORIES_JSON" "$repo_key")"
+}
 
 # Helper: interpolate worktree command template variables
 run_worktree_cmd() {
@@ -51,8 +68,12 @@ done
 
 # Read item from queue
 QUEUE_PY="python3 -m lib.queue"
-IFS=$'\x1f' read -r ITEM_BRANCH ITEM_TITLE SESSION_ID WORKTREE_PATH \
-    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" environment.branch title environment.session_id environment.worktree_path)
+IFS=$'\x1f' read -r ITEM_BRANCH ITEM_TITLE SESSION_ID WORKTREE_PATH REPO_KEY \
+    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" environment.branch title environment.session_id environment.worktree_path repo_key)
+
+# Resolve per-repo config
+[[ -z "$REPO_KEY" || "$REPO_KEY" == "None" ]] && REPO_KEY="_defaults"
+resolve_repo_config "$REPO_KEY"
 
 echo "Tearing down: $ITEM_TITLE ($ITEM_ID)"
 echo "  Branch: $ITEM_BRANCH"

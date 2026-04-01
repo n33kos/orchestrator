@@ -24,6 +24,7 @@
 #   CONFIG_DASHBOARD_PORT, CONFIG_API_PORT
 #   CONFIG_POLL_INTERVAL, CONFIG_CLEANUP_EVERY, CONFIG_ARCHIVE_AFTER_DAYS
 #   CONFIG_STALL_THRESHOLD_MIN
+#   CONFIG_REPOSITORIES_JSON  (JSON blob with all per-repo config)
 
 set -euo pipefail
 
@@ -40,43 +41,97 @@ fi
 LOCAL_CONFIG_FILE="${CONFIG_FILE%.yml}.local.yml"
 
 python3 -c "
-import re, os, sys
+import re, os, sys, json
 
 config_path = sys.argv[1]
 local_config_path = sys.argv[2] if len(sys.argv) > 2 else None
 home = os.environ.get('HOME', os.path.expanduser('~'))
 
 def parse_yaml(path):
-    \"\"\"Parse a simple YAML file into a flat section.key -> value dict.\"\"\"
+    \"\"\"Parse a simple YAML file into a flat section.key -> value dict.
+
+    Handles up to 3 levels of nesting for the repositories section:
+      repositories._defaults.path -> value
+      repositories._defaults.worktree.setup -> value
+    \"\"\"
     values = {}
+    repos = {}
     current_section = ''
+    current_repo = ''
+    current_subsection = ''
+    in_repositories = False
+
     with open(path) as f:
         for line in f:
             stripped = line.split('#')[0].rstrip()
             if not stripped:
                 continue
-            # Section header (no leading whitespace, ends with colon, no value)
-            if not stripped.startswith(' ') and stripped.endswith(':') and ':' not in stripped[:-1]:
-                current_section = stripped[:-1]
+
+            # Measure indent level
+            indent = len(stripped) - len(stripped.lstrip())
+
+            # Top-level section (no indent, ends with colon, no value after)
+            if indent == 0 and stripped.endswith(':') and ':' not in stripped[:-1]:
+                section_name = stripped[:-1]
+                current_section = section_name
+                in_repositories = (section_name == 'repositories')
+                current_repo = ''
+                current_subsection = ''
                 continue
-            # Key-value pair (indented)
-            match = re.match(r'^\s+(\w+):\s*(.+)', stripped)
-            if match:
-                key = match.group(1)
-                val = match.group(2).strip()
-                # Remove surrounding quotes
-                if (val.startswith('\"') and val.endswith('\"')) or (val.startswith(\"'\") and val.endswith(\"'\")):
-                    val = val[1:-1]
-                values[f'{current_section}.{key}'] = val
-    return values
+
+            if in_repositories:
+                # Repo name (indent 2, ends with colon, no value)
+                if indent == 2 and stripped.strip().endswith(':'):
+                    repo_key = stripped.strip()[:-1]
+                    current_repo = repo_key
+                    current_subsection = ''
+                    if repo_key not in repos:
+                        repos[repo_key] = {}
+                    continue
+
+                # Subsection within a repo (indent 4, ends with colon, no value)
+                if indent == 4 and current_repo and stripped.strip().endswith(':'):
+                    sub = stripped.strip()[:-1]
+                    if ':' not in sub:
+                        current_subsection = sub
+                        continue
+
+                # Key-value pair within repo
+                match = re.match(r'^\s+(\w+):\s*(.+)', stripped)
+                if match and current_repo:
+                    key = match.group(1)
+                    val = match.group(2).strip()
+                    if (val.startswith('\"') and val.endswith('\"')) or (val.startswith(\"'\") and val.endswith(\"'\")):
+                        val = val[1:-1]
+                    if current_subsection:
+                        repos[current_repo][f'{current_subsection}.{key}'] = val
+                    else:
+                        repos[current_repo][key] = val
+                    continue
+            else:
+                # Standard key-value pair (indented)
+                match = re.match(r'^\s+(\w+):\s*(.+)', stripped)
+                if match:
+                    key = match.group(1)
+                    val = match.group(2).strip()
+                    if (val.startswith('\"') and val.endswith('\"')) or (val.startswith(\"'\") and val.endswith(\"'\")):
+                        val = val[1:-1]
+                    values[f'{current_section}.{key}'] = val
+
+    return values, repos
 
 # Parse base config
-values = parse_yaml(config_path)
+values, repos = parse_yaml(config_path)
 
 # Merge local overrides if the file exists
 if local_config_path and os.path.isfile(local_config_path):
-    local_values = parse_yaml(local_config_path)
+    local_values, local_repos = parse_yaml(local_config_path)
     values.update(local_values)
+    # Deep-merge repos: local repo entries override base entries per-key
+    for repo_key, repo_vals in local_repos.items():
+        if repo_key not in repos:
+            repos[repo_key] = {}
+        repos[repo_key].update(repo_vals)
 
 def expand(val):
     \"\"\"Expand ~ to HOME.\"\"\"
@@ -91,20 +146,23 @@ def emit(var_name, val):
 emit('CONFIG_USER_INITIALS', values.get('user.initials', ''))
 emit('CONFIG_USER_NAME', values.get('user.name', ''))
 
-# Repository
-emit('CONFIG_REPO_PATH', expand(values.get('repo.path', '')))
-emit('CONFIG_WORKTREE_PREFIX', expand(values.get('repo.worktree_prefix', '')))
+# Repository — resolve from _defaults repo config (backward compat)
+defaults = repos.get('_defaults', {})
+repo_path = defaults.get('path', values.get('repo.path', ''))
+worktree_prefix = defaults.get('worktree_prefix', values.get('repo.worktree_prefix', ''))
+emit('CONFIG_REPO_PATH', expand(repo_path))
+emit('CONFIG_WORKTREE_PREFIX', expand(worktree_prefix))
 
 # Tools
 emit('CONFIG_TOOL_VMUX', expand(values.get('tools.vmux', '')))
 emit('CONFIG_TOOL_GRAPHITE', values.get('tools.graphite', ''))
 
-# Worktree commands
-emit('CONFIG_WORKTREE_SETUP', values.get('worktree.setup', 'git worktree add -b {branch} {path} main'))
-emit('CONFIG_WORKTREE_SETUP_QUICK', values.get('worktree.setup_quick', 'git worktree add -b {branch} {path} main'))
-emit('CONFIG_WORKTREE_TEARDOWN', values.get('worktree.teardown', 'git worktree remove {path}'))
-emit('CONFIG_WORKTREE_LIST', values.get('worktree.list', 'git worktree list --porcelain'))
-emit('CONFIG_WORKTREE_DEV', values.get('worktree.dev', ''))
+# Worktree commands — from _defaults repo config (backward compat)
+emit('CONFIG_WORKTREE_SETUP', defaults.get('worktree.setup', values.get('worktree.setup', 'git worktree add -b {branch} {path} main')))
+emit('CONFIG_WORKTREE_SETUP_QUICK', defaults.get('worktree.setup_quick', values.get('worktree.setup_quick', 'git worktree add -b {branch} {path} main')))
+emit('CONFIG_WORKTREE_TEARDOWN', defaults.get('worktree.teardown', values.get('worktree.teardown', 'git worktree remove {path}')))
+emit('CONFIG_WORKTREE_LIST', defaults.get('worktree.list', values.get('worktree.list', 'git worktree list --porcelain')))
+emit('CONFIG_WORKTREE_DEV', defaults.get('worktree.dev', values.get('worktree.dev', '')))
 
 # State
 emit('CONFIG_QUEUE_FILE', expand(values.get('state.queue_file', '')))
@@ -132,8 +190,8 @@ emit('CONFIG_DELEGATOR_ENABLED', values.get('delegator.enabled_by_default', 'tru
 emit('CONFIG_DELEGATOR_COMMUNICATION', values.get('delegator.communication', 'text'))
 emit('CONFIG_DELEGATOR_CYCLE_INTERVAL', values.get('delegator.cycle_interval', '300'))
 
-# Branches
-emit('CONFIG_BRANCH_PATTERN', values.get('branches.pattern', ''))
+# Branches — from _defaults repo config (backward compat)
+emit('CONFIG_BRANCH_PATTERN', defaults.get('branching_pattern', values.get('branches.pattern', '')))
 
 # Dashboard
 emit('CONFIG_DASHBOARD_PORT', values.get('dashboard.port', '3201'))
@@ -146,4 +204,27 @@ emit('CONFIG_ARCHIVE_AFTER_DAYS', values.get('scheduler.archive_after_days', '7'
 
 # Stall Detection
 emit('CONFIG_STALL_THRESHOLD_MIN', values.get('stall_detection.threshold_minutes', '30'))
+
+# Per-Repository Config (JSON blob for scripts that need repo resolution)
+# Structure each repo as a normalized dict with all fields resolved
+repo_json = {}
+for repo_key, repo_vals in repos.items():
+    entry = {
+        'path': expand(repo_vals.get('path', expand(repo_path))),
+        'worktree_prefix': expand(repo_vals.get('worktree_prefix', expand(worktree_prefix))),
+        'commit_strategy': repo_vals.get('commit_strategy', defaults.get('commit_strategy', 'branch_and_pr')),
+        'use_worktree': repo_vals.get('use_worktree', defaults.get('use_worktree', 'true')).lower() in ('true', 'yes', '1') if isinstance(repo_vals.get('use_worktree', defaults.get('use_worktree', 'true')), str) else bool(repo_vals.get('use_worktree', defaults.get('use_worktree', True))),
+        'branching_pattern': repo_vals.get('branching_pattern', defaults.get('branching_pattern', '')),
+        'worktree': {
+            'setup': repo_vals.get('worktree.setup', defaults.get('worktree.setup', 'git worktree add -b {branch} {path} main')),
+            'setup_quick': repo_vals.get('worktree.setup_quick', defaults.get('worktree.setup_quick', 'git worktree add -b {branch} {path} main')),
+            'teardown': repo_vals.get('worktree.teardown', defaults.get('worktree.teardown', 'git worktree remove {path}')),
+            'list': repo_vals.get('worktree.list', defaults.get('worktree.list', 'git worktree list --porcelain')),
+            'dev': repo_vals.get('worktree.dev', defaults.get('worktree.dev', '')),
+        },
+    }
+    repo_json[repo_key] = entry
+
+safe_json = json.dumps(repo_json).replace(\"'\", \"'\\\\''\" )
+print(f\"CONFIG_REPOSITORIES_JSON='{safe_json}'\")
 " "$CONFIG_FILE" "$LOCAL_CONFIG_FILE"

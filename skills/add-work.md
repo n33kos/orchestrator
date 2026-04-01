@@ -12,7 +12,10 @@ Add a new work item to the orchestrator queue. Ask the user for the following if
 3. **Priority** — 1 (critical) to 5 (low), default 3
 4. **Branch name** — Git branch name for this work (required for activation)
 5. **Commit strategy** — `branch_and_pr` (default), `graphite_stack`, or `commit_to_main`
-6. **Repo path** — Target repo (optional, defaults to config repo)
+6. **Repo key** — Repository key from config (e.g., `babylist-web`, `orchestrator`). Optional — if not set, defaults are used. If provided, the item inherits the repo's path, worktree settings, and commit strategy from config.
+7. **Repo path** — Target repo path (optional override — only needed if different from the repo key's configured path)
+
+When a `repo_key` is provided, the item automatically inherits per-repo settings (path, worktree config, commit strategy) from `config/environment.yml`. Per-item overrides (branch, commit_strategy, repo path) still take precedence.
 
 Then add the item to the queue:
 
@@ -41,6 +44,7 @@ item = {
     'priority': <PRIORITY>,
     'status': 'queued',
     'blocked_by': [],
+    'repo_key': '<REPO_KEY>' or None,
     'created_at': datetime.now().isoformat(),
     'activated_at': None,
     'completed_at': None,
@@ -76,6 +80,8 @@ queue_path.write_text(json.dumps(queue, indent=2) + '\n')
 print(f'Added {new_id}: {item[\"title\"]}')"
 ```
 
-Replace `<TITLE>`, `<DESCRIPTION>`, `<PRIORITY>`, `<BRANCH>`, `<COMMIT_STRATEGY>` (default `branch_and_pr`), and `<REPO_PATH>` with the actual values.
+Replace `<TITLE>`, `<DESCRIPTION>`, `<PRIORITY>`, `<BRANCH>`, `<COMMIT_STRATEGY>` (default `branch_and_pr`), `<REPO_KEY>` (optional), and `<REPO_PATH>` (optional override) with the actual values.
+
+When `repo_key` is set, the `environment.repo` and `environment.use_worktree` fields can be omitted — they'll be resolved from the repo config at activation time. Setting them explicitly overrides the repo config.
 
 Confirm the addition to the user with the assigned ID and priority position.

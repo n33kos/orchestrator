@@ -123,6 +123,34 @@ def check_and_activate(cfg: Config, dry_run: bool) -> None:
                 print(f"[scheduler] Rolled back {item_id} to queued")
 
 
+def _resolve_item_repo(cfg: Config, item: dict) -> "RepoConfig":
+    """Resolve the effective repo config for a queue item.
+
+    Priority: per-item fields > repo_key config > _defaults.
+    """
+    from scripts.scheduler.config import RepoConfig
+
+    repo_key = item.get("repo_key")
+    rc = cfg.resolve_repo(repo_key)
+
+    # Per-item overrides take precedence
+    env = item.get("environment") or {}
+    worker = item.get("worker") or {}
+
+    result = RepoConfig()
+    result.path = os.path.expanduser(env.get("repo") or "") or rc.path
+    result.worktree_prefix = rc.worktree_prefix
+    result.use_worktree = env.get("use_worktree") if "use_worktree" in env else rc.use_worktree
+    result.commit_strategy = worker.get("commit_strategy") or rc.commit_strategy
+    result.branching_pattern = rc.branching_pattern
+    result.worktree_setup = rc.worktree_setup
+    result.worktree_setup_quick = rc.worktree_setup_quick
+    result.worktree_teardown = rc.worktree_teardown
+    result.worktree_list = rc.worktree_list
+    result.worktree_dev = rc.worktree_dev
+    return result
+
+
 def _activate_nonblocking(cfg: Config, item: dict) -> None:
     """Activate an item without blocking on worktree creation.
 
@@ -134,8 +162,9 @@ def _activate_nonblocking(cfg: Config, item: dict) -> None:
     item_id = item["id"]
     env = item.get("environment") or {}
     worker = item.get("worker") or {}
-    use_worktree = env.get("use_worktree", False)
-    repo = env.get("repo", "") or ""
+    rc = _resolve_item_repo(cfg, item)
+    use_worktree = rc.use_worktree
+    repo = rc.path
     branch = env.get("branch", "") or ""
 
     # 1. Set status to active immediately
@@ -156,20 +185,23 @@ def _activate_nonblocking(cfg: Config, item: dict) -> None:
     elif branch:
         # Worktree items — needs worktree setup (background)
         subprocess.run(update_args, cwd=SCRIPTS_DIR, capture_output=True, timeout=10)
-        _start_worktree_setup(cfg, item_id, branch)
+        _start_worktree_setup(cfg, item, branch, rc)
     else:
         raise RuntimeError(f"Item {item_id} has use_worktree=true but no branch")
 
 
-def _start_worktree_setup(cfg: Config, item_id: str, branch: str) -> None:
+def _start_worktree_setup(cfg: Config, item: dict, branch: str, rc: "RepoConfig | None" = None) -> None:
     """Kick off worktree creation in the background using the configured setup command.
 
     If a worktree already exists for this branch, sets worktree_path immediately.
     Otherwise, launches the worktree setup command as a background subprocess —
     reconcile_state() will discover the worktree once it's ready and spawn the session.
     """
-    main_repo = os.path.expanduser(cfg.repo_path)
-    worktree_prefix = os.path.expanduser(cfg.worktree_prefix)
+    item_id = item if isinstance(item, str) else item["id"]
+    if rc is None:
+        rc = _resolve_item_repo(cfg, item) if isinstance(item, dict) else cfg.resolve_repo(None)
+    main_repo = rc.path
+    worktree_prefix = rc.worktree_prefix
 
     # Check if worktree already exists
     existing = _find_worktree_by_branch(main_repo, branch)
@@ -188,7 +220,7 @@ def _start_worktree_setup(cfg: Config, item_id: str, branch: str) -> None:
     log_file = log_dir / f"worktree-setup-{item_id}.log"
 
     worktree_path = f"{worktree_prefix}{branch}"
-    setup_cmd = cfg.worktree_setup.format(
+    setup_cmd = rc.worktree_setup.format(
         branch=branch, path=worktree_path, repo_path=main_repo,
     )
 
@@ -399,7 +431,8 @@ def reconcile_state(cfg: Config, dry_run: bool) -> None:
             if not worktree_path and use_worktree:
                 branch = env.get("branch", "")
                 if branch:
-                    main_repo = os.path.expanduser(cfg.repo_path)
+                    rc = _resolve_item_repo(cfg, item)
+                    main_repo = rc.path
                     discovered = _find_worktree_by_branch(main_repo, branch)
                     if discovered:
                         worktree_path = discovered

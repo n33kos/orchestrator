@@ -6,24 +6,45 @@ user:
   initials: me
   name: Your Name
 
-# Repository
-repo:
-  path: ~/my-project
-  worktree_prefix: ~/my-project-
-
 # CLI Tools
 tools:
   vmux: ~/.local/bin/vmux
   graphite: gt
 
-# Worktree lifecycle commands
-# Variables available: {branch}, {path}, {repo_path}
-worktree:
-  setup: "git worktree add -b {branch} {path} main"
-  setup_quick: "git worktree add -b {branch} {path} main"
-  teardown: "git worktree remove {path}"
-  list: "git worktree list --porcelain"
-  dev: ""
+# Per-Repository Configuration
+# Each repo entry defines its path, worktree settings, and commit strategy.
+# Items in the queue reference a repo by key (e.g., repo_key: "my-project").
+# The _defaults entry provides fallback values for unconfigured repos.
+# Per-item overrides in queue.json still take precedence over repo config.
+#
+# Available settings per repo:
+#   path            — Filesystem path to the repo
+#   worktree_prefix — Path prefix for worktree directories
+#   commit_strategy — branch_and_pr | graphite_stack | commit_to_main
+#   use_worktree    — Whether to create worktrees for this repo (true/false)
+#   branching_pattern — Branch naming convention with {initials}, {domain}, etc.
+#   worktree.setup       — Command template for creating a worktree
+#   worktree.setup_quick — Command template for quick worktree creation
+#   worktree.teardown    — Command template for removing a worktree
+#   worktree.list        — Command template for listing worktrees
+#   worktree.dev         — Command to start dev server in a worktree
+#
+# Template variables available in worktree commands:
+#   {branch}, {path}, {repo_path}
+
+repositories:
+  _defaults:
+    path: ~/my-project
+    worktree_prefix: ~/my-project-
+    commit_strategy: branch_and_pr
+    use_worktree: true
+    branching_pattern: "{initials}/{domain}/{project}/{position}/{description}"
+    worktree:
+      setup: "git worktree add -b {branch} {path} main"
+      setup_quick: "git worktree add -b {branch} {path} main"
+      teardown: "git worktree remove {path}"
+      list: "git worktree list --porcelain"
+      dev: ""
 
 # Orchestrator State
 state:
@@ -55,10 +76,6 @@ delegator:
   review_model: opus
   transcript_lines_triage: 100
   transcript_lines_deep: 500
-
-# Branch Naming
-branches:
-  pattern: "{initials}/{domain}/{project}/{position}/{description}"
 
 # Dashboard (API runs inline via Vite dev server middleware)
 dashboard:

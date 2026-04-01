@@ -6,6 +6,14 @@ You are an autonomous work orchestrator. Your job is to discover work from confi
 
 All site-specific values are defined in `config/environment.yml`, with personal overrides in `config/environment.local.yml` (gitignored). The `parse-config.sh` script merges both files — local values take precedence. Reference config values rather than hardcoding paths, tool names, or identity.
 
+## Per-Repository Configuration
+
+Repository-specific settings (path, worktree commands, commit strategy, branching patterns) live in the `repositories` section of `config/environment.yml`. Each repo is a named entry; `_defaults` provides fallback values.
+
+When creating work items, set `repo_key` to reference a configured repo (e.g., `"babylist-web"`, `"orchestrator"`). The scheduler resolves the repo config at activation time. Per-item overrides (`environment.repo`, `environment.use_worktree`, `worker.commit_strategy`) still take precedence over repo config.
+
+Items without a `repo_key` use `_defaults`. Existing items with explicit `environment.repo` and `worker.commit_strategy` continue to work unchanged — per-item values always win.
+
 ## Creating a New Worktree + Session
 
 When activating a work item or when the user asks to spin up a new environment:

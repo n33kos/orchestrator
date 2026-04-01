@@ -19,9 +19,28 @@ eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
 QUEUE_FILE="$CONFIG_QUEUE_FILE"
 QUEUE_PY="python3 -m lib.queue"
 VMUX="$CONFIG_TOOL_VMUX"
-REPO_PATH="$CONFIG_REPO_PATH"
-WORKTREE_PREFIX="$CONFIG_WORKTREE_PREFIX"
-WORKTREE_SETUP_QUICK_CMD="$CONFIG_WORKTREE_SETUP_QUICK"
+REPOSITORIES_JSON="$CONFIG_REPOSITORIES_JSON"
+MAX_ACTIVE="$CONFIG_MAX_ACTIVE"
+
+# Helper: resolve per-repo config from REPOSITORIES_JSON
+resolve_repo_config() {
+    local repo_key="${1:-_defaults}"
+    eval "$(python3 -c "
+import json, os, sys
+repos = json.loads(sys.argv[1])
+key = sys.argv[2]
+defaults = repos.get('_defaults', {})
+repo = repos.get(key, defaults)
+home = os.path.expanduser('~')
+def e(v):
+    return v.replace('~', home) if v else v
+wt = repo.get('worktree', defaults.get('worktree', {}))
+print(f\"REPO_PATH='{e(repo.get('path', ''))}'\" )
+print(f\"WORKTREE_PREFIX='{e(repo.get('worktree_prefix', ''))}'\" )
+print(f\"WORKTREE_SETUP_QUICK_CMD='{wt.get('setup_quick', 'git worktree add -b {branch} {path} main')}'\" )
+print(f\"WORKTREE_TEARDOWN_CMD='{wt.get('teardown', 'git worktree remove {path}')}'\" )
+" "$REPOSITORIES_JSON" "$repo_key")"
+}
 
 # Helper: interpolate worktree command template variables
 run_worktree_cmd() {
@@ -34,7 +53,6 @@ run_worktree_cmd() {
     cmd="${cmd//\{repo_path\}/$REPO_PATH}"
     eval "$cmd"
 }
-MAX_ACTIVE="$CONFIG_MAX_ACTIVE"
 
 # shellcheck source=validate-env.sh
 source "$SCRIPT_DIR/validate-env.sh"
@@ -58,11 +76,18 @@ if [[ "$ITEM_STATUS" != "review" ]]; then
     exit 1
 fi
 
-IFS=$'\x1f' read -r ITEM_TITLE ITEM_BRANCH WORKTREE_PATH DELEGATOR_ENABLED ENV_REPO USE_WORKTREE \
-    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" title environment.branch environment.worktree_path worker.delegator_enabled environment.repo environment.use_worktree)
+IFS=$'\x1f' read -r ITEM_TITLE ITEM_BRANCH WORKTREE_PATH DELEGATOR_ENABLED ENV_REPO USE_WORKTREE REPO_KEY \
+    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" title environment.branch environment.worktree_path worker.delegator_enabled environment.repo environment.use_worktree repo_key)
 
-# Expand ~ in repo path
-ENV_REPO="${ENV_REPO/#\~/$HOME}"
+# Resolve per-repo config
+[[ -z "$REPO_KEY" || "$REPO_KEY" == "None" ]] && REPO_KEY="_defaults"
+resolve_repo_config "$REPO_KEY"
+
+# Per-item overrides take precedence
+if [[ -n "$ENV_REPO" && "$ENV_REPO" != "None" ]]; then
+    ENV_REPO="${ENV_REPO/#\~/$HOME}"
+    REPO_PATH="$ENV_REPO"
+fi
 
 echo "Resuming: $ITEM_TITLE ($ITEM_ID)"
 
