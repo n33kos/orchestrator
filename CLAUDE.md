@@ -19,6 +19,7 @@ Items without a `repo_key` use `_defaults`. Existing items with explicit `enviro
 When activating a work item or when the user asks to spin up a new environment:
 
 1. **Create the worktree** (must run from the main repo directory):
+   - **ALWAYS fetch and pull main before creating a worktree** — the scheduler does this automatically, but manual creation must also run `git fetch origin main && git checkout main && git pull --ff-only origin main` first to avoid branching from stale code
    - Worktree lifecycle commands are configured in `config/environment.yml` under the `worktree` section
    - **Standard items**: uses the configured `worktree.setup` command template with `{branch}` and `{path}` interpolated
    - **Quick setup**: uses the configured `worktree.setup_quick` command template (skips dependency install and build)

@@ -224,10 +224,13 @@ def _start_worktree_setup(cfg: Config, item: dict, branch: str, rc: "RepoConfig 
         branch=branch, path=worktree_path, repo_path=main_repo,
     )
 
+    # Always fetch and update main before creating a worktree to avoid stale branches
+    full_cmd = f"git fetch origin main && git checkout main && git pull --ff-only origin main && {setup_cmd}"
+
     print(f"[scheduler] Starting background worktree setup for {item_id} (branch: {branch})")
     with open(log_file, "w") as lf:
         subprocess.Popen(
-            setup_cmd, shell=True,
+            full_cmd, shell=True,
             stdout=lf, stderr=subprocess.STDOUT,
             cwd=main_repo, env=EXEC_ENV,
         )
