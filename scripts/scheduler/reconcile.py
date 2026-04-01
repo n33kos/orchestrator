@@ -451,6 +451,33 @@ def reconcile_state(cfg: Config, dry_run: bool) -> None:
                         )
                         print(f"[reconcile] Discovered worktree for {item_id}: {worktree_path}")
                     else:
+                        # Check if worktree setup has been stuck too long (>10 minutes)
+                        activated_at_str = item.get("activated_at", "")
+                        if activated_at_str:
+                            try:
+                                activated_at = datetime.fromisoformat(activated_at_str.replace("Z", "+00:00"))
+                                if activated_at.tzinfo is None:
+                                    activated_at = activated_at.replace(tzinfo=timezone.utc)
+                                age_minutes = (now - activated_at).total_seconds() / 60
+                                if age_minutes > 10:
+                                    # Also check if the setup log indicates failure
+                                    log_file = Path.home() / ".claude" / "orchestrator" / "logs" / f"worktree-setup-{item_id}.log"
+                                    setup_failed = False
+                                    if log_file.exists():
+                                        log_content = log_file.read_text()
+                                        if any(err in log_content.lower() for err in ["error", "failed", "missing required", "not found", "cannot"]):
+                                            setup_failed = True
+                                    if setup_failed:
+                                        print(f"[reconcile] Worktree setup FAILED for {item_id} after {age_minutes:.0f}min — rolling back to queued")
+                                        subprocess.run(
+                                            ["python3", "-m", "lib.queue", "update", item_id,
+                                             "status=queued", "activated_at=NULL", "environment.worktree_path=NULL"],
+                                            cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
+                                        )
+                                        emit_event("reconcile.rollback", f"Worktree setup failed for {item_id}, rolled back to queued", item_id=item_id, severity="warn")
+                                        continue
+                            except (ValueError, TypeError):
+                                pass
                         print(f"[reconcile] Worktree for {item_id} not ready yet (branch: {branch})")
                         continue  # Skip session/delegator checks — worktree still building
 
