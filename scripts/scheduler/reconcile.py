@@ -418,13 +418,17 @@ def reconcile_state(cfg: Config, dry_run: bool) -> None:
                 repo = env.get("repo", "")
                 if repo:
                     expanded_repo = os.path.expanduser(repo)
-                    if os.path.isdir(expanded_repo):
-                        worktree_path = expanded_repo
-                        subprocess.run(
-                            ["python3", "-m", "lib.queue", "update", item_id,
-                             f"environment.worktree_path={worktree_path}"],
-                            cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
-                        )
+                    # Create workspace directory if it doesn't exist (handles manual activation)
+                    os.makedirs(expanded_repo, exist_ok=True)
+                    worktree_path = expanded_repo
+                    update_fields = [f"environment.worktree_path={worktree_path}"]
+                    # Also set activated_at if missing (manual activation case)
+                    if not item.get("activated_at"):
+                        update_fields.append("activated_at=NOW")
+                    subprocess.run(
+                        ["python3", "-m", "lib.queue", "update", item_id] + update_fields,
+                        cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
+                    )
 
             # Worktree discovery: active items without a worktree_path may be
             # waiting for a background worktree setup to complete.
