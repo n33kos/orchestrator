@@ -48,6 +48,22 @@ if [[ "$ITEM_STATUS" != "queued" && "$ITEM_STATUS" != "planning" ]]; then
     exit 1
 fi
 
+# Check if a plan file already exists — don't overwrite manually created plans
+EXISTING_PLAN="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" plan.file 2>/dev/null)" || true
+if [[ -n "$EXISTING_PLAN" && "$EXISTING_PLAN" != "None" ]]; then
+    # Resolve relative paths against plans dir
+    if [[ "$EXISTING_PLAN" != /* && "$EXISTING_PLAN" != ~* ]]; then
+        EXISTING_PLAN="$PLANS_DIR/$EXISTING_PLAN"
+    else
+        EXISTING_PLAN="${EXISTING_PLAN/#\~/$HOME}"
+    fi
+    if [[ -f "$EXISTING_PLAN" && -s "$EXISTING_PLAN" ]]; then
+        echo "Plan file already exists for $ITEM_ID: $EXISTING_PLAN"
+        echo "Skipping generation — use --force to overwrite."
+        exit 0
+    fi
+fi
+
 # Extract fields in a single call
 IFS=$'\x1f' read -r ITEM_TITLE ITEM_DESC ITEM_BRANCH ENV_REPO \
     < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" title description environment.branch environment.repo)
