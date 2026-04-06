@@ -19,3 +19,4 @@ scripts/__pycache__/
 config/environment.local.yml
 config/sources.local.yml
 __pycache__/
+.playwright-mcp/
