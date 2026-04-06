@@ -3,7 +3,7 @@ import { join } from 'path'
 import { homedir } from 'os'
 import type { ViteDevServer } from 'vite'
 
-const SCHEDULER_LOG_PATH = join(homedir(), '.claude/orchestrator/logs/scheduler.log')
+const SCHEDULER_LOG_PATH = join(homedir(), '.claude/orchestrator/logs/orchestrator-scheduler.log')
 
 export function registerSchedulerLogRoutes(server: ViteDevServer) {
   // GET /api/scheduler-log — read the last N lines of the scheduler log
