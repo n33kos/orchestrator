@@ -72,11 +72,37 @@ item = {
         'pr_url': None,
         'stack_prs': None,
         'completion_message': None,
+        'directives': {},  # Auto-populated from configured directives
     },
 }
 
 queue['items'].append(item)
 queue_path.write_text(json.dumps(queue, indent=2) + '\n')
+
+# Auto-populate runtime.directives from configured directives
+import subprocess as _sp
+try:
+    _r = _sp.run(
+        ['python3', '-c', '''
+import json, sys
+sys.path.insert(0, \"scripts\")
+from scheduler.directives import load_directives
+directives = load_directives(\".\")
+all_names = set()
+for status_directives in directives.values():
+    for d in status_directives:
+        all_names.add(d[\"name\"])
+print(json.dumps({name: {\"status\": \"pending\", \"retries\": 0, \"last_run\": None, \"output_path\": None} for name in all_names}))
+'''],
+        capture_output=True, text=True, timeout=10,
+        cwd=str(Path.home() / 'orchestrator'),
+    )
+    if _r.returncode == 0 and _r.stdout.strip():
+        item['runtime']['directives'] = json.loads(_r.stdout.strip())
+        queue_path.write_text(json.dumps(queue, indent=2) + '\n')
+except Exception:
+    pass  # Non-critical — directives can be populated later
+
 print(f'Added {new_id}: {item[\"title\"]}')"
 ```
 

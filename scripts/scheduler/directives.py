@@ -287,7 +287,7 @@ def format_directives_for_prompt(
         lines.append("### Blocking Directives")
         lines.append("")
         lines.append(
-            "The following required directives have NOT passed. "
+            "The following required directives have NOT completed. "
             "Do NOT trigger status transitions until all required directives pass."
         )
         lines.append("")
@@ -314,8 +314,8 @@ def _next_actionable_directive(
         # No runtime state yet — first directive is next
         return directives[0]["name"] if directives else None
 
-    passed_names = {
-        name for name, rs in runtime_state.items() if rs.get("status") == "passed"
+    completed_names = {
+        name for name, rs in runtime_state.items() if rs.get("status") == "completed"
     }
 
     # First pass: find a pending directive with met dependencies
@@ -327,7 +327,7 @@ def _next_actionable_directive(
 
         if status != "pending":
             continue
-        if dep and dep not in passed_names:
+        if dep and dep not in completed_names:
             continue
         return name
 
@@ -344,7 +344,7 @@ def _next_actionable_directive(
             continue
         if max_retries > 0 and retries >= max_retries:
             continue
-        if dep and dep not in passed_names:
+        if dep and dep not in completed_names:
             continue
         return name
 
@@ -355,7 +355,7 @@ def _blocking_directives(
     directives: list[dict],
     runtime_state: Optional[dict],
 ) -> list[str]:
-    """Return names of required directives that haven't passed."""
+    """Return names of required directives that haven't completed."""
     if not runtime_state:
         return [d["name"] for d in directives if d.get("required")]
 
@@ -365,6 +365,6 @@ def _blocking_directives(
             continue
         name = d["name"]
         rs = runtime_state.get(name, {})
-        if rs.get("status") != "passed":
+        if rs.get("status") != "completed":
             blocking.append(name)
     return blocking

@@ -113,9 +113,9 @@ The payload may include a `directives` array and a `directive_runtime` object. T
 Each directive in the `directives` array has:
 
 - `name` — Identifier for the directive
-- `required` — If true, this directive must pass before the item can transition to the next status
+- `required` — If true, this directive must be completed before the item can transition to the next status
 - `max_retries` — Maximum retry attempts (0 = unlimited)
-- `depends_on` — Name of another directive that must pass before this one runs
+- `depends_on` — Name of another directive that must be completed before this one runs
 - `instructions` — Natural language instructions to evaluate
 
 The `directive_runtime` object tracks per-directive state, keyed by directive name:
@@ -131,7 +131,16 @@ The `directive_runtime` object tracks per-directive state, keyed by directive na
 }
 ```
 
-Directive status values: `pending`, `running`, `passed`, `failed`.
+Directive status values: `pending`, `running`, `completed`, `failed`.
+
+### General Directive Rules
+
+1. **ALWAYS update directive status before starting long-running processes.** Set to `running` before invoking any CLI tool. This prevents overlapping runs on the next cycle.
+2. **If a directive is already `running`, check if its process is still active.** If the delegator finds a directive in `running` state from a previous cycle, check for output files or process indicators before re-running.
+3. **Required directives that are `running` and have found issues keep `running` status.** They only move to `completed` when the actual review/test passes, not just because one invocation finished.
+4. **Failed directives with remaining retries should be re-attempted.** Set back to `running` and try again.
+5. **All required directives must be `completed` before transitioning the item to the next status.** Do NOT approve/complete an item if any required directive is pending or running.
+6. **Respect `depends_on` chains.** A directive with `depends_on: X` cannot run until directive X has status `completed`.
 
 ### Evaluating Directives
 
@@ -139,17 +148,17 @@ When directives are present:
 
 1. **Check `directive_runtime`** to see each directive's current state
 2. **Determine which directive to evaluate next:**
-   - First `pending` directive whose `depends_on` dependency has `status: "passed"` (or has no dependency)
+   - First `pending` directive whose `depends_on` dependency has `status: "completed"` (or has no dependency)
    - Then first `failed` directive that hasn't exceeded `max_retries`, whose dependencies are met
-   - Skip directives whose `depends_on` dependency hasn't passed yet
+   - Skip directives whose `depends_on` dependency hasn't completed yet
 3. **Evaluate the next directive's instructions** against the current cycle data
 4. **Update directive state** via `update_queue_metadata` action:
-   - `runtime.directives.<name>.status` — set to `passed`, `failed`, or `running`
+   - `runtime.directives.<name>.status` — set to `completed`, `failed`, or `running`
    - `runtime.directives.<name>.retries` — increment on failure
    - `runtime.directives.<name>.last_run` — set to current timestamp
    - `runtime.directives.<name>.output_path` — set if the directive produces an artifact
-5. **Block status transitions** when required directives haven't passed:
-   - Do NOT escalate for review transition if any required directive has status other than `passed`
+5. **Block status transitions** when required directives haven't completed:
+   - Do NOT escalate for review transition if any required directive has status other than `completed`
    - Do NOT trigger `trigger_review_transition` action
    - Include which directives are blocking in your `reason` field
 
