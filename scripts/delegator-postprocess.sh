@@ -177,17 +177,28 @@ for action in actions:
                 'completion_message': 'runtime.completion_message',
                 'spend': 'runtime.spend',
             }
-            for key, value in metadata.items():
+
+            def flatten(obj, prefix=''):
+                """Flatten nested dicts into dotted key paths for queue update."""
+                pairs = []
+                for key, value in obj.items():
+                    full_key = f'{prefix}.{key}' if prefix else key
+                    if isinstance(value, dict):
+                        pairs.extend(flatten(value, full_key))
+                    else:
+                        pairs.append((full_key, value))
+                return pairs
+
+            for key, value in flatten(metadata):
                 if key in FIELD_MAPPING:
                     mapped = FIELD_MAPPING[key]
                 elif key.startswith('runtime.') or key.startswith('worker.') or key.startswith('environment.'):
-                    # Already fully qualified — pass through as-is
                     mapped = key
                 else:
                     mapped = f'runtime.{key}'
                 args.append(f'{mapped}={value}')
             subprocess.run(args, cwd='$SCRIPT_DIR', capture_output=True)
-            print(f'  [action] Updated queue metadata: {list(metadata.keys())}')
+            print(f'  [action] Updated queue metadata: {[k for k, _ in flatten(metadata)]}')
 
         elif action_type == 'trigger_review_transition':
             # Only update queue status to review — do NOT suspend session or delegator.
