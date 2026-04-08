@@ -778,7 +778,7 @@ def _send_task_instructions(cfg: Config, item_id: str, session_id: str) -> None:
             plan_file = os.path.expanduser(f"~/.claude/orchestrator/plans/{item_id}.md")
         elif not os.path.isabs(plan_file) and not plan_file.startswith("~"):
             # Relative filename — resolve against configured plans directory
-            plan_file = os.path.join(os.path.expanduser(cfg.plans_dir), plan_file)
+            plan_file = os.path.join(os.path.expanduser(cfg.artifacts_dir), plan_file)
         else:
             plan_file = os.path.expanduser(plan_file)
 

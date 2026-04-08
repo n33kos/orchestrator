@@ -106,6 +106,24 @@ When `item_context` shows `status=review`, the item has been transitioned to rev
 {"decision": "handle", "reason": "All CI passing, PR mergeable — disabling delegator", "actions": [{"type": "update_queue_metadata", "data": {"delegator_enabled": false}}]}
 ```
 
+## Directives
+
+The payload may include a `directives` array — these are per-status instructions configured by the orchestrator operator. Each directive has:
+
+- `name` — Identifier for the directive
+- `required` — If true, this directive must be satisfied before the item can transition to the next status
+- `max_retries` — Maximum retry attempts (0 = unlimited)
+- `instructions` — Natural language instructions to evaluate
+
+When directives are present:
+
+1. Evaluate each directive's instructions against the current cycle data
+2. For `required` directives, include a `directive_status` field in your `state_updates` with the directive name and whether it passed/failed/pending
+3. If a required directive is not yet satisfied, do NOT trigger status transitions (e.g., do not escalate for review transition if a required active directive is still pending)
+4. Include directive evaluation results in your `reason` field
+
+If no `directives` field is present in the payload, ignore this section entirely.
+
 ## Message Style
 
 - Short and actionable — one or two sentences max

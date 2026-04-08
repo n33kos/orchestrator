@@ -253,6 +253,7 @@ printf '%s\0' \
     "$ITEM_JSON" \
     "$OUTPUT_FILE" \
     "$PER_PR_CI_JSON" \
+    "$PROJECT_ROOT" \
 | python3 -c '
 import json, sys
 fields = sys.stdin.buffer.read().split(b"\0")
@@ -262,7 +263,7 @@ keys = [
     "activity_summary", "new_commits_raw", "diff_stat", "diff_content",
     "pr_json", "ci_checks_raw", "merge_status_json", "previous_state",
     "conversation_recent", "item_json", "output_file",
-    "per_pr_ci_json",
+    "per_pr_ci_json", "project_root",
 ]
 data = {k: fields[i].decode("utf-8", errors="replace") if i < len(fields) else "" for i, k in enumerate(keys)}
 json.dump(data, sys.stdout)
@@ -499,6 +500,60 @@ payload = {
     },
     "previous_state": previous_state,
 }
+
+# Load directives for the item's current status
+item_status = item_context.get("status", "")
+project_root = raw.get("project_root", "")
+directives = []
+directives_root = ""
+if project_root and item_status:
+    directives_root = os.path.join(project_root, "delegator", "directives", item_status)
+
+if directives_root and os.path.isdir(directives_root):
+    for fname in sorted(os.listdir(directives_root)):
+        if not fname.endswith(".md"):
+            continue
+        fpath = os.path.join(directives_root, fname)
+        try:
+            with open(fpath) as df:
+                dcontent = df.read()
+        except OSError:
+            continue
+        # Parse frontmatter
+        dm = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)", dcontent, re.DOTALL)
+        if dm:
+            fm_text, dbody = dm.group(1), dm.group(2).strip()
+        else:
+            dbody = dcontent.strip()
+            fm_text = ""
+        if not dbody:
+            continue
+        fm = {}
+        for fmline in fm_text.splitlines():
+            fmline = fmline.strip()
+            if not fmline or fmline.startswith("#"):
+                continue
+            kv = fmline.split(":", 1)
+            if len(kv) == 2:
+                fk, fv = kv[0].strip(), kv[1].strip()
+                if fv.lower() in ("true", "yes"):
+                    fm[fk] = True
+                elif fv.lower() in ("false", "no"):
+                    fm[fk] = False
+                else:
+                    try:
+                        fm[fk] = int(fv)
+                    except ValueError:
+                        fm[fk] = fv
+        directives.append({
+            "name": fm.get("name", fname.removesuffix(".md")),
+            "required": fm.get("required", False),
+            "max_retries": fm.get("max_retries", 0),
+            "instructions": dbody,
+        })
+
+if directives:
+    payload["directives"] = directives
 
 with open(output_file, "w") as f:
     json.dump(payload, f, indent=2)

@@ -134,6 +134,24 @@ All worker messages must be:
 - Free of praise, filler, or pleasantries
 - Specific about what needs to change and where
 
+## Directives
+
+The payload may include a `directives` array — these are per-status instructions configured by the orchestrator operator. Each directive has:
+
+- `name` — Identifier for the directive
+- `required` — If true, this directive must be satisfied before the item can transition to the next status
+- `max_retries` — Maximum retry attempts (0 = unlimited)
+- `instructions` — Natural language instructions to evaluate
+
+When directives are present:
+
+1. Evaluate each directive's instructions against the current cycle data
+2. For `required` directives, include a `directive_status` object in your `state_updates` keyed by directive name with status (`passed`, `failed`, `pending`) and optional `notes`
+3. If a required directive is not yet satisfied, do NOT assess as `approve` — assess as `needs_work` or `monitoring` instead
+4. Report directive evaluation results in your output
+
+If no `directives` field is present in the payload, ignore this section entirely.
+
 ## Boundaries
 
 - Do NOT make code changes — you are a reviewer, not an implementer

@@ -17,7 +17,7 @@
 #   CONFIG_QUEUE_FILE
 #   CONFIG_MAX_ACTIVE_PROJECTS, CONFIG_QUICK_FIX_LIMIT
 #   CONFIG_AUTO_ACTIVATE, CONFIG_AUTO_APPROVE_PLANS, CONFIG_REQUIRE_APPROVED_PLAN
-#   CONFIG_ASK_BEFORE_TEARDOWN, CONFIG_PLANS_DIR
+#   CONFIG_ASK_BEFORE_TEARDOWN, CONFIG_ARTIFACTS_DIR
 #   CONFIG_DELEGATOR_ENABLED
 #   CONFIG_DELEGATOR_COMMUNICATION, CONFIG_DELEGATOR_CYCLE_INTERVAL
 #   CONFIG_BRANCH_PATTERN
@@ -176,8 +176,8 @@ emit('CONFIG_AUTO_APPROVE_PLANS', values.get('autonomy.auto_approve_plans', 'fal
 emit('CONFIG_REQUIRE_APPROVED_PLAN', values.get('autonomy.require_approved_plan', 'false'))
 emit('CONFIG_ASK_BEFORE_TEARDOWN', values.get('autonomy.ask_before_teardown', 'true'))
 
-# Plans
-emit('CONFIG_PLANS_DIR', expand(values.get('plans.plans_directory', '~/.claude/orchestrator/plans')))
+# Artifacts
+emit('CONFIG_ARTIFACTS_DIR', expand(values.get('artifacts.artifacts_directory', '~/.claude/orchestrator/plans')))
 
 # Delegator
 emit('CONFIG_DELEGATOR_ENABLED', values.get('delegator.enabled_by_default', 'true'))

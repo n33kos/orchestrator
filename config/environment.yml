@@ -62,9 +62,9 @@ autonomy:
   require_approved_plan: true
   ask_before_teardown: true
 
-# Plans
-plans:
-  plans_directory: ~/.claude/orchestrator/plans
+# Artifacts (plans, reports, and other generated files)
+artifacts:
+  artifacts_directory: ~/.claude/orchestrator/plans
 
 # Delegator
 delegator:
@@ -86,6 +86,21 @@ scheduler:
   poll_interval: 120
   cleanup_every: 10  # cycles between cleanup runs
   archive_after_days: 7
+
+# Delegator Directives
+# Per-status instructions that the delegator evaluates during its monitoring cycle.
+# Directives are loaded from delegator/directives/<status>/*.md files.
+# Each file has YAML frontmatter (name, required, max_retries) and a markdown body.
+# Directives from environment.local.yml are merged (same-name replaces, new names appended).
+#
+# Available fields per directive:
+#   name         — Unique identifier for this directive
+#   instructions — Natural language instructions for the delegator (from markdown body)
+#   required     — If true, must pass/complete before the item can transition to the next status
+#   max_retries  — Maximum times to retry if required and failing (0 = unlimited)
+directives:
+  active: []
+  review: []
 
 # Stall Detection
 stall_detection:

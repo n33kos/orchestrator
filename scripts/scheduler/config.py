@@ -148,8 +148,11 @@ class Config:
         self.require_approved_plan: bool = False
         self.ask_before_teardown: bool = True
 
-        # Plans
-        self.plans_dir: str = os.path.expanduser("~/.claude/orchestrator/plans")
+        # Artifacts (plans, reports, etc.)
+        self.artifacts_dir: str = os.path.expanduser("~/.claude/orchestrator/plans")
+
+        # Delegator Directives (loaded from delegator/directives/<status>/*.md)
+        self.directives: dict[str, list[dict]] = {"active": [], "review": []}
 
         # Delegator
         self.delegator_enabled: bool = True
@@ -311,9 +314,9 @@ def load_config(project_root: Optional[str] = None) -> Config:
         values.get("autonomy.ask_before_teardown", "true")
     )
 
-    # Plans
-    cfg.plans_dir = _expand(
-        values.get("plans.plans_directory", "~/.claude/orchestrator/plans")
+    # Artifacts
+    cfg.artifacts_dir = _expand(
+        values.get("artifacts.artifacts_directory", "~/.claude/orchestrator/plans")
     )
 
     # Delegator
@@ -345,6 +348,13 @@ def load_config(project_root: Optional[str] = None) -> Config:
     cfg.design_keywords = values.get(
         "project.design_keywords", "design-system,design,ui-kit"
     )
+
+    # Delegator Directives
+    from scripts.scheduler.directives import load_directives
+    cfg.directives = load_directives(project_root)
+    # Ensure both statuses exist even if no directive files found
+    cfg.directives.setdefault("active", [])
+    cfg.directives.setdefault("review", [])
 
     # Export config-driven env vars so subprocesses can read them.
     # Only set if not already overridden by the system environment.

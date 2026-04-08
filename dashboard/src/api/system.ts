@@ -239,7 +239,7 @@ export function registerSystemRoutes(server: ViteDevServer) {
           defaultDelegatorEnabled: { key: 'enabled_by_default', section: 'delegator' },
           stallThresholdMinutes: { key: 'threshold_minutes', section: 'stall_detection' },
           archiveAfterDays: { key: 'archive_after_days', section: 'scheduler' },
-          plansDirectory: { key: 'plans_directory', section: 'plans' },
+          plansDirectory: { key: 'artifacts_directory', section: 'artifacts' },
           delegatorCycleInterval: { key: 'cycle_interval', section: 'delegator' },
           schedulerPollInterval: { key: 'poll_interval', section: 'scheduler' },
         }
@@ -303,7 +303,7 @@ export function registerSystemRoutes(server: ViteDevServer) {
         maxConcurrentProjects: parseInt(getVal('max_active') || '2', 10),
         autoActivate: getVal('auto_activate') === 'true',
         requireApprovedPlan: getVal('require_approved_plan') === 'true',
-        plansDirectory: getVal('plans_directory') || '~/.claude/orchestrator/plans',
+        plansDirectory: getVal('artifacts_directory') || '~/.claude/orchestrator/plans',
         defaultDelegatorEnabled: getVal('enabled_by_default') === 'true',
         stallThresholdMinutes: parseInt(getVal('threshold_minutes') || '30', 10),
         archiveAfterDays: parseInt(getVal('archive_after_days') || '7', 10),

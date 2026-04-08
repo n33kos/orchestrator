@@ -20,7 +20,7 @@ eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
 
 QUEUE_FILE="$CONFIG_QUEUE_FILE"
 REPO_PATH="$CONFIG_REPO_PATH"
-PLANS_DIR="${CONFIG_PLANS_DIR:-$HOME/.claude/orchestrator/plans}"
+PLANS_DIR="${CONFIG_ARTIFACTS_DIR:-$HOME/.claude/orchestrator/plans}"
 QUEUE_PY="python3 -m lib.queue"
 
 # shellcheck source=validate-env.sh
