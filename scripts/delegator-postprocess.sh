@@ -70,12 +70,12 @@ DECISION="$(echo "$CLAUDE_JSON" | python3 -c "import json,sys; print(json.load(s
 echo "[postprocess] $ITEM_ID: decision=$DECISION model=$MODEL"
 
 # Update state file FIRST (before actions), so state is persisted even if an action causes issues
-python3 -c "
+echo "$CLAUDE_JSON" | python3 -c "
 import json, sys, os
 from datetime import datetime, timezone
 
 state_file = '$STATE_FILE'
-claude_json = json.loads('''$(echo "$CLAUDE_JSON" | sed "s/'/\\\\'/g")''')
+claude_json = json.loads(sys.stdin.read())
 model = '$MODEL'
 decision = '$DECISION'
 item_id = '$ITEM_ID'
