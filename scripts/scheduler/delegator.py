@@ -369,6 +369,7 @@ def trigger_delegator_cycles(cfg: Config, dry_run: bool) -> None:
 
                     echo "  [triage] Invoking Haiku for $ITEM_ID..."
                     claude --print --model haiku \
+                        --dangerously-skip-permissions \
                         --settings '{{"hooks":{{}}}}' \
                         --strict-mcp-config \
                         --system-prompt "$(cat "$TRIAGE_INSTRUCTIONS")" \
@@ -397,6 +398,7 @@ except Exception:
                         REVIEW_INSTRUCTIONS="$PROJECT_ROOT/delegator/review-instructions.md"
                         ESCALATION_OUTPUT="$DELEGATOR_DIR/escalation-$ITEM_ID.json"
                         claude --print --model opus \
+                            --dangerously-skip-permissions \
                             --settings '{{"hooks":{{}}}}' \
                             --strict-mcp-config \
                             --system-prompt "$(cat "$REVIEW_INSTRUCTIONS")" \
@@ -429,7 +431,8 @@ except Exception:
     # Wait for all background delegator cycles
     for item_id, proc in processes:
         try:
-            stdout, _ = proc.communicate(timeout=300)
+            # Directive-enabled cycles (council, exhibit) can take 15+ minutes
+            stdout, _ = proc.communicate(timeout=1200)
             if stdout:
                 for line in stdout.decode("utf-8", errors="replace").strip().split("\n"):
                     print(line)
