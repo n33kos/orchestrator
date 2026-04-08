@@ -178,7 +178,13 @@ for action in actions:
                 'spend': 'runtime.spend',
             }
             for key, value in metadata.items():
-                mapped = FIELD_MAPPING.get(key, f'runtime.{key}')
+                if key in FIELD_MAPPING:
+                    mapped = FIELD_MAPPING[key]
+                elif key.startswith('runtime.') or key.startswith('worker.') or key.startswith('environment.'):
+                    # Already fully qualified — pass through as-is
+                    mapped = key
+                else:
+                    mapped = f'runtime.{key}'
                 args.append(f'{mapped}={value}')
             subprocess.run(args, cwd='$SCRIPT_DIR', capture_output=True)
             print(f'  [action] Updated queue metadata: {list(metadata.keys())}')

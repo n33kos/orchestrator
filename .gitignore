@@ -18,5 +18,8 @@ scripts/__pycache__/
 # User-specific config overrides
 config/environment.local.yml
 config/sources.local.yml
+
+# Local-only delegator directives (machine-specific, not shared)
+delegator/directives.local/
 __pycache__/
 .playwright-mcp/

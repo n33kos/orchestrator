@@ -108,19 +108,54 @@ When `item_context` shows `status=review`, the item has been transitioned to rev
 
 ## Directives
 
-The payload may include a `directives` array — these are per-status instructions configured by the orchestrator operator. Each directive has:
+The payload may include a `directives` array and a `directive_runtime` object. These are per-status instructions configured by the orchestrator operator.
+
+Each directive in the `directives` array has:
 
 - `name` — Identifier for the directive
-- `required` — If true, this directive must be satisfied before the item can transition to the next status
+- `required` — If true, this directive must pass before the item can transition to the next status
 - `max_retries` — Maximum retry attempts (0 = unlimited)
+- `depends_on` — Name of another directive that must pass before this one runs
 - `instructions` — Natural language instructions to evaluate
+
+The `directive_runtime` object tracks per-directive state, keyed by directive name:
+
+```json
+{
+  "council-review": {
+    "status": "pending",
+    "retries": 0,
+    "last_run": null,
+    "output_path": null
+  }
+}
+```
+
+Directive status values: `pending`, `running`, `passed`, `failed`.
+
+### Evaluating Directives
 
 When directives are present:
 
-1. Evaluate each directive's instructions against the current cycle data
-2. For `required` directives, include a `directive_status` field in your `state_updates` with the directive name and whether it passed/failed/pending
-3. If a required directive is not yet satisfied, do NOT trigger status transitions (e.g., do not escalate for review transition if a required active directive is still pending)
-4. Include directive evaluation results in your `reason` field
+1. **Check `directive_runtime`** to see each directive's current state
+2. **Determine which directive to evaluate next:**
+   - First `pending` directive whose `depends_on` dependency has `status: "passed"` (or has no dependency)
+   - Then first `failed` directive that hasn't exceeded `max_retries`, whose dependencies are met
+   - Skip directives whose `depends_on` dependency hasn't passed yet
+3. **Evaluate the next directive's instructions** against the current cycle data
+4. **Update directive state** via `update_queue_metadata` action:
+   - `runtime.directives.<name>.status` — set to `passed`, `failed`, or `running`
+   - `runtime.directives.<name>.retries` — increment on failure
+   - `runtime.directives.<name>.last_run` — set to current timestamp
+   - `runtime.directives.<name>.output_path` — set if the directive produces an artifact
+5. **Block status transitions** when required directives haven't passed:
+   - Do NOT escalate for review transition if any required directive has status other than `passed`
+   - Do NOT trigger `trigger_review_transition` action
+   - Include which directives are blocking in your `reason` field
+
+### Directive Actions
+
+When a directive requires executing a command (e.g., running a CLI tool), use `message_worker` to instruct the worker, or include the directive evaluation in your `escalation_context` so Opus can handle it.
 
 If no `directives` field is present in the payload, ignore this section entirely.
 

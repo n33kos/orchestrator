@@ -136,19 +136,51 @@ All worker messages must be:
 
 ## Directives
 
-The payload may include a `directives` array — these are per-status instructions configured by the orchestrator operator. Each directive has:
+The payload may include a `directives` array and a `directive_runtime` object. These are per-status instructions configured by the orchestrator operator.
+
+Each directive in the `directives` array has:
 
 - `name` — Identifier for the directive
-- `required` — If true, this directive must be satisfied before the item can transition to the next status
+- `required` — If true, this directive must pass before the item can transition
 - `max_retries` — Maximum retry attempts (0 = unlimited)
+- `depends_on` — Name of another directive that must pass before this one runs
 - `instructions` — Natural language instructions to evaluate
+
+The `directive_runtime` object tracks per-directive state, keyed by directive name:
+
+```json
+{
+  "council-review": {
+    "status": "pending",
+    "retries": 0,
+    "last_run": null,
+    "output_path": null
+  }
+}
+```
+
+Directive status values: `pending`, `running`, `passed`, `failed`.
+
+### Evaluating Directives
 
 When directives are present:
 
-1. Evaluate each directive's instructions against the current cycle data
-2. For `required` directives, include a `directive_status` object in your `state_updates` keyed by directive name with status (`passed`, `failed`, `pending`) and optional `notes`
-3. If a required directive is not yet satisfied, do NOT assess as `approve` — assess as `needs_work` or `monitoring` instead
-4. Report directive evaluation results in your output
+1. **Check `directive_runtime`** to see each directive's current state
+2. **Determine which directive to evaluate next:**
+   - First `pending` directive whose `depends_on` dependency has `status: "passed"` (or has no dependency)
+   - Then first `failed` directive that hasn't exceeded `max_retries`, whose dependencies are met
+   - Skip directives whose `depends_on` dependency hasn't passed yet
+3. **Evaluate the next directive's instructions** against the current cycle data
+4. **Update directive state** via `update_queue_metadata` action:
+   - `runtime.directives.<name>.status` — set to `passed`, `failed`, or `running`
+   - `runtime.directives.<name>.retries` — increment on failure
+   - `runtime.directives.<name>.last_run` — set to current timestamp
+   - `runtime.directives.<name>.output_path` — set if the directive produces an artifact
+5. **Block assessments** when required directives haven't passed:
+   - Do NOT assess as `approve` if any required directive has status other than `passed`
+   - Assess as `needs_work` or `monitoring` instead
+   - Include which directives are blocking in your output
+6. **Report** directive evaluation results alongside your code review assessment
 
 If no `directives` field is present in the payload, ignore this section entirely.
 

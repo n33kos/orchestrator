@@ -501,59 +501,29 @@ payload = {
     "previous_state": previous_state,
 }
 
-# Load directives for the item's current status
+# Load directives for the item's current status using the shared loader.
+# This loads from both delegator/directives/ (committed) and
+# delegator/directives.local/ (gitignored, machine-specific).
+# Local directives override same-name committed ones.
 item_status = item_context.get("status", "")
 project_root = raw.get("project_root", "")
 directives = []
-directives_root = ""
-if project_root and item_status:
-    directives_root = os.path.join(project_root, "delegator", "directives", item_status)
+runtime_directives = {}
 
-if directives_root and os.path.isdir(directives_root):
-    for fname in sorted(os.listdir(directives_root)):
-        if not fname.endswith(".md"):
-            continue
-        fpath = os.path.join(directives_root, fname)
-        try:
-            with open(fpath) as df:
-                dcontent = df.read()
-        except OSError:
-            continue
-        # Parse frontmatter
-        dm = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)", dcontent, re.DOTALL)
-        if dm:
-            fm_text, dbody = dm.group(1), dm.group(2).strip()
-        else:
-            dbody = dcontent.strip()
-            fm_text = ""
-        if not dbody:
-            continue
-        fm = {}
-        for fmline in fm_text.splitlines():
-            fmline = fmline.strip()
-            if not fmline or fmline.startswith("#"):
-                continue
-            kv = fmline.split(":", 1)
-            if len(kv) == 2:
-                fk, fv = kv[0].strip(), kv[1].strip()
-                if fv.lower() in ("true", "yes"):
-                    fm[fk] = True
-                elif fv.lower() in ("false", "no"):
-                    fm[fk] = False
-                else:
-                    try:
-                        fm[fk] = int(fv)
-                    except ValueError:
-                        fm[fk] = fv
-        directives.append({
-            "name": fm.get("name", fname.removesuffix(".md")),
-            "required": fm.get("required", False),
-            "max_retries": fm.get("max_retries", 0),
-            "instructions": dbody,
-        })
+if project_root and item_status:
+    sys.path.insert(0, os.path.join(project_root, "scripts"))
+    from scheduler.directives import load_directives, merge_runtime_directives
+
+    all_directives = load_directives(project_root)
+    directives = all_directives.get(item_status, [])
+
+    # Get existing runtime.directives from the queue item (if any)
+    existing_runtime = (item_data.get("runtime") or {}).get("directives", {})
+    runtime_directives = merge_runtime_directives(existing_runtime, directives)
 
 if directives:
     payload["directives"] = directives
+    payload["directive_runtime"] = runtime_directives
 
 with open(output_file, "w") as f:
     json.dump(payload, f, indent=2)
