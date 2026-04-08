@@ -191,6 +191,25 @@ When directives are present:
    - Include which directives are blocking in your output
 6. **Report** directive evaluation results alongside your code review assessment
 
+### Directive Status Files
+
+When evaluating a directive, FIRST check for a status file at `~/.claude/orchestrator/delegators/<item_id>/directive-<directive_name>.status.json`. The status file contains `status`, `pid`, `exit_code`, and `output_path` fields.
+
+- **If status is `"running"` and the PID is alive** (`kill -0 <pid>` succeeds): report the directive as still running and take no action on it.
+- **If status is `"completed"` with `exit_code` 0**: read the output file at `output_path` to evaluate results. Proceed with the directive's evaluation instructions.
+- **If status is `"completed"` with non-zero `exit_code`, or `"failed"`**: handle according to the directive's retry logic (increment retries, re-launch if retries remain, or mark as failed).
+- **If no status file exists and the directive needs to run**: launch it via the directive wrapper as a background process.
+
+### Launching Directives
+
+To START a directive process, use:
+```bash
+bash ~/orchestrator/scripts/run-directive.sh <item_id> <directive_name> "<command>" &
+```
+The `&` backgrounds the process so the delegator returns immediately. After starting, update the queue item's directive status to `running` via `update_queue_metadata`.
+
+**NEVER run directive commands (council, exhibit, etc.) directly.** Always use `run-directive.sh` which creates the status file for tracking.
+
 If no `directives` field is present in the payload, ignore this section entirely.
 
 ## Boundaries

@@ -289,7 +289,13 @@ def _update_status_timestamp(item_id: str) -> None:
 
 
 def trigger_delegator_cycles(cfg: Config, dry_run: bool) -> None:
-    """Run delegator one-shot cycles for active/review items with delegator enabled."""
+    """Run delegator one-shot cycles for active/review items with delegator enabled.
+
+    Non-blocking: each cycle is fired as a background subprocess. The scheduler
+    checks on the next tick whether the process has finished, reads its log
+    output, and cleans up.  This keeps the scheduler loop responsive instead of
+    blocking for up to 20 minutes per delegator.
+    """
     pause_file = os.path.expanduser("~/.claude/orchestrator/paused")
     if os.path.isfile(pause_file):
         print("[scheduler] Paused — skipping delegator cycles")
@@ -306,8 +312,6 @@ def trigger_delegator_cycles(cfg: Config, dry_run: bool) -> None:
         and (i.get("worker") or {}).get("delegator_enabled") is True
     ]
 
-    processes = []
-
     for item in active_items:
         item_id = item["id"]
         delegator_dir = Path.home() / ".claude" / "orchestrator" / "delegators" / item_id
@@ -318,8 +322,10 @@ def trigger_delegator_cycles(cfg: Config, dry_run: bool) -> None:
             continue
 
         running_pid = delegator_dir / "running.pid"
+        output_log = delegator_dir / f"cycle-output-{item_id}.log"
+
         if running_pid.exists():
-            # Check if the PID is still alive — clean up stale lock files
+            # Check if a previous cycle's process is still alive
             try:
                 pid_str = running_pid.read_text().split(":")[0].strip()
                 pid = int(pid_str)
@@ -330,8 +336,20 @@ def trigger_delegator_cycles(cfg: Config, dry_run: bool) -> None:
                 print(f"[scheduler] Delegator PID {pid} exists (different owner) for {item_id} — skipping")
                 continue
             except (ValueError, ProcessLookupError, OSError):
-                print(f"[scheduler] Removing stale running.pid for {item_id}")
+                # Process completed — read output log and clean up
+                print(f"[scheduler] Delegator cycle finished for {item_id} — collecting output")
+                if output_log.exists():
+                    try:
+                        content = output_log.read_text()
+                        for line in content.strip().split("\n"):
+                            if line.strip():
+                                print(line)
+                    except Exception as e:
+                        print(f"[scheduler] WARNING: Failed to read cycle output for {item_id}: {e}",
+                              file=sys.stderr)
+                    output_log.unlink(missing_ok=True)
                 running_pid.unlink(missing_ok=True)
+                _update_status_timestamp(item_id)
 
         print(f"[scheduler] Running delegator cycle for {item_id}...")
 
@@ -339,14 +357,13 @@ def trigger_delegator_cycles(cfg: Config, dry_run: bool) -> None:
             print(f"[scheduler] Would run delegator cycle for {item_id}")
             continue
 
-        # Run the full pipeline: preprocess → triage → (optional escalate) → postprocess
-        # Run in background subprocess to allow parallel execution
+        # Fire the full pipeline as a background subprocess: preprocess → triage → (optional escalate) → postprocess
+        # stdout/stderr go to a log file; the scheduler picks it up on the next cycle.
         try:
-            # Set cwd to the delegator directory so ccusage attributes
-            # costs to the correct session (delegator vs worker)
             delegator_cwd = str(delegator_dir)
             os.makedirs(delegator_cwd, exist_ok=True)
 
+            lf = open(output_log, "w")
             proc = subprocess.Popen(
                 [
                     "bash", "-c",
@@ -419,25 +436,19 @@ except Exception:
                     rm -f "$CYCLE_JSON" "$DELEGATOR_DIR/escalation-$ITEM_ID.json"
                     """,
                 ],
-                stdout=subprocess.PIPE,
+                stdout=lf,
                 stderr=subprocess.STDOUT,
                 env=EXEC_ENV,
                 cwd=delegator_cwd,
             )
-            processes.append((item_id, proc))
+
+            # Record PID with timestamp — scheduler checks on next cycle
+            running_pid.write_text(f"{proc.pid}:{datetime.now(timezone.utc).isoformat()}")
+            print(f"[scheduler] Delegator cycle started for {item_id} (PID {proc.pid})")
+
         except Exception as e:
             print(f"[scheduler] ERROR: Failed to start delegator cycle for {item_id}: {e}", file=sys.stderr)
-
-    # Wait for all background delegator cycles
-    for item_id, proc in processes:
-        try:
-            # Directive-enabled cycles (council, exhibit) can take 15+ minutes
-            stdout, _ = proc.communicate(timeout=1200)
-            if stdout:
-                for line in stdout.decode("utf-8", errors="replace").strip().split("\n"):
-                    print(line)
-            # Update status.json so watchdog doesn't think delegator is stalled
-            _update_status_timestamp(item_id)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            print(f"[scheduler] ERROR: Delegator cycle timed out for {item_id}", file=sys.stderr)
+            try:
+                lf.close()
+            except Exception:
+                pass
