@@ -142,17 +142,30 @@ Directive status values: `pending`, `running`, `completed`, `failed`.
 5. **All required directives must be `completed` before transitioning the item to the next status.** Do NOT approve/complete an item if any required directive is pending or running.
 6. **Respect `depends_on` chains.** A directive with `depends_on: X` cannot run until directive X has status `completed`.
 
-### Evaluating Directives
+### Mandatory Escalation for Actionable Directives
 
-When directives are present:
+**CRITICAL RULE:** If ANY required directive is ready to run — meaning its status is `pending` or `failed` (with retries remaining), its `depends_on` dependency is met (completed or has no dependency), and the item meets the directive's prerequisites (e.g., PR exists for council-review) — then you MUST escalate to Opus. Do NOT attempt to evaluate or execute directives yourself (Haiku). Always escalate with decision `"escalate"` and include the directive state in your `escalation_context`.
+
+A directive is NOT ready to run if:
+- Its status is `running` (already in progress — check status file)
+- Its status is `completed` (already done)
+- Its `depends_on` dependency is not `completed` yet
+- The item doesn't meet the directive's prerequisites (e.g., no PR URL yet)
+
+If a directive is `running`, check the directive status file to see if the process has actually completed. Include this in your escalation context.
+
+### Evaluating Directives (Opus Only)
+
+When directives are present and you are the escalated model (Opus):
 
 1. **Check `directive_runtime`** to see each directive's current state
 2. **Determine which directive to evaluate next:**
    - First `pending` directive whose `depends_on` dependency has `status: "completed"` (or has no dependency)
    - Then first `failed` directive that hasn't exceeded `max_retries`, whose dependencies are met
    - Skip directives whose `depends_on` dependency hasn't completed yet
-3. **Evaluate the next directive's instructions** against the current cycle data
-4. **Update directive state** via `update_queue_metadata` action:
+3. **Check the directive status file** before taking action (see Status Files section below)
+4. **Execute the directive's instructions** — launch via run-directive.sh if needed
+5. **Update directive state** via `update_queue_metadata` action:
    - `runtime.directives.<name>.status` — set to `completed`, `failed`, or `running`
    - `runtime.directives.<name>.retries` — increment on failure
    - `runtime.directives.<name>.last_run` — set to current timestamp
