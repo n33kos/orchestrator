@@ -16,6 +16,7 @@ Same payload as triage:
 - `pr` — `{exists, url, state, ci_checks, mergeable, merge_state_status}`. `mergeable` is a boolean; `merge_state_status` is a string (`CLEAN`, `DIRTY`, `UNSTABLE`, `BEHIND`, `BLOCKED`, `UNKNOWN`). May not exist for no-branch projects.
 - `conversation_recent` — Summary of recent worker transcript. Check for completion signals.
 - `previous_state` — State from the last cycle
+- `triage_escalation` — (optional) `{reason, context}` from the Haiku triage agent explaining WHY it escalated to you and what to focus on. **Check this first** to understand the triage agent's concern before analyzing the full payload.
 
 ## Code Review Standards
 
@@ -78,6 +79,7 @@ Note: Conventional Comments format is for PR review feedback only. Monitoring me
 ```json
 {
   "decision": "handle",
+  "reason": "Brief explanation of the decision and assessment",
   "actions": [],
   "state_updates": {},
   "assessment": "monitoring|approve|needs_work|blocked"
@@ -89,7 +91,7 @@ Note: Conventional Comments format is for PR review feedback only. Monitoring me
 Each action is an object with `type` and relevant fields:
 
 - `message_worker` — `{"type": "message_worker", "text": "..."}`
-- `update_queue_metadata` — `{"type": "update_queue_metadata", "metadata": {...}}`
+- `update_queue_metadata` — `{"type": "update_queue_metadata", "data": {...}}` (also accepts `"metadata"` as key name). Known keys are mapped to their nested paths: `delegator_enabled` → `worker.delegator_enabled`, `delegator_status` → `runtime.delegator_status`, `status` is set directly. Unknown keys are nested under `runtime.*`.
 - `trigger_review_transition` — `{"type": "trigger_review_transition"}`
 - `request_ci_fix` — `{"type": "request_ci_fix"}`
 - `flag_for_user` — `{"type": "flag_for_user", "message": "..."}`

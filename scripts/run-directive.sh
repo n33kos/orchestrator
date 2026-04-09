@@ -22,46 +22,51 @@ OUTPUT_FILE="$DELEGATOR_DIR/directive-${DIRECTIVE}.output.log"
 
 mkdir -p "$DELEGATOR_DIR"
 
-# Write running status
+# Write running status — use env vars to avoid shell quoting issues in python -c
+DIRECTIVE="$DIRECTIVE" COMMAND="$COMMAND" STATUS_FILE="$STATUS_FILE" OUTPUT_FILE="$OUTPUT_FILE" \
 python3 -c "
-import json
+import json, os
 from datetime import datetime, timezone
 json.dump({
-    'directive': '$DIRECTIVE',
+    'directive': os.environ['DIRECTIVE'],
     'status': 'running',
-    'pid': $$,
+    'pid': os.getppid(),
     'started_at': datetime.now(timezone.utc).isoformat(),
     'completed_at': None,
     'exit_code': None,
-    'command': '''$COMMAND''',
-    'output_path': '$OUTPUT_FILE',
+    'command': os.environ['COMMAND'],
+    'output_path': os.environ['OUTPUT_FILE'],
     'error': None,
-}, open('$STATUS_FILE', 'w'), indent=2)
+}, open(os.environ['STATUS_FILE'], 'w'), indent=2)
 "
 
 # Run the command, capturing output
 eval "$COMMAND" > "$OUTPUT_FILE" 2>&1
 EXIT_CODE=$?
 
-# Write completion status
+# Write completion status — use env vars to avoid shell quoting issues in python -c
+DIRECTIVE="$DIRECTIVE" EXIT_CODE="$EXIT_CODE" STATUS_FILE="$STATUS_FILE" OUTPUT_FILE="$OUTPUT_FILE" \
 python3 -c "
-import json
+import json, os
 from datetime import datetime, timezone
+sf = os.environ['STATUS_FILE']
+of = os.environ['OUTPUT_FILE']
+ec = int(os.environ['EXIT_CODE'])
 try:
-    status = json.load(open('$STATUS_FILE'))
+    status = json.load(open(sf))
 except Exception:
-    status = {'directive': '$DIRECTIVE', 'pid': $$}
-status['status'] = 'completed' if $EXIT_CODE == 0 else 'failed'
+    status = {'directive': os.environ['DIRECTIVE'], 'pid': os.getppid()}
+status['status'] = 'completed' if ec == 0 else 'failed'
 status['completed_at'] = datetime.now(timezone.utc).isoformat()
-status['exit_code'] = $EXIT_CODE
-status['output_path'] = '$OUTPUT_FILE'
-if $EXIT_CODE != 0:
+status['exit_code'] = ec
+status['output_path'] = of
+if ec != 0:
     try:
-        last_lines = open('$OUTPUT_FILE').read().strip().split('\n')[-20:]
+        last_lines = open(of).read().strip().split('\n')[-20:]
         status['error'] = '\n'.join(last_lines)
     except Exception:
-        status['error'] = 'Command exited with code $EXIT_CODE'
-json.dump(status, open('$STATUS_FILE', 'w'), indent=2)
+        status['error'] = f'Command exited with code {ec}'
+json.dump(status, open(sf, 'w'), indent=2)
 "
 
 exit $EXIT_CODE

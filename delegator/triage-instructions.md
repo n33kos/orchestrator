@@ -61,7 +61,7 @@ Needs Opus-level reasoning:
 Each action is an object with `type` and relevant fields:
 
 - `message_worker` — `{"type": "message_worker", "text": "..."}`
-- `update_queue_metadata` — `{"type": "update_queue_metadata", "data": {...}}`. Known keys are mapped to their nested paths: `delegator_enabled` → `worker.delegator_enabled`, `delegator_status` → `runtime.delegator_status`, `status` is set directly. Unknown keys are nested under `runtime.*`.
+- `update_queue_metadata` — `{"type": "update_queue_metadata", "data": {...}}` (also accepts `"metadata"` as key name). Known keys are mapped to their nested paths: `delegator_enabled` → `worker.delegator_enabled`, `delegator_status` → `runtime.delegator_status`, `status` is set directly. Unknown keys are nested under `runtime.*`.
 - `trigger_review_transition` — `{"type": "trigger_review_transition"}` — ONLY when `item_context.status` is NOT already `review`
 - `request_ci_fix` — `{"type": "request_ci_fix"}`
 - `flag_for_user` — `{"type": "flag_for_user", "message": "..."}`

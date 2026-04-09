@@ -392,35 +392,28 @@ def trigger_delegator_cycles(cfg: Config, dry_run: bool) -> None:
                         --system-prompt "$(cat "$TRIAGE_INSTRUCTIONS")" \
                         < "$CYCLE_JSON" > "$TRIAGE_OUTPUT" 2>"$DELEGATOR_DIR/haiku-stderr.log" || exit 1
 
-                    # Check decision — extract JSON from potential markdown code fences
-                    DECISION=$(python3 -c "
-import json, sys, re
-try:
-    text = open('$TRIAGE_OUTPUT').read().strip()
-    fence = chr(96)*3
-    nl = chr(10)
-    pat = fence + '[^' + nl + ']*' + nl + '(.*?)' + nl + fence
-    m = re.search(pat, text, re.DOTALL)
-    if m:
-        text = m.group(1).strip()
-    data = json.loads(text)
-    print(data.get('decision', 'no_action'))
-except Exception:
-    print('no_action')
-" 2>/dev/null)
+                    # Check decision — use external script for robust JSON extraction
+                    DECISION=$("$SCRIPT_DIR/extract-json-field.sh" "$TRIAGE_OUTPUT" "decision" "no_action" 2>/dev/null || echo "no_action")
 
                     MODEL_FLAG="--model haiku"
                     if [ "$DECISION" = "escalate" ]; then
                         echo "  [escalate] Escalating to Opus for $ITEM_ID..."
                         REVIEW_INSTRUCTIONS="$PROJECT_ROOT/delegator/review-instructions.md"
                         ESCALATION_OUTPUT="$DELEGATOR_DIR/escalation-$ITEM_ID.json"
+
+                        # Inject triage escalation_context into the cycle payload so Opus
+                        # knows WHY Haiku escalated and what to focus on.
+                        ESCALATION_INPUT="$DELEGATOR_DIR/escalation-input-$ITEM_ID.json"
+                        "$SCRIPT_DIR/inject-escalation-context.sh" "$CYCLE_JSON" "$TRIAGE_OUTPUT" "$ESCALATION_INPUT" 2>/dev/null || cp "$CYCLE_JSON" "$ESCALATION_INPUT"
+
                         claude --print --model opus \
                             --dangerously-skip-permissions \
                             --settings '{{"hooks":{{}}}}' \
                             --strict-mcp-config \
                             --system-prompt "$(cat "$REVIEW_INSTRUCTIONS")" \
-                            < "$CYCLE_JSON" > "$ESCALATION_OUTPUT" 2>"$DELEGATOR_DIR/opus-stderr.log" && \
+                            < "$ESCALATION_INPUT" > "$ESCALATION_OUTPUT" 2>"$DELEGATOR_DIR/opus-stderr.log" && \
                             cp "$ESCALATION_OUTPUT" "$TRIAGE_OUTPUT" || true
+                        rm -f "$ESCALATION_INPUT"
                         MODEL_FLAG="--model opus"
                     fi
 

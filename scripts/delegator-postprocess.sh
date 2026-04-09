@@ -50,19 +50,57 @@ import json, sys, re
 with open('$CLAUDE_OUTPUT_FILE') as f:
     raw = f.read().strip()
 
-# Extract JSON from markdown code fences if present (handles trailing text after closing fence)
+def try_parse(text):
+    \"\"\"Try to parse JSON, stripping trailing commas first.\"\"\"
+    # Remove trailing commas before } or ] (common AI output artifact)
+    cleaned = re.sub(r',\s*([}\]])', r'\1', text)
+    return json.loads(cleaned)
+
+parsed = None
+
+# Strategy 1: Extract from markdown code fences (prefer json-tagged blocks)
 fence = chr(96)*3
 nl = chr(10)
-pat = fence + '[^' + nl + ']*' + nl + '(.*?)' + nl + fence
-m = re.search(pat, raw, re.DOTALL)
-if m:
-    raw = m.group(1).strip()
+# First try json-tagged fence blocks
+json_pat = fence + r'json\s*' + nl + '(.*?)' + nl + fence
+for m in re.finditer(json_pat, raw, re.DOTALL):
+    try:
+        parsed = try_parse(m.group(1).strip())
+        break
+    except (json.JSONDecodeError, ValueError):
+        continue
 
-try:
-    data = json.loads(raw)
-    print(json.dumps(data))
-except json.JSONDecodeError as e:
-    print(json.dumps({'decision': 'no_action', 'reason': f'Failed to parse Claude output: {e}'}))
+# Fall back to any fence block
+if parsed is None:
+    pat = fence + '[^' + nl + ']*' + nl + '(.*?)' + nl + fence
+    for m in re.finditer(pat, raw, re.DOTALL):
+        try:
+            parsed = try_parse(m.group(1).strip())
+            break
+        except (json.JSONDecodeError, ValueError):
+            continue
+
+# Strategy 2: Try parsing the whole output as JSON
+if parsed is None:
+    try:
+        parsed = try_parse(raw)
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+# Strategy 3: Find first { ... } block in the text (handles leading/trailing prose)
+if parsed is None:
+    brace_match = re.search(r'\{.*\}', raw, re.DOTALL)
+    if brace_match:
+        try:
+            parsed = try_parse(brace_match.group(0))
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+if parsed is None:
+    parsed = {'decision': 'no_action', 'reason': 'Failed to parse Claude output as JSON'}
+    sys.stderr.write(f'WARNING: Could not parse Claude output as JSON. Raw (first 500 chars): {raw[:500]}\n')
+
+print(json.dumps(parsed))
 ")"
 
 DECISION="$(echo "$CLAUDE_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('decision', 'no_action'))")"
@@ -185,6 +223,9 @@ for action in actions:
                     full_key = f'{prefix}.{key}' if prefix else key
                     if isinstance(value, dict):
                         pairs.extend(flatten(value, full_key))
+                    elif isinstance(value, list):
+                        # Serialize lists as JSON strings so queue update can parse them
+                        pairs.append((full_key, json.dumps(value)))
                     else:
                         pairs.append((full_key, value))
                 return pairs
@@ -196,7 +237,14 @@ for action in actions:
                     mapped = key
                 else:
                     mapped = f'runtime.{key}'
-                args.append(f'{mapped}={value}')
+                # Serialize Python values to proper strings for shell args
+                if value is None:
+                    str_value = 'null'
+                elif isinstance(value, bool):
+                    str_value = 'true' if value else 'false'
+                else:
+                    str_value = str(value)
+                args.append(f'{mapped}={str_value}')
             subprocess.run(args, cwd='$SCRIPT_DIR', capture_output=True)
             print(f'  [action] Updated queue metadata: {[k for k, _ in flatten(metadata)]}')
 
@@ -220,8 +268,19 @@ for action in actions:
                 subprocess.run([vmux, 'send', worker_id, msg], capture_output=True, timeout=10)
                 print(f'  [action] Sent CI fix request to worker')
 
+        elif action_type == 'post_pr_review':
+            # Review instructions tell Opus to emit this action, but we don't
+            # have automated PR comment posting yet.  Log the review so it is
+            # visible in the delegator output and can be acted on manually.
+            summary = action.get('summary', '')
+            comments = action.get('comments', [])
+            print(f'  [action] PR review (not posted): summary={summary[:120]}')
+            for c in comments[:5]:
+                body = c if isinstance(c, str) else (c.get('body') or c.get('text') or str(c))
+                print(f'    comment: {body[:120]}')
+
         elif action_type == 'flag_for_user':
-            description = action.get('description', 'Delegator flagged an issue')
+            description = action.get('message') or action.get('description') or 'Delegator flagged an issue'
             print(f'  [action] Flagged for user: {description}')
 
         else:
