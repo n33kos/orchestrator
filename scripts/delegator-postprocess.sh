@@ -166,7 +166,7 @@ for action in actions:
                 print(f'  [action] Sent message to worker: {text[:80]}...')
 
         elif action_type == 'update_queue_metadata':
-            metadata = action.get('data', {})
+            metadata = action.get('data') or action.get('metadata') or {}
             args = ['python3', '-m', 'lib.queue', 'update', item_id]
             # Map known fields to their new nested paths
             FIELD_MAPPING = {
