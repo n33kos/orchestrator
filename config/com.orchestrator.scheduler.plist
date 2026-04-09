@@ -34,6 +34,8 @@
         <string>$DETECTED_PATH</string>
         <key>HOME</key>
         <string>$HOME</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
     </dict>
 </dict>
 </plist>
