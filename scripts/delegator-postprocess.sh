@@ -179,7 +179,7 @@ for action in actions:
             }
 
             def flatten(obj, prefix=''):
-                """Flatten nested dicts into dotted key paths for queue update."""
+                # Flatten nested dicts into dotted key paths for queue update
                 pairs = []
                 for key, value in obj.items():
                     full_key = f'{prefix}.{key}' if prefix else key
