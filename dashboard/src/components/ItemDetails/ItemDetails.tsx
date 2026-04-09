@@ -1149,6 +1149,29 @@ export function ItemDetails({
             </span>
           </div>
         </div>
+        <div className={styles.MetaGridItem}>
+          <span className={styles.MetaGridLabel}>Directives</span>
+          <div className={styles.DelegatorRow}>
+            {onDelegatorToggle && (
+              <button
+                className={classnames(
+                  styles.Toggle,
+                  item.worker?.directives_enabled !== false && styles.ToggleOn,
+                )}
+                onClick={() =>
+                  onDelegatorToggle(item.id + ':directives', !(item.worker?.directives_enabled !== false))
+                }
+                role="switch"
+                aria-checked={item.worker?.directives_enabled !== false}
+              >
+                <span className={styles.ToggleKnob} />
+              </button>
+            )}
+            <span className={styles.MetaGridValue}>
+              {item.worker?.directives_enabled !== false ? "Enabled" : "Off"}
+            </span>
+          </div>
+        </div>
         {item.environment?.worktree_path && (
           <div className={classnames(styles.MetaGridItem, styles.MetaGridWide)}>
             <span className={styles.MetaGridLabel}>Worktree</span>

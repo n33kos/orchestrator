@@ -18,6 +18,7 @@ export interface WorkItemEnvironment {
 export interface WorkItemWorker {
   commit_strategy: 'branch_and_pr' | 'commit_to_main' | 'graphite_stack'
   delegator_enabled: boolean
+  directives_enabled?: boolean
   stack_steps?: StackStep[]
 }
 

@@ -114,6 +114,13 @@ export function useStreamActions({
   }, [updateItem, addToast])
 
   const handleDelegatorToggle = useCallback(async (id: string, enabled: boolean) => {
+    // Handle directives toggle via convention: id ends with ':directives'
+    if (id.endsWith(':directives')) {
+      const itemId = id.replace(':directives', '')
+      updateItem(itemId, { worker: { directives_enabled: enabled } })
+      addToast(`Directives ${enabled ? 'enabled' : 'disabled'}`, 'info')
+      return
+    }
     updateItem(id, { worker: { delegator_enabled: enabled } })
     const item = items.find(i => i.id === id)
     if (item?.status === 'active' && enabled) {
