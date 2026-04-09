@@ -502,15 +502,16 @@ payload = {
 }
 
 # Load directives for the item's current status using the shared loader.
-# This loads from both delegator/directives/ (committed) and
-# delegator/directives.local/ (gitignored, machine-specific).
-# Local directives override same-name committed ones.
+# Only include if worker.directives_enabled is true (or not set — defaults to true).
 item_status = item_context.get("status", "")
 project_root = raw.get("project_root", "")
 directives = []
 runtime_directives = {}
 
-if project_root and item_status:
+# Check per-item directives toggle
+directives_enabled = (item_data.get("worker") or {}).get("directives_enabled", True)
+
+if project_root and item_status and directives_enabled:
     sys.path.insert(0, os.path.join(project_root, "scripts"))
     from scheduler.directives import load_directives, merge_runtime_directives
 

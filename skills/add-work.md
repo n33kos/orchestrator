@@ -58,6 +58,7 @@ item = {
     'worker': {
         'commit_strategy': '<COMMIT_STRATEGY>',
         'delegator_enabled': True,
+        'directives_enabled': True,
     },
     'plan': {
         'file': None,
