@@ -8,7 +8,7 @@ user_invocable: true
 Add a new work item to the orchestrator queue. Ask the user for the following if not provided:
 
 1. **Title** — Short description of the work
-2. **Description** — Detailed description of what needs to be done
+2. **Description** — Terse 1-2 sentence summary only. All detail goes in the plan file, not the description. Do NOT duplicate plan content in the description.
 3. **Priority** — 1 (critical) to 5 (low), default 3
 4. **Branch name** — Git branch name for this work (required for activation)
 5. **Commit strategy** — `branch_and_pr` (default), `graphite_stack`, or `commit_to_main`
