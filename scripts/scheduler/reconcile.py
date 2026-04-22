@@ -172,15 +172,15 @@ def _activate_nonblocking(cfg: Config, item: dict) -> None:
                    "status=active", "activated_at=NOW"]
 
     if not use_worktree:
-        # Non-worktree items — always create an isolated workspace directory.
-        # Workers cd to the actual repo to make changes, but the session runs
-        # from the workspace so teardown can safely kill it without affecting
-        # any permanent sessions at the repo path.
-        workspace = os.path.expanduser(f"~/.claude/orchestrator/workspaces/{item_id}")
-        os.makedirs(workspace, exist_ok=True)
-        update_args.append(f"environment.worktree_path={workspace}")
-        subprocess.run(update_args, cwd=SCRIPTS_DIR, capture_output=True, timeout=10)
-        print(f"[scheduler] Activated {item_id} with workspace: {workspace} (repo: {repo})")
+        # Non-worktree items — use the repo path directly as the session working
+        # directory so the worker starts in the actual project and can read/write files.
+        expanded = os.path.expanduser(repo) if repo else ""
+        if expanded and os.path.isdir(expanded):
+            update_args.append(f"environment.worktree_path={expanded}")
+            subprocess.run(update_args, cwd=SCRIPTS_DIR, capture_output=True, timeout=10)
+            print(f"[scheduler] Activated {item_id} with repo: {expanded}")
+        else:
+            raise RuntimeError(f"Item {item_id} has use_worktree=false but repo path doesn't exist: {repo}")
 
     elif branch:
         # Worktree items — needs worktree setup (background)
