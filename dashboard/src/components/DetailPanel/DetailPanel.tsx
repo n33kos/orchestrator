@@ -20,12 +20,15 @@ interface DetailPanelProps {
   onTeardownStream?: (id: string) => void
   onSendMessage?: (sessionId: string, text: string) => void
   onDelegatorToggle?: (id: string, enabled: boolean) => void
+  onDirectivesToggle?: (id: string, enabled: boolean) => void
+  onDirectiveOverrideToggle?: (id: string, directiveName: string, enabled: boolean) => void
+  onDirectiveOverrideClear?: (id: string, directiveName: string) => void
   onGeneratePlan?: (id: string) => void
   onRefresh?: () => void
   onUpdateBlockedBy?: (id: string, blocked_by: string[]) => void
 }
 
-export function DetailPanel({ item, allItems = [], sessions, delegator, onClose, onStatusChange, onUpdate, onDelete, onDuplicate, onNotesChange, onActivateStream, onTeardownStream, onSendMessage, onDelegatorToggle, onGeneratePlan, onRefresh, onUpdateBlockedBy }: DetailPanelProps) {
+export function DetailPanel({ item, allItems = [], sessions, delegator, onClose, onStatusChange, onUpdate, onDelete, onDuplicate, onNotesChange, onActivateStream, onTeardownStream, onSendMessage, onDelegatorToggle, onDirectivesToggle, onDirectiveOverrideToggle, onDirectiveOverrideClear, onGeneratePlan, onRefresh, onUpdateBlockedBy }: DetailPanelProps) {
   const panelRef = useFocusTrap<HTMLDivElement>()
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleText, setTitleText] = useState(item.title)
@@ -118,6 +121,9 @@ export function DetailPanel({ item, allItems = [], sessions, delegator, onClose,
             onTeardownStream={onTeardownStream}
             onSendMessage={onSendMessage}
             onDelegatorToggle={onDelegatorToggle}
+            onDirectivesToggle={onDirectivesToggle}
+            onDirectiveOverrideToggle={onDirectiveOverrideToggle}
+            onDirectiveOverrideClear={onDirectiveOverrideClear}
             onGeneratePlan={onGeneratePlan}
             onNotesChange={onNotesChange}
             onRefresh={onRefresh}

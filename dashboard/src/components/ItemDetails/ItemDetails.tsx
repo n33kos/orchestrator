@@ -36,6 +36,9 @@ export interface ItemDetailsProps {
   onStatusChange: (id: string, status: WorkItemStatus) => void;
   onPriorityChange?: (id: string, priority: number) => void;
   onDelegatorToggle?: (id: string, enabled: boolean) => void;
+  onDirectivesToggle?: (id: string, enabled: boolean) => void;
+  onDirectiveOverrideToggle?: (id: string, directiveName: string, enabled: boolean) => void;
+  onDirectiveOverrideClear?: (id: string, directiveName: string) => void;
   onEdit?: (
     id: string,
     updates: { title?: string; description?: string },
@@ -83,6 +86,9 @@ export function ItemDetails({
   onStatusChange,
   onPriorityChange,
   onDelegatorToggle,
+  onDirectivesToggle,
+  onDirectiveOverrideToggle,
+  onDirectiveOverrideClear,
   onEdit,
   onDelete,
   onDuplicate,
@@ -128,6 +134,27 @@ export function ItemDetails({
     reviewDecision?: string;
     checks?: string;
   } | null>(null);
+  const [availableDirectives, setAvailableDirectives] = useState<
+    Array<{ name: string; enabled: boolean; required: boolean; depends_on: string | null }>
+  >([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/directives')
+      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
+      .then((data) => {
+        if (cancelled) return;
+        const status = item.status as keyof typeof data.statuses;
+        const list = data.statuses?.[status] ?? [];
+        setAvailableDirectives(list);
+      })
+      .catch(() => {
+        if (!cancelled) setAvailableDirectives([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [item.status]);
   const titleRef = useRef<HTMLInputElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
@@ -1152,14 +1179,14 @@ export function ItemDetails({
         <div className={styles.MetaGridItem}>
           <span className={styles.MetaGridLabel}>Directives</span>
           <div className={styles.DelegatorRow}>
-            {onDelegatorToggle && (
+            {onDirectivesToggle && (
               <button
                 className={classnames(
                   styles.Toggle,
                   item.worker?.directives_enabled !== false && styles.ToggleOn,
                 )}
                 onClick={() =>
-                  onDelegatorToggle(item.id + ':directives', !(item.worker?.directives_enabled !== false))
+                  onDirectivesToggle(item.id, !(item.worker?.directives_enabled !== false))
                 }
                 role="switch"
                 aria-checked={item.worker?.directives_enabled !== false}
@@ -1172,6 +1199,55 @@ export function ItemDetails({
             </span>
           </div>
         </div>
+        {item.worker?.directives_enabled !== false && availableDirectives.length > 0 && (
+          <div className={classnames(styles.MetaGridItem, styles.MetaGridWide)}>
+            <span className={styles.MetaGridLabel}>Per-directive</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+              {availableDirectives.map((d) => {
+                const overrides = item.worker?.directive_overrides ?? {};
+                const hasOverride = d.name in overrides;
+                const effective = hasOverride ? overrides[d.name] : d.enabled;
+                return (
+                  <div
+                    key={d.name}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}
+                  >
+                    {onDirectiveOverrideToggle && (
+                      <button
+                        className={classnames(styles.Toggle, effective && styles.ToggleOn)}
+                        onClick={() => onDirectiveOverrideToggle(item.id, d.name, !effective)}
+                        role="switch"
+                        aria-checked={effective}
+                        aria-label={`Toggle ${d.name}`}
+                        style={{ transform: 'scale(0.75)' }}
+                      >
+                        <span className={styles.ToggleKnob} />
+                      </button>
+                    )}
+                    <code style={{ flex: 1 }}>{d.name}</code>
+                    {d.required && <span style={{ opacity: 0.6 }}>required</span>}
+                    {hasOverride && onDirectiveOverrideClear && (
+                      <button
+                        onClick={() => onDirectiveOverrideClear(item.id, d.name)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'inherit',
+                          cursor: 'pointer',
+                          opacity: 0.6,
+                          fontSize: '11px',
+                        }}
+                        title="Clear override and use directive default"
+                      >
+                        reset
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         {item.environment?.worktree_path && (
           <div className={classnames(styles.MetaGridItem, styles.MetaGridWide)}>
             <span className={styles.MetaGridLabel}>Worktree</span>

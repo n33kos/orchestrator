@@ -513,10 +513,18 @@ directives_enabled = (item_data.get("worker") or {}).get("directives_enabled", T
 
 if project_root and item_status and directives_enabled:
     sys.path.insert(0, os.path.join(project_root, "scripts"))
-    from scheduler.directives import load_directives, merge_runtime_directives
+    from scheduler.directives import (
+        load_directives,
+        merge_runtime_directives,
+        filter_enabled_directives,
+    )
 
     all_directives = load_directives(project_root)
-    directives = all_directives.get(item_status, [])
+    raw_directives = all_directives.get(item_status, [])
+
+    # Apply per-item directive_overrides (each entry is {name: bool}).
+    overrides = (item_data.get("worker") or {}).get("directive_overrides", {}) or {}
+    directives = filter_enabled_directives(raw_directives, overrides)
 
     # Get existing runtime.directives from the queue item (if any)
     existing_runtime = (item_data.get("runtime") or {}).get("directives", {})

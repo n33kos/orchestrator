@@ -204,11 +204,18 @@ When evaluating a directive, FIRST check for a status file at `~/.claude/orchest
 
 ### Launching Directives
 
-To START a directive process, use:
+To START a directive process, pass the command and its arguments as separate tokens (no quoting around the whole command):
 ```bash
-bash ~/orchestrator/scripts/run-directive.sh <item_id> <directive_name> "<command>" &
+bash ~/orchestrator/scripts/run-directive.sh <item_id> <directive_name> <cmd> <arg1> <arg2> ... &
+```
+For example:
+```bash
+bash ~/orchestrator/scripts/run-directive.sh ws-011 exhibit-report \
+  exhibit https://github.com/owner/repo/pull/123 --output ~/Desktop/plans/exhibit-ws-011.html &
 ```
 The `&` backgrounds the process so the delegator returns immediately. After starting, update the queue item's directive status to `running` via `update_queue_metadata`.
+
+`run-directive.sh` runs the command with preserved argv (no `eval`, no shell parsing), so quoting is only required around individual arguments that contain spaces — same rules as any other shell invocation.
 
 **NEVER run directive commands (council, exhibit, etc.) directly.** Always use `run-directive.sh` which creates the status file for tracking.
 

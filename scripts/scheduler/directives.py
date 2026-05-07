@@ -97,6 +97,7 @@ def _load_directives_from_dir(directives_root: str) -> dict[str, list[dict]]:
 
             directive = {
                 "name": frontmatter.get("name", filename.removesuffix(".md")),
+                "enabled": frontmatter.get("enabled", True),
                 "required": frontmatter.get("required", False),
                 "max_retries": frontmatter.get("max_retries", 0),
                 "depends_on": frontmatter.get("depends_on", None),
@@ -161,20 +162,96 @@ def load_directives(project_root: Optional[str] = None) -> dict[str, list[dict]]
     return result
 
 
-def init_runtime_directives(directives: list[dict]) -> dict:
-    """Initialize runtime.directives tracking state for a list of directives.
+# Built-in statuses that always run the active/review delegator pipeline regardless
+# of whether directives are configured. Directives in *other* statuses (planning,
+# queued, completed) cycle only when at least one applicable directive exists for
+# the item — keeps static items cheap.
+ALWAYS_CYCLE_STATUSES = ("active", "review")
 
-    Returns a dict keyed by directive name with initial tracking state.
+
+def applicable_directives_for_item(
+    project_root: Optional[str],
+    status: str,
+    directive_overrides: Optional[dict] = None,
+) -> list[dict]:
+    """Return the directives that would actually run for a given item.
+
+    Combines `load_directives` with `filter_enabled_directives`. Used by the
+    scheduler to decide whether an item in a non-cycling status (planning,
+    queued, completed) needs a cycle this tick.
+
+    Args:
+        project_root: Project root for the loader. May be None.
+        status: The item's current status.
+        directive_overrides: Per-item `worker.directive_overrides`.
+
+    Returns:
+        List of directive dicts that are enabled for this item in this status.
     """
-    runtime = {}
+    if not status:
+        return []
+    all_dirs = load_directives(project_root)
+    raw = all_dirs.get(status, [])
+    return filter_enabled_directives(raw, directive_overrides)
+
+
+def item_should_cycle(
+    item: dict,
+    project_root: Optional[str] = None,
+) -> bool:
+    """Decide whether a queue item warrants a delegator cycle this tick.
+
+    Rules:
+      - delegator_enabled must be True.
+      - If status is in ALWAYS_CYCLE_STATUSES (active, review), always cycle —
+        the existing triage/review pipeline applies regardless of directives.
+      - Otherwise, cycle only when the item has at least one applicable
+        directive for its status. This keeps static planning/queued/completed
+        items cheap when no directive is configured for them.
+    """
+    worker = item.get("worker") or {}
+    if not worker.get("delegator_enabled"):
+        return False
+
+    status = item.get("status", "")
+    if status in ALWAYS_CYCLE_STATUSES:
+        return True
+
+    if not worker.get("directives_enabled", True):
+        return False
+
+    overrides = worker.get("directive_overrides") or {}
+    applicable = applicable_directives_for_item(project_root, status, overrides)
+    return len(applicable) > 0
+
+
+def filter_enabled_directives(
+    directives: list[dict],
+    overrides: Optional[dict] = None,
+) -> list[dict]:
+    """Filter a directive list down to those that are enabled for an item.
+
+    Resolution order:
+      1. Per-item override (queue item's `worker.directive_overrides[name]`) wins.
+      2. Otherwise, the directive's frontmatter `enabled` value (default True).
+
+    Args:
+        directives: Full list of loaded directives for a status.
+        overrides: Optional dict of {directive_name: bool} from the queue item.
+
+    Returns:
+        New list containing only directives that should be active.
+    """
+    overrides = overrides or {}
+    out = []
     for d in directives:
-        runtime[d["name"]] = {
-            "status": "pending",
-            "retries": 0,
-            "last_run": None,
-            "output_path": None,
-        }
-    return runtime
+        name = d["name"]
+        if name in overrides:
+            if overrides[name]:
+                out.append(d)
+        elif d.get("enabled", True):
+            out.append(d)
+    return out
 
 
 def merge_runtime_directives(
@@ -184,7 +261,7 @@ def merge_runtime_directives(
 
     Preserves state for directives that already have tracking.
     Initializes state for new directives.
-    Removes state for directives no longer defined.
+    Drops state for directives no longer defined.
 
     Args:
         existing_runtime: Current runtime.directives from the queue item.
@@ -193,7 +270,6 @@ def merge_runtime_directives(
     Returns:
         Updated runtime directives dict.
     """
-    defined_names = {d["name"] for d in directives}
     result = {}
 
     for d in directives:
@@ -211,96 +287,9 @@ def merge_runtime_directives(
     return result
 
 
-def format_directives_for_prompt(
+def next_actionable_directive(
     directives: list[dict],
     runtime_state: Optional[dict] = None,
-) -> str:
-    """Format directives into a section for injection into a delegator prompt.
-
-    Includes runtime state (status, retries) when available, and indicates
-    dependency relationships and which directive to work on next.
-
-    Args:
-        directives: List of directive dicts for a specific status.
-        runtime_state: Optional runtime.directives dict from the queue item.
-
-    Returns:
-        Formatted markdown string, or empty string if no directives.
-    """
-    if not directives:
-        return ""
-
-    lines = [
-        "## Active Directives",
-        "",
-        "The following directives apply to this item's current status. "
-        "Evaluate each directive during this monitoring cycle and update their status.",
-        "",
-    ]
-
-    # Determine which directive to work on next
-    next_directive = _next_actionable_directive(directives, runtime_state)
-
-    for d in directives:
-        name = d["name"]
-        required_tag = " **(required)**" if d.get("required") else ""
-        retry_info = ""
-        if d.get("max_retries", 0) > 0:
-            retry_info = f" (max {d['max_retries']} retries)"
-
-        depends_info = ""
-        if d.get("depends_on"):
-            depends_info = f" (depends on: {d['depends_on']})"
-
-        lines.append(
-            f"### Directive: {name}{required_tag}{retry_info}{depends_info}"
-        )
-
-        # Include runtime state if available
-        if runtime_state and name in runtime_state:
-            rs = runtime_state[name]
-            status = rs.get("status", "pending")
-            retries = rs.get("retries", 0)
-            last_run = rs.get("last_run")
-            output_path = rs.get("output_path")
-
-            lines.append("")
-            lines.append(f"**Current state:** {status}")
-            if retries > 0:
-                lines.append(f"**Retries used:** {retries}/{d.get('max_retries', 0)}")
-            if last_run:
-                lines.append(f"**Last run:** {last_run}")
-            if output_path:
-                lines.append(f"**Output:** {output_path}")
-
-        if next_directive and next_directive == name:
-            lines.append("")
-            lines.append("**>>> NEXT: This is the directive to evaluate this cycle. <<<**")
-
-        lines.append("")
-        lines.append(d["instructions"])
-        lines.append("")
-
-    # Summary of blocking state
-    blocking = _blocking_directives(directives, runtime_state)
-    if blocking:
-        lines.append("### Blocking Directives")
-        lines.append("")
-        lines.append(
-            "The following required directives have NOT completed. "
-            "Do NOT trigger status transitions until all required directives pass."
-        )
-        lines.append("")
-        for name in blocking:
-            lines.append(f"- **{name}**")
-        lines.append("")
-
-    return "\n".join(lines)
-
-
-def _next_actionable_directive(
-    directives: list[dict],
-    runtime_state: Optional[dict],
 ) -> Optional[str]:
     """Determine which directive should be worked on next.
 
@@ -351,11 +340,15 @@ def _next_actionable_directive(
     return None
 
 
-def _blocking_directives(
+def blocking_directives(
     directives: list[dict],
-    runtime_state: Optional[dict],
+    runtime_state: Optional[dict] = None,
 ) -> list[str]:
-    """Return names of required directives that haven't completed."""
+    """Return names of required directives that haven't completed.
+
+    Use this to gate status transitions: an item should not advance to the
+    next status while any required directive is pending/running/failed.
+    """
     if not runtime_state:
         return [d["name"] for d in directives if d.get("required")]
 

@@ -113,14 +113,34 @@ export function useStreamActions({
     addToast('Work item updated', 'success')
   }, [updateItem, addToast])
 
+  const handleDirectivesToggle = useCallback((id: string, enabled: boolean) => {
+    updateItem(id, { worker: { directives_enabled: enabled } })
+    addToast(`Directives ${enabled ? 'enabled' : 'disabled'}`, 'info')
+  }, [updateItem, addToast])
+
+  const handleDirectiveOverrideToggle = useCallback(
+    (id: string, directiveName: string, enabled: boolean) => {
+      const item = items.find(i => i.id === id)
+      const current = item?.worker?.directive_overrides ?? {}
+      const next = { ...current, [directiveName]: enabled }
+      updateItem(id, { worker: { directive_overrides: next } })
+      addToast(`${directiveName}: ${enabled ? 'on' : 'off'}`, 'info')
+    },
+    [items, updateItem, addToast],
+  )
+
+  const handleDirectiveOverrideClear = useCallback(
+    (id: string, directiveName: string) => {
+      const item = items.find(i => i.id === id)
+      const current = { ...(item?.worker?.directive_overrides ?? {}) }
+      delete current[directiveName]
+      updateItem(id, { worker: { directive_overrides: current } })
+      addToast(`${directiveName}: using default`, 'info')
+    },
+    [items, updateItem, addToast],
+  )
+
   const handleDelegatorToggle = useCallback(async (id: string, enabled: boolean) => {
-    // Handle directives toggle via convention: id ends with ':directives'
-    if (id.endsWith(':directives')) {
-      const itemId = id.replace(':directives', '')
-      updateItem(itemId, { worker: { directives_enabled: enabled } })
-      addToast(`Directives ${enabled ? 'enabled' : 'disabled'}`, 'info')
-      return
-    }
     updateItem(id, { worker: { delegator_enabled: enabled } })
     const item = items.find(i => i.id === id)
     if (item?.status === 'active' && enabled) {
@@ -343,6 +363,9 @@ export function useStreamActions({
     handlePriorityChange,
     handleEdit,
     handleDelegatorToggle,
+    handleDirectivesToggle,
+    handleDirectiveOverrideToggle,
+    handleDirectiveOverrideClear,
     handleReorder,
     handleSendMessage,
     handleDuplicate,

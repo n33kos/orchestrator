@@ -8,6 +8,7 @@ import { registerPlanRoutes } from './plans'
 import { registerWorkerRoutes } from './worker'
 import { registerSchedulerLogRoutes } from './scheduler-log'
 import { registerSpendRoutes } from './spend'
+import { registerDirectiveRoutes } from './directives'
 // import { registerArtifactRoutes } from './artifacts'
 
 export function registerAllRoutes(server: ViteDevServer) {
@@ -20,5 +21,6 @@ export function registerAllRoutes(server: ViteDevServer) {
   registerWorkerRoutes(server)
   registerSchedulerLogRoutes(server)
   registerSpendRoutes(server)
+  registerDirectiveRoutes(server)
   // registerArtifactRoutes(server)
 }

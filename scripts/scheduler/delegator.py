@@ -304,12 +304,13 @@ def trigger_delegator_cycles(cfg: Config, dry_run: bool) -> None:
     with locked_queue() as ctx:
         data = ctx["data"]
 
-    # Include both "active" and "review" items — delegators continue cycling during review.
-    # Review items may not have a session_id (worker could be idle), so don't require it.
+    # Active and review items always cycle (existing triage/review pipeline).
+    # Items in other statuses (planning, queued, completed) cycle only when they
+    # have at least one applicable directive — see `item_should_cycle`.
+    from scheduler.directives import item_should_cycle  # local import to avoid cycle
     active_items = [
         i for i in data["items"]
-        if i["status"] in ("active", "review")
-        and (i.get("worker") or {}).get("delegator_enabled") is True
+        if item_should_cycle(i, PROJECT_ROOT)
     ]
 
     for item in active_items:

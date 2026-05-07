@@ -59,6 +59,10 @@ item = {
         'commit_strategy': '<COMMIT_STRATEGY>',
         'delegator_enabled': True,
         'directives_enabled': True,
+        # Optional per-directive overrides: {<directive_name>: bool}.
+        # If a name is present, it wins over the directive's own `enabled` frontmatter.
+        # Leave empty to use each directive's frontmatter default.
+        'directive_overrides': {},
     },
     'plan': {
         'file': None,

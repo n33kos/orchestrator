@@ -19,6 +19,8 @@ export interface WorkItemWorker {
   commit_strategy: 'branch_and_pr' | 'commit_to_main' | 'graphite_stack'
   delegator_enabled: boolean
   directives_enabled?: boolean
+  /** Per-directive overrides: {<directive_name>: true|false}. */
+  directive_overrides?: Record<string, boolean>
   stack_steps?: StackStep[]
 }
 

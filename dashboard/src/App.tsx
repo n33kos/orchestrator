@@ -879,6 +879,9 @@ export function App() {
             onTeardownStream={actions.handleTeardownStream}
             onSendMessage={actions.handleSendMessage}
             onDelegatorToggle={actions.handleDelegatorToggle}
+            onDirectivesToggle={actions.handleDirectivesToggle}
+            onDirectiveOverrideToggle={actions.handleDirectiveOverrideToggle}
+            onDirectiveOverrideClear={actions.handleDirectiveOverrideClear}
             onGeneratePlan={actions.handleGeneratePlan}
             onRefresh={() => queue.refresh()}
             onUpdateBlockedBy={queue.updateBlockedBy}
