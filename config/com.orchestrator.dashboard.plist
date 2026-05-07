@@ -33,6 +33,8 @@
         <string>$DETECTED_PATH</string>
         <key>HOME</key>
         <string>$HOME</string>
+        <key>ORCHESTRATOR_LOG_FILE</key>
+        <string>$HOME/.claude/orchestrator/logs/orchestrator-scheduler.log</string>
     </dict>
 </dict>
 </plist>

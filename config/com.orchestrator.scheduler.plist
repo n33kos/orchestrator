@@ -36,6 +36,8 @@
         <string>$HOME</string>
         <key>PYTHONUNBUFFERED</key>
         <string>1</string>
+        <key>ORCHESTRATOR_LOG_FILE</key>
+        <string>$HOME/.claude/orchestrator/logs/orchestrator-scheduler.log</string>
     </dict>
 </dict>
 </plist>

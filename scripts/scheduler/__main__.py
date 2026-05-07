@@ -39,7 +39,12 @@ from scripts.scheduler.delegator import (
 
 PID_FILE = os.path.expanduser("~/.claude/orchestrator/scheduler.pid")
 LOCK_FILE = os.path.expanduser("~/.claude/orchestrator/scheduler.lock")
-LOG_FILE = os.path.expanduser("~/.claude/orchestrator/logs/scheduler.log")
+LOG_FILE = os.path.expanduser(
+    os.environ.get(
+        "ORCHESTRATOR_LOG_FILE",
+        "~/.claude/orchestrator/logs/orchestrator-scheduler.log",
+    )
+)
 LOG_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
 LOG_BACKUP_COUNT = 3
 
