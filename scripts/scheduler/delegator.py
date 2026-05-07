@@ -307,7 +307,7 @@ def trigger_delegator_cycles(cfg: Config, dry_run: bool) -> None:
     # Active and review items always cycle (existing triage/review pipeline).
     # Items in other statuses (planning, queued, completed) cycle only when they
     # have at least one applicable directive — see `item_should_cycle`.
-    from scheduler.directives import item_should_cycle  # local import to avoid cycle
+    from scripts.scheduler.directives import item_should_cycle  # local import to avoid cycle
     active_items = [
         i for i in data["items"]
         if item_should_cycle(i, PROJECT_ROOT)
