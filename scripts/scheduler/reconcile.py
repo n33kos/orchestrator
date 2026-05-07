@@ -4,6 +4,7 @@ Ports: check_and_activate, generate_plans, check_planning_timeouts,
        process_worker_completions, reconcile_state from scheduler.sh.
 """
 
+import fcntl
 import hashlib
 import json
 import os
@@ -224,16 +225,50 @@ def _start_worktree_setup(cfg: Config, item: dict, branch: str, rc: "RepoConfig 
         branch=branch, path=worktree_path, repo_path=main_repo,
     )
 
-    # Always fetch and update main before creating a worktree to avoid stale branches
-    full_cmd = f"git fetch origin main && git checkout main && git pull --ff-only origin main && {setup_cmd}"
+    # Update main under a per-repo lock so concurrent activations in the same
+    # cycle don't race on .git/index.lock when both try to fetch+checkout+pull
+    # against the same source repo.
+    if not _update_main_repo_locked(main_repo, log_file):
+        print(f"[scheduler] Main repo update FAILED for {item_id} — see {log_file}")
+        return
 
+    # The fetch/checkout/pull is done; now Popen only the worktree-create step.
+    # `git worktree add` serializes itself against other worktree adds in the
+    # same repo, so we don't need an additional lock here.
     print(f"[scheduler] Starting background worktree setup for {item_id} (branch: {branch})")
-    with open(log_file, "w") as lf:
+    with open(log_file, "a") as lf:
         subprocess.Popen(
-            full_cmd, shell=True,
+            setup_cmd, shell=True,
             stdout=lf, stderr=subprocess.STDOUT,
             cwd=main_repo, env=EXEC_ENV,
         )
+
+
+def _update_main_repo_locked(main_repo: str, log_file_path: Path) -> bool:
+    """Run fetch + checkout main + pull under a per-repo flock. Returns True on success.
+
+    Holds an exclusive flock on a per-repo lockfile so concurrent activations
+    targeting the same source repo don't race on `.git/index.lock`.
+    """
+    lock_dir = Path.home() / ".claude" / "orchestrator" / ".locks"
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    repo_hash = hashlib.sha1(main_repo.encode()).hexdigest()[:16]
+    lock_file = lock_dir / f"main-repo-{repo_hash}.lock"
+
+    cmd = "git fetch origin main && git checkout main && git pull --ff-only origin main"
+    with open(lock_file, "w") as lf, open(log_file_path, "w") as out:
+        fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
+        try:
+            result = subprocess.run(
+                cmd, shell=True, cwd=main_repo,
+                stdout=out, stderr=subprocess.STDOUT,
+                env=EXEC_ENV, timeout=180,
+            )
+            return result.returncode == 0
+        except subprocess.TimeoutExpired:
+            return False
+        finally:
+            fcntl.flock(lf.fileno(), fcntl.LOCK_UN)
 
 
 def _find_worktree_by_branch(repo_path: str, branch: str) -> str | None:
