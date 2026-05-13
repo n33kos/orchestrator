@@ -71,7 +71,10 @@ def check_and_activate(cfg: Config, dry_run: bool) -> None:
             continue
         env = i.get("environment") or {}
         has_branch = bool(env.get("branch"))
-        has_repo = bool(env.get("repo"))
+        # Accept either an explicit environment.repo OR a repo_key — repo_key
+        # resolves to a real path at activation time via _resolve_item_repo,
+        # so items that omit environment.repo are still activatable.
+        has_repo = bool(env.get("repo")) or bool(i.get("repo_key"))
         if not (has_branch or has_repo):
             continue
         # Skip if any blocked_by dependency is not completed
