@@ -7,24 +7,45 @@ user_invocable: true
 
 Generate an implementation plan for a queued or planning-status work item.
 
+## Default plan format — interactive HTML
+
+**All new plans are written as self-contained interactive HTML files using the `plan-html` skill (`~/.claude/skills/plan-html/`).** Plans live at `~/.claude/orchestrator/plans/<item-id>.html` (NOT the skill's default `~/Desktop/plans/` — orchestrator's centralized plans dir).
+
+The HTML format gives each plan:
+- Persistent checkbox task state per step (localStorage-backed when viewed in a browser)
+- Collapsible sections with per-section progress bars
+- Inline SVG charts for dependency graphs / risk matrices / timelines when useful
+- Auto-reload every 5 minutes so workers and reviewers see updates without manual refresh
+- Embedded design system — fully offline-portable, no external dependencies
+
+Only fall back to markdown if the user explicitly asks for it (e.g., "make a markdown plan", "write it as .md").
+
 ## Process
 
-1. If no item ID is provided, show the queue with `bash ~/orchestrator/scripts/status.sh` and ask which item to plan
-2. Generate the plan:
+1. If no item ID is provided, show the queue with `bash ~/orchestrator/scripts/status.sh` and ask which item to plan.
 
-```bash
-bash ~/orchestrator/scripts/generate-plan.sh <item-id>
-```
+2. Invoke the `plan-html` skill to author the plan. Pass the canonical path:
+   - Output file: `~/.claude/orchestrator/plans/<item-id>.html`
+   - Title: the item's `title` field
+   - Slug: `<item-id>` (used as localStorage namespace)
+   - Status: `draft` initially; flips to `in-progress` once activated
+   - Always include the **Steps** master-progress section if the work has more than one phase
+   - Always include the **Linked work** section for tickets / PRs / Slack threads the plan references
+   - Always include a final **Sticking points** section calling out edge cases the worker needs to resolve
 
-Options:
-- Add `--auto-approve` to auto-approve the plan after generation
+3. Update the queue item's `plan.file` to point at the new HTML path and `plan.summary` to a one-paragraph summary.
 
-3. Report the plan summary and steps to the user
-4. Ask if they want to:
+4. Report the plan summary and step titles to the user. Offer to open the HTML file (`open <path>`).
+
+5. Ask if they want to:
    - **Approve** the plan as-is (update via `/api/queue/update` with `plan.approved: true`)
    - **Edit** specific steps before approving
    - **Regenerate** with different guidance
    - **Skip planning** and go straight to activation (quick fixes only)
+
+## Legacy auto-generation (markdown — deprecated)
+
+The old auto-gen path `bash ~/orchestrator/scripts/generate-plan.sh <item-id>` produces markdown. It still runs from the scheduler for items in `planning` status, but is being phased out. New plans authored manually should always use HTML via `plan-html`.
 
 ## Plan File Format
 
