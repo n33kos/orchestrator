@@ -616,6 +616,34 @@ def reconcile_state(cfg: Config, dry_run: bool) -> None:
             else:
                 _worker_missing_since.pop(item_id, None)
 
+            # Task-instruction redelivery safety net.
+            # If the worker session is alive AND we have never verified delivery
+            # of the initial task brief, attempt redelivery now. This catches
+            # the common failure mode where vmux's daemon returned an error
+            # response on first spawn but the script's exit code didn't reflect
+            # it. Without this loop, the worker sits in standby indefinitely
+            # with no idea what to do.
+            session_alive_for_item = (
+                _normalize_session_id(session_id) in live_sessions
+                if session_id else False
+            )
+            instructions_delivered = bool(env.get("task_instructions_delivered"))
+            if (
+                session_alive_for_item
+                and not instructions_delivered
+                and not is_paused
+                and not dry_run
+            ):
+                print(
+                    f"[reconcile] Task instructions never confirmed delivered for {item_id} — retrying send"
+                )
+                if _send_task_instructions(cfg, item_id, _normalize_session_id(session_id)):
+                    subprocess.run(
+                        ["python3", "-m", "lib.queue", "update", item_id,
+                         "environment.task_instructions_delivered=true"],
+                        cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
+                    )
+
             if delegator_enabled and not is_paused:
                 delegator_dir = Path.home() / ".claude" / "orchestrator" / "delegators" / item_id
                 if not (delegator_dir / "state.json").exists():
@@ -783,19 +811,32 @@ def _spawn_worker(cfg: Config, item_id: str, worktree_path: str, session_name: s
             print(f"[reconcile] WARNING: Could not find session by CWD, using computed ID {new_id}", file=sys.stderr)
 
         subprocess.run(
-            ["python3", "-m", "lib.queue", "update", item_id, f"environment.session_id={new_id}"],
+            ["python3", "-m", "lib.queue", "update", item_id,
+             f"environment.session_id={new_id}",
+             "environment.task_instructions_delivered=false"],
             cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
         )
         print(f"[reconcile] Worker spawned for {item_id} (session: {new_id})")
 
-        _send_task_instructions(cfg, item_id, new_id)
+        delivered = _send_task_instructions(cfg, item_id, new_id)
+        if delivered:
+            subprocess.run(
+                ["python3", "-m", "lib.queue", "update", item_id,
+                 "environment.task_instructions_delivered=true"],
+                cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
+            )
         _set_session_hue(item_id, new_id)
     except Exception as e:
         print(f"[reconcile] WARNING: Failed to spawn worker for {item_id}: {e}", file=sys.stderr)
 
 
-def _send_task_instructions(cfg: Config, item_id: str, session_id: str) -> None:
-    """Send task instructions to a worker session (retry until standby)."""
+def _send_task_instructions(cfg: Config, item_id: str, session_id: str) -> bool:
+    """Send task instructions to a worker session.
+
+    Returns True if delivery was VERIFIED (vmux's daemon ACK reached us), False
+    otherwise. Caller is responsible for persisting the delivery flag so that
+    a subsequent reconcile cycle can retry on False.
+    """
     try:
         result = subprocess.run(
             ["python3", "-m", "lib.queue", "get", item_id, "title", "environment.branch", "plan.file"],
@@ -803,7 +844,7 @@ def _send_task_instructions(cfg: Config, item_id: str, session_id: str) -> None:
         )
         if result.returncode != 0:
             print(f"[reconcile] WARNING: Could not read queue item {item_id} for task message", file=sys.stderr)
-            return
+            return False
         parts = result.stdout.strip().split("\x1f")
         title = parts[0] if len(parts) > 0 else ""
         branch = parts[1] if len(parts) > 1 else ""
@@ -825,20 +866,59 @@ def _send_task_instructions(cfg: Config, item_id: str, session_id: str) -> None:
             f"Status: Activating now — follow the plan steps in order."
         )
 
+        # IMPORTANT: vmux's `send` subcommand exits 0 even when the daemon
+        # returns {"ok": false, "error": "..."} — the error goes to stderr as
+        # "Error: ..." and the script swallows the non-OK response. Checking
+        # only the returncode produces false positives (we log "Task
+        # instructions sent" while the worker received nothing). Verify
+        # delivery by inspecting stdout AND stderr in addition to the exit
+        # code: success is stdout containing "Message sent" and no stderr
+        # "Error:" line.
+        last_stdout = ""
+        last_stderr = ""
+        last_exit: int = -1
+        delivered = False
         for attempt in range(1, 4):
             try:
                 send_result = subprocess.run(
                     [cfg.tool_vmux, "send", session_id, task_message],
                     capture_output=True, text=True, timeout=10,
                 )
-                if send_result.returncode == 0:
+                last_stdout = (send_result.stdout or "").strip()
+                last_stderr = (send_result.stderr or "").strip()
+                last_exit = send_result.returncode
+                stderr_has_error = last_stderr.lower().startswith("error:") or "vmuxd is not running" in last_stderr.lower()
+                stdout_confirms = "message sent" in last_stdout.lower()
+                if last_exit == 0 and stdout_confirms and not stderr_has_error:
                     print(f"[reconcile] Task instructions sent to {item_id} (session: {session_id})")
-                    return
-            except Exception:
-                pass
+                    return True
+                # Surface what we actually got so failures are diagnosable.
+                detail = (
+                    f"exit={last_exit} "
+                    f"stdout={last_stdout!r} "
+                    f"stderr={last_stderr!r}"
+                )
+                print(
+                    f"[reconcile] Task-instruction send failed for {item_id} on attempt {attempt}/3: {detail}",
+                    file=sys.stderr,
+                )
+            except Exception as exc:
+                last_stderr = repr(exc)
+                print(
+                    f"[reconcile] Task-instruction send raised for {item_id} on attempt {attempt}/3: {exc}",
+                    file=sys.stderr,
+                )
             if attempt < 3:
                 time.sleep(5)
 
-        print(f"[reconcile] WARNING: Could not send task instructions to {item_id} after 15s (will retry next cycle)", file=sys.stderr)
+        print(
+            f"[reconcile] WARNING: Could NOT verify task-instruction delivery to {item_id} after 3 attempts — "
+            f"last exit={last_exit}, last stdout={last_stdout!r}, last stderr={last_stderr!r}. "
+            f"Reconcile will retry next cycle. If this persists, restart the vmux daemon: "
+            f"launchctl kickstart -k gui/$(id -u)/com.vmux.daemon",
+            file=sys.stderr,
+        )
+        return False
     except Exception as e:
         print(f"[reconcile] WARNING: Failed to send task instructions to {item_id}: {e}", file=sys.stderr)
+        return False
