@@ -170,7 +170,8 @@ Directive status values: `pending`, `running`, `completed`, `failed`.
 3. **Required directives that are `running` and have found issues keep `running` status.** They only move to `completed` when the actual review/test passes, not just because one invocation finished.
 4. **Failed directives with remaining retries should be re-attempted.** Set back to `running` and try again.
 5. **All required directives must be `completed` before transitioning the item to the next status.** Do NOT approve/complete an item if any required directive is pending or running.
-6. **Respect `depends_on` chains.** A directive with `depends_on: X` cannot run until directive X has status `completed`.
+6. **Every ENABLED directive must be evaluated each cycle until it reaches `completed` (or `failed` with retries exhausted) — whether or not it is `required`.** `enabled: true` is the commitment to run; `required: true` is the additional commitment to *block status transitions* on incomplete. An observational directive (`enabled: true, required: false`) like `visual-smoke-check` still must run on every cycle until done — its findings just don't gate the merge.
+7. **Respect `depends_on` chains.** A directive with `depends_on: X` cannot run until directive X has status `completed`.
 
 ### Evaluating Directives
 
