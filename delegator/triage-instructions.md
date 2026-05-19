@@ -98,7 +98,9 @@ When `item_context` shows `status=review`, the item has been transitioned to rev
 2. **Missing checks** — If `pr.ci_checks.some_prs_missing_checks == true`, some PRs have no CI results (common for draft PRs after new commits). Do NOT treat this as "all clear." Send a `message_worker` telling the worker to mark the PR as ready for review or re-trigger CI. This takes priority over "all clear."
 3. **Merge conflicts** — If `pr.mergeable == false` or `pr.merge_state_status == "DIRTY"`, send a `message_worker` telling the worker to rebase onto main and resolve conflicts.
 4. **PR behind base** — If `pr.merge_state_status == "BEHIND"`, send a `message_worker` telling the worker to rebase.
-5. **All clear** — ONLY if ALL of these are true: CI is passing (`pr.ci_checks.failing == 0`), no PRs missing checks (`pr.ci_checks.some_prs_missing_checks == false`), PR is mergeable, no conflicts. Set `delegator_enabled` to `false` via `update_queue_metadata` to stop future delegator cycles. The delegator directory and state are preserved — only the cycling stops.
+5. **All clear** — ONLY if ALL of these are true: CI is passing (`pr.ci_checks.failing == 0`), no PRs missing checks (`pr.ci_checks.some_prs_missing_checks == false`), PR is mergeable, no conflicts, **AND every enabled directive in the payload has `status: "completed"` in `directive_runtime`**. Set `delegator_enabled` to `false` via `update_queue_metadata` to stop future delegator cycles. The delegator directory and state are preserved — only the cycling stops.
+
+   **CRITICAL: do NOT disable the delegator while any enabled directive is still `pending`, `running`, or `failed` (with retries left). An enabled directive is a commitment to run, not a suggestion. CI being green doesn't make it skippable.** If enabled directives are not yet `completed`, escalate to Opus to evaluate them (per the Mandatory Escalation rule below) rather than disabling the delegator.
 
 ### Things to NOT do in review mode
 
@@ -154,13 +156,16 @@ Directive status values: `pending`, `running`, `completed`, `failed`.
 
 ### Mandatory Escalation for Actionable Directives
 
-**CRITICAL RULE:** If ANY required directive is ready to run — meaning its status is `pending` or `failed` (with retries remaining), its `depends_on` dependency is met (completed or has no dependency), and the item meets the directive's prerequisites (e.g., PR exists for council-review) — then you MUST escalate to Opus. Do NOT attempt to evaluate or execute directives yourself (Haiku). Always escalate with decision `"escalate"` and include the directive state in your `escalation_context`.
+**CRITICAL RULE:** If ANY enabled directive is ready to run — meaning its status is `pending` or `failed` (with retries remaining), its `depends_on` dependency is met (completed or has no dependency), and the item meets the directive's prerequisites (e.g., PR exists for council-review) — then you MUST escalate to Opus. Do NOT attempt to evaluate or execute directives yourself (Haiku). Always escalate with decision `"escalate"` and include the directive state in your `escalation_context`.
+
+**This applies to EVERY enabled directive, not just `required: true` ones.** `enabled: true` is a commitment to execute. The `required` flag governs whether the directive *blocks status transition* on incomplete; it does NOT govern whether the directive runs. An enabled directive with `required: false` is observational/informational — it still must run and produce findings, but its absence won't block a merge. Either way: run it.
 
 A directive is NOT ready to run if:
 - Its status is `running` (already in progress — check status file)
 - Its status is `completed` (already done)
 - Its `depends_on` dependency is not `completed` yet
 - The item doesn't meet the directive's prerequisites (e.g., no PR URL yet)
+- It is NOT enabled (`enabled: false` in the directive frontmatter — these don't appear in the loaded `directives` array at all, so this case shouldn't reach you)
 
 If a directive is `running`, check the directive status file to see if the process has actually completed. Include this in your escalation context.
 
