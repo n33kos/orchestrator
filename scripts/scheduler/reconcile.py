@@ -830,12 +830,59 @@ def _spawn_worker(cfg: Config, item_id: str, worktree_path: str, session_name: s
         print(f"[reconcile] WARNING: Failed to spawn worker for {item_id}: {e}", file=sys.stderr)
 
 
+def parse_vmux_sessions(output: str) -> list[dict[str, str]]:
+    """Parse `vmux sessions` output into [{state, name, hex_id}, ...].
+
+    Accepts both bare-hex and named-session output formats:
+      [standby] 1bd9b93adf90
+      [standby] ws-026-graphite-stack-suppo (1bd9b93adf90)
+
+    `name` is the part between the bracket and the parenthesized id (or the
+    raw token for bare-hex). `hex_id` is the value in parens for named
+    sessions, otherwise the raw token. Each entry preserves the order it
+    appeared in the output. Lines that don't look like session headers are
+    skipped silently.
+    """
+    sessions: list[dict[str, str]] = []
+    for raw in output.split("\n"):
+        line = raw.strip()
+        if not (line.startswith("[") and "]" in line):
+            continue
+        bracket_end = line.index("]")
+        state = line[1:bracket_end].strip()
+        rest = line[bracket_end + 1 :].strip()
+        if "(" in rest and rest.endswith(")"):
+            name = rest[: rest.rindex("(")].strip()
+            hex_id = rest[rest.rindex("(") + 1 : -1].strip()
+        else:
+            name = rest
+            hex_id = rest
+        if not hex_id:
+            continue
+        sessions.append({"state": state, "name": name, "hex_id": hex_id})
+    return sessions
+
+
+def find_session_for_item(output: str, item_id: str) -> str | None:
+    """Return the hex session id whose name starts with item_id, or None."""
+    for entry in parse_vmux_sessions(output):
+        name = entry.get("name", "")
+        if name.startswith(item_id):
+            return entry.get("hex_id") or None
+        # Bare-hex fallback: if the user spawned without --name, the name
+        # equals the hex id; nothing useful to match on, skip.
+    return None
+
+
 def _send_task_instructions(cfg: Config, item_id: str, session_id: str) -> bool:
     """Send task instructions to a worker session.
 
-    Returns True if delivery was VERIFIED (vmux's daemon ACK reached us), False
-    otherwise. Caller is responsible for persisting the delivery flag so that
-    a subsequent reconcile cycle can retry on False.
+    Looks up the session by name in `vmux sessions` (names start with item_id)
+    and sends a single message. The stored session_id is informational — the
+    live list is the source of truth. Returns True iff vmux's daemon ACK
+    reached us (stdout contains "Message sent" and stderr has no "Error:").
+    On failure, logs the actual stdout/stderr/exit so the next reconcile
+    cycle can retry intelligently rather than papering over a vmux-side bug.
     """
     try:
         result = subprocess.run(
@@ -853,7 +900,6 @@ def _send_task_instructions(cfg: Config, item_id: str, session_id: str) -> bool:
         if not plan_file or plan_file == "None":
             plan_file = os.path.expanduser(f"~/.claude/orchestrator/plans/{item_id}.md")
         elif not os.path.isabs(plan_file) and not plan_file.startswith("~"):
-            # Relative filename — resolve against configured plans directory
             plan_file = os.path.join(os.path.expanduser(cfg.artifacts_dir), plan_file)
         else:
             plan_file = os.path.expanduser(plan_file)
@@ -866,56 +912,49 @@ def _send_task_instructions(cfg: Config, item_id: str, session_id: str) -> bool:
             f"Status: Activating now — follow the plan steps in order."
         )
 
-        # IMPORTANT: vmux's `send` subcommand exits 0 even when the daemon
-        # returns {"ok": false, "error": "..."} — the error goes to stderr as
-        # "Error: ..." and the script swallows the non-OK response. Checking
-        # only the returncode produces false positives (we log "Task
-        # instructions sent" while the worker received nothing). Verify
-        # delivery by inspecting stdout AND stderr in addition to the exit
-        # code: success is stdout containing "Message sent" and no stderr
-        # "Error:" line.
-        last_stdout = ""
-        last_stderr = ""
-        last_exit: int = -1
-        delivered = False
-        for attempt in range(1, 4):
-            try:
-                send_result = subprocess.run(
-                    [cfg.tool_vmux, "send", session_id, task_message],
-                    capture_output=True, text=True, timeout=10,
-                )
-                last_stdout = (send_result.stdout or "").strip()
-                last_stderr = (send_result.stderr or "").strip()
-                last_exit = send_result.returncode
-                stderr_has_error = last_stderr.lower().startswith("error:") or "vmuxd is not running" in last_stderr.lower()
-                stdout_confirms = "message sent" in last_stdout.lower()
-                if last_exit == 0 and stdout_confirms and not stderr_has_error:
-                    print(f"[reconcile] Task instructions sent to {item_id} (session: {session_id})")
-                    return True
-                # Surface what we actually got so failures are diagnosable.
-                detail = (
-                    f"exit={last_exit} "
-                    f"stdout={last_stdout!r} "
-                    f"stderr={last_stderr!r}"
-                )
-                print(
-                    f"[reconcile] Task-instruction send failed for {item_id} on attempt {attempt}/3: {detail}",
-                    file=sys.stderr,
-                )
-            except Exception as exc:
-                last_stderr = repr(exc)
-                print(
-                    f"[reconcile] Task-instruction send raised for {item_id} on attempt {attempt}/3: {exc}",
-                    file=sys.stderr,
-                )
-            if attempt < 3:
-                time.sleep(5)
+        # Resolve the *actual* session id by name. If vmux can't see a session
+        # whose name starts with item_id, fall back to the stored session_id;
+        # that path is rare and lets us surface the genuine "session missing"
+        # case instead of papering over it.
+        try:
+            list_result = subprocess.run(
+                [cfg.tool_vmux, "sessions"], capture_output=True, text=True, timeout=10,
+            )
+            live_id = find_session_for_item(list_result.stdout or "", item_id)
+        except Exception:
+            live_id = None
+        target_id = live_id or session_id
+        if not target_id:
+            print(
+                f"[reconcile] WARNING: No vmux session found for {item_id} and no stored id — cannot send instructions",
+                file=sys.stderr,
+            )
+            return False
+
+        try:
+            send_result = subprocess.run(
+                [cfg.tool_vmux, "send", target_id, task_message],
+                capture_output=True, text=True, timeout=10,
+            )
+        except Exception as exc:
+            print(
+                f"[reconcile] Task-instruction send raised for {item_id}: {exc}",
+                file=sys.stderr,
+            )
+            return False
+
+        out = (send_result.stdout or "").strip()
+        err = (send_result.stderr or "").strip()
+        stderr_has_error = err.lower().startswith("error:") or "vmuxd is not running" in err.lower()
+        stdout_confirms = "message sent" in out.lower()
+        if send_result.returncode == 0 and stdout_confirms and not stderr_has_error:
+            print(f"[reconcile] Task instructions sent to {item_id} (session: {target_id})")
+            return True
 
         print(
-            f"[reconcile] WARNING: Could NOT verify task-instruction delivery to {item_id} after 3 attempts — "
-            f"last exit={last_exit}, last stdout={last_stdout!r}, last stderr={last_stderr!r}. "
-            f"Reconcile will retry next cycle. If this persists, restart the vmux daemon: "
-            f"launchctl kickstart -k gui/$(id -u)/com.vmux.daemon",
+            f"[reconcile] Task-instruction send failed for {item_id} "
+            f"(session: {target_id}): exit={send_result.returncode} "
+            f"stdout={out!r} stderr={err!r}. Reconcile will retry next cycle.",
             file=sys.stderr,
         )
         return False

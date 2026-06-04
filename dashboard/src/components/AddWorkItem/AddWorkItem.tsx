@@ -8,7 +8,7 @@ interface AddWorkItemProps {
 
 export interface NewWorkItem {
   title: string
-  description: string
+  planBody: string
   type: string
   priority: number
   branch: string
@@ -18,7 +18,7 @@ export interface NewWorkItem {
 
 export function AddWorkItem({ onAdd, onCancel }: AddWorkItemProps) {
   const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
+  const [planBody, setPlanBody] = useState('')
   const [priority, setPriority] = useState(1)
   const [branch, setBranch] = useState('')
   const [isGraphiteStack, setIsGraphiteStack] = useState(false)
@@ -41,8 +41,8 @@ export function AddWorkItem({ onAdd, onCancel }: AddWorkItemProps) {
     if (!canSubmit) return
     onAdd({
       title: title.trim(),
-      description: description.trim(),
-
+      planBody: planBody.trim(),
+      type: '',
       priority,
       branch: branch.trim(),
       ...(isGraphiteStack ? { prType: 'graphite_stack' } : {}),
@@ -67,13 +67,13 @@ export function AddWorkItem({ onAdd, onCancel }: AddWorkItemProps) {
       </div>
 
       <div className={styles.Field}>
-        <label className={styles.Label}>Description</label>
+        <label className={styles.Label}>Plan body (saved as the plan file)</label>
         <textarea
           className={styles.Textarea}
-          value={description}
-          onChange={e => setDescription(e.target.value)}
-          placeholder="What needs to be done?"
-          rows={3}
+          value={planBody}
+          onChange={e => setPlanBody(e.target.value)}
+          placeholder="What needs to be done? Markdown is welcome."
+          rows={5}
         />
       </div>
 

@@ -59,10 +59,6 @@ if branch:
 else:
     lines.append('- **Branch**: (not yet assigned)')
 
-desc = item.get('description', '')
-if desc:
-    lines.append(f'- **Description**: {desc}')
-
 impl_notes = meta.get('implementation_notes', [])
 if impl_notes:
     lines.append('- **Implementation Notes**:')

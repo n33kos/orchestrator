@@ -1,8 +1,46 @@
 import { execFile } from 'child_process'
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
 import type { ViteDevServer } from 'vite'
 import { readBody, readQueue, writeQueue, queuePath } from './helpers'
+
+function resolvePlansDir(): string {
+  // Mirrors generate-plan.sh: prefer plans.plans_directory, fall back to
+  // artifacts.artifacts_directory, finally a hardcoded default.
+  const candidates = [
+    join(__dirname, '..', '..', '..', 'config', 'environment.local.yml'),
+    join(__dirname, '..', '..', '..', 'config', 'environment.yml'),
+  ]
+  for (const configPath of candidates) {
+    if (!existsSync(configPath)) continue
+    const content = readFileSync(configPath, 'utf-8')
+    const plansMatch = content.match(/^plans:\s*\n\s+plans_directory:\s*(.+)$/m)
+      || content.match(/^\s+plans_directory:\s*(.+)$/m)
+    if (plansMatch) {
+      return plansMatch[1].trim().replace(/^["']|["']$/g, '').replace('~', homedir())
+    }
+    const artifactsMatch = content.match(/^\s+artifacts_directory:\s*(.+)$/m)
+    if (artifactsMatch) {
+      return artifactsMatch[1].trim().replace(/^["']|["']$/g, '').replace('~', homedir())
+    }
+  }
+  return join(homedir(), '.claude/orchestrator/plans')
+}
+
+function writePlanFile(itemId: string, title: string, body: string): string {
+  const plansDir = resolvePlansDir()
+  if (!existsSync(plansDir)) mkdirSync(plansDir, { recursive: true })
+  const path = join(plansDir, `${itemId}.md`)
+  const sections: string[] = [`# ${title || itemId}`, '']
+  if (body && body.trim()) {
+    sections.push(body.trim(), '')
+  } else {
+    sections.push('## Summary', '', '', '## Steps', '', '- [ ] ', '', '## Notes', '', '')
+  }
+  writeFileSync(path, sections.join('\n'), 'utf-8')
+  return path
+}
 
 export function registerQueueRoutes(server: ViteDevServer) {
   // POST /api/queue/add — add a new work item
@@ -18,12 +56,16 @@ export function registerQueueRoutes(server: ViteDevServer) {
         const n = parseInt(i.id.replace('ws-', ''), 10)
         return n > max ? n : max
       }, 0)
+      const newItemId = `ws-${String(maxId + 1).padStart(3, '0')}`
+      // Persist any free-form body the dashboard collected as the starter plan
+      // file content — that's the single source of truth for ticket content.
+      const planBody = (body.planBody || body.description || '').toString()
+      const planFilePath = writePlanFile(newItemId, body.title, planBody)
       const newItem = {
-        id: `ws-${String(maxId + 1).padStart(3, '0')}`,
+        id: newItemId,
         source: 'manual',
         source_ref: 'Dashboard — manual entry',
         title: body.title,
-        description: body.description || '',
         priority: body.priority || data.items.length + 1,
         status: 'planning',
         blocked_by: [],
@@ -42,7 +84,7 @@ export function registerQueueRoutes(server: ViteDevServer) {
           delegator_enabled: true,
         },
         plan: {
-          file: null,
+          file: planFilePath,
           summary: null,
           approved: false,
           approved_at: null,
@@ -96,7 +138,6 @@ export function registerQueueRoutes(server: ViteDevServer) {
       if (body.status !== undefined) item.status = body.status
       if (body.priority !== undefined) item.priority = body.priority
       if (body.title !== undefined) item.title = body.title
-      if (body.description !== undefined) item.description = body.description
       // Nested field updates
       if (body.environment !== undefined) {
         if (!item.environment) item.environment = {}

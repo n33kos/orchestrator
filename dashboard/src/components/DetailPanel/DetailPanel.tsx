@@ -12,7 +12,7 @@ interface DetailPanelProps {
   delegator?: DelegatorStatus
   onClose: () => void
   onStatusChange: (id: string, status: WorkItemStatus) => void
-  onUpdate?: (id: string, fields: Partial<Pick<WorkItem, 'title' | 'description'>>) => void
+  onUpdate?: (id: string, fields: Partial<Pick<WorkItem, 'title'>>) => void
   onDelete: (id: string) => void
   onDuplicate?: (id: string) => void
   onNotesChange?: (id: string, notes: string) => void

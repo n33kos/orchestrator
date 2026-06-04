@@ -41,7 +41,7 @@ export interface ItemDetailsProps {
   onDirectiveOverrideClear?: (id: string, directiveName: string) => void;
   onEdit?: (
     id: string,
-    updates: { title?: string; description?: string },
+    updates: { title?: string },
   ) => void;
   onDelete: (id: string) => void;
   onDuplicate?: (id: string) => void;
@@ -67,7 +67,7 @@ function formatItemSummary(item: WorkItem): string {
     `Priority: ${item.priority}`,
     item.environment?.branch ? `Branch: ${item.environment.branch}` : "",
     item.runtime?.pr_url ? `PR: ${item.runtime.pr_url}` : "",
-    item.description ? `\nDescription:\n${item.description}` : "",
+    item.plan?.file ? `\nPlan file: ${item.plan.file}` : "",
     item.blocked_by.length > 0
       ? `\nBlocked by: ${item.blocked_by.join(", ")}`
       : "",
@@ -120,11 +120,12 @@ export function ItemDetails({
 
   // Editing state (panel variant uses these; inline variant uses InlineEdit)
   const [editingTitle, setEditingTitle] = useState(false);
-  const [editingDescription, setEditingDescription] = useState(false);
   const [editingNotes, setEditingNotes] = useState(false);
   const [titleText, setTitleText] = useState(item.title);
-  const [descriptionText, setDescriptionText] = useState(item.description);
   const [notesText, setNotesText] = useState("");
+  const [planContent, setPlanContent] = useState<string | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [messageText, setMessageText] = useState("");
   const [depInput, setDepInput] = useState("");
@@ -156,7 +157,6 @@ export function ItemDetails({
     };
   }, [item.status]);
   const titleRef = useRef<HTMLInputElement>(null);
-  const descRef = useRef<HTMLTextAreaElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
 
   // Sync state when item changes
@@ -164,11 +164,37 @@ export function ItemDetails({
     if (!editingTitle) setTitleText(item.title);
   }, [item.title, editingTitle]);
   useEffect(() => {
-    if (!editingDescription) setDescriptionText(item.description);
-  }, [item.description, editingDescription]);
-  useEffect(() => {
     if (!editingNotes) setNotesText("");
   }, [editingNotes]);
+
+  // Lazily fetch plan file content for inline rendering.
+  useEffect(() => {
+    let cancelled = false;
+    if (!item.plan?.file) {
+      setPlanContent(null);
+      setPlanError(null);
+      return;
+    }
+    setPlanLoading(true);
+    fetch(`/api/plan/file?itemId=${encodeURIComponent(item.id)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
+      .then((data) => {
+        if (cancelled) return;
+        setPlanContent(typeof data.content === "string" ? data.content : null);
+        setPlanError(null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPlanContent(null);
+        setPlanError("Could not load plan file");
+      })
+      .finally(() => {
+        if (!cancelled) setPlanLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [item.id, item.plan?.file]);
 
   // Focus inputs when entering edit mode
   useEffect(() => {
@@ -177,12 +203,6 @@ export function ItemDetails({
       titleRef.current.selectionStart = titleRef.current.value.length;
     }
   }, [editingTitle]);
-  useEffect(() => {
-    if (editingDescription && descRef.current) {
-      descRef.current.focus();
-      descRef.current.selectionStart = descRef.current.value.length;
-    }
-  }, [editingDescription]);
   useEffect(() => {
     if (editingNotes && notesRef.current) {
       notesRef.current.focus();
@@ -644,15 +664,18 @@ export function ItemDetails({
         </div>
       )}
 
-      {/* Description (panel variant only — inline variant renders description outside ItemDetails) */}
+      {/* Plan content (panel variant only) — rendered inline from the plan file.
+          The plan file is the single source of truth for ticket content; edits
+          happen by opening the file in an editor via "Open File" above. */}
       {variant === "panel" && (
         <div className={styles.Section}>
           <div className={styles.SectionHeader}>
-            <span className={styles.SectionLabel}>Description</span>
-            {onEdit && !editingDescription && (
+            <span className={styles.SectionLabel}>Plan content</span>
+            {itemPlanFile && (
               <button
                 className={styles.EditButton}
-                onClick={() => setEditingDescription(true)}
+                onClick={handleOpenPlanFile}
+                title="Open plan file in editor"
               >
                 <svg
                   width="12"
@@ -665,54 +688,24 @@ export function ItemDetails({
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
                   <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
                 </svg>
-                Edit
+                Open file
               </button>
             )}
           </div>
-          {editingDescription ? (
-            <div className={styles.InlineForm}>
-              <textarea
-                ref={descRef}
-                className={styles.FormTextarea}
-                value={descriptionText}
-                onChange={(e) => setDescriptionText(e.target.value)}
-                placeholder="Describe this work item..."
-                rows={6}
-              />
-              <div className={styles.FormActions}>
-                <button
-                  className={styles.SaveButton}
-                  onClick={() => {
-                    if (onEdit)
-                      onEdit(item.id, { description: descriptionText });
-                    setEditingDescription(false);
-                  }}
-                >
-                  Save
-                </button>
-                <button
-                  className={styles.CancelButton}
-                  onClick={() => {
-                    setEditingDescription(false);
-                    setDescriptionText(item.description);
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
+          {planLoading ? (
+            <span className={styles.EmptyText}>Loading plan…</span>
+          ) : planError ? (
+            <span className={styles.EmptyText}>{planError}</span>
+          ) : planContent ? (
+            <pre className={styles.DescriptionText} style={{ whiteSpace: "pre-wrap" }}>
+              {planContent}
+            </pre>
           ) : (
-            <>
-              {item.description ? (
-                <p className={styles.DescriptionText}>{item.description}</p>
-              ) : (
-                <span className={styles.EmptyText}>
-                  {onEdit
-                    ? "Click edit to add a description"
-                    : "No description"}
-                </span>
-              )}
-            </>
+            <span className={styles.EmptyText}>
+              {itemPlanFile
+                ? "Plan file is empty."
+                : "No plan file. Click \"Auto-Generate\" above or create one manually."}
+            </span>
           )}
         </div>
       )}

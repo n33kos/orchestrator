@@ -45,7 +45,6 @@ export interface WorkItem {
   source: string
   source_ref?: string
   title: string
-  description: string
   priority: number
   status: WorkItemStatus
   blocked_by: string[]

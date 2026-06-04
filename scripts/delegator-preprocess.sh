@@ -443,7 +443,6 @@ except (json.JSONDecodeError, ValueError):
 # Extract item context for triage
 item_context = {
     "title": item_data.get("title", ""),
-    "description": item_data.get("description", ""),
     "status": item_data.get("status", ""),
     "environment": item_data.get("environment", {}),
     "worker": item_data.get("worker", {}),

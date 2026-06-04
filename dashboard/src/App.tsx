@@ -190,7 +190,6 @@ export function App() {
       const q = debouncedSearch.toLowerCase()
       pool = pool.filter(item =>
         item.title.toLowerCase().includes(q) ||
-        item.description.toLowerCase().includes(q) ||
         (item.environment?.branch || '').toLowerCase().includes(q) ||
         item.id.toLowerCase().includes(q)
       )
@@ -381,8 +380,7 @@ export function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title: item.title,
-            description: item.description || '',
-
+            planBody: item.planBody || item.description || '',
             priority: item.priority ?? 50,
             branch: item.environment?.branch || '',
           }),
@@ -806,8 +804,7 @@ export function App() {
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     title: item.title,
-                    description: item.description || '',
-
+                    planBody: item.description || '',
                     priority: item.priority ?? 50,
                     branch: '',
                   }),

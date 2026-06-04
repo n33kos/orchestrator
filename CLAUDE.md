@@ -12,7 +12,23 @@ Repository-specific settings (path, worktree commands, commit strategy, branchin
 
 When creating work items, set `repo_key` to reference a configured repo (e.g., `"babylist-web"`, `"orchestrator"`). The scheduler resolves the repo config at activation time. Per-item overrides (`environment.repo`, `environment.use_worktree`, `worker.commit_strategy`) still take precedence over repo config.
 
+**Default for new tickets: `worker.delegator_enabled: true`.** Always create new work items with the delegator enabled by default. Only set it to `false` if the user explicitly says they want it off for a particular ticket.
+
 Items without a `repo_key` use `_defaults`. Existing items with explicit `environment.repo` and `worker.commit_strategy` continue to work unchanged — per-item values always win.
+
+## Creating Tickets
+
+Workflow for any agent (human or Claude) creating a new ticket:
+
+1. Allocate the next item ID and decide repo_key + branch.
+2. Write the plan file at `~/Desktop/plans/<item-id>.md` (or `$CONFIG_ARTIFACTS_DIR/<item-id>.md`) — this is the only place ticket content lives. There is no `description` field on queue items.
+3. Add the queue entry with `plan.file` pointing at the plan path.
+4. Set `plan.approved=true` once the plan is reviewed.
+5. Run `scripts/verify-ticket.sh <item-id>` — every check must pass before the ticket is considered queued. If anything fails, fix it before declaring done.
+
+## vmux session model
+
+The orchestrator uses only these vmux commands: `vmux spawn`, `vmux sessions`, `vmux send`, `vmux kill`, and `vmux status` (for diagnostics). Legacy `vmux reconnect` and `vmux attach` are no longer part of the lifecycle. Session names always start with the item-id (e.g. `ws-089-...`), and `vmux sessions` is the source of truth — the stored `environment.session_id` is informational only. If a session shows up in `vmux sessions` but `vmux send` fails, that's a vmux-side bug, not something for the orchestrator to paper over.
 
 ## Creating a New Worktree + Session
 
@@ -95,6 +111,11 @@ Delegators are **not** persistent sessions. They are stateless `claude --print` 
 
 ## Critical Rules
 
+- **Ticket creation discipline.** Every ticket created in this repo MUST be verified end-to-end before being declared ready. After writing the queue item and plan file, run:
+  ```bash
+  scripts/verify-ticket.sh <item-id>
+  ```
+  If any check fails, fix it before saying the ticket is queued. Do NOT report success on a ticket until `verify-ticket.sh` exits zero. There is no `description` field on queue items — the plan file at `plan.file` is the only place ticket content lives. The script enforces: item exists, plan.file points to a non-empty existing file, plan.approved=true, repo resolution works, commit_strategy is set, and (for active items) vmux sees the session and task instructions were delivered.
 - **NEVER delete git branches** unless the user explicitly tells you to. When tearing down worktrees, do NOT use `--delete-branch`.
 - Always run worktree setup and teardown commands from within the main repo directory.
 - Respect the concurrency limit (`concurrency.max_active` in config).

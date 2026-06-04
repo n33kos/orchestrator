@@ -26,7 +26,7 @@ interface WorkStreamListProps {
   onStatusChange: (id: string, status: WorkItemStatus) => void
   onPriorityChange: (id: string, priority: number) => void
   onDelegatorToggle: (id: string, enabled: boolean) => void
-  onEdit: (id: string, updates: { title?: string; description?: string }) => void
+  onEdit: (id: string, updates: { title?: string }) => void
   onDelete: (id: string) => void
   onDuplicate?: (id: string) => void
   onActivateStream?: (id: string) => void

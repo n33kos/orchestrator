@@ -9,7 +9,7 @@ function escapeCsv(val: string): string {
 
 export function exportWorkItemsCsv(items: WorkItem[]): string {
   const headers = [
-    'ID', 'Title', 'Description', 'Commit Strategy', 'Status', 'Priority',
+    'ID', 'Title', 'Plan File', 'Commit Strategy', 'Status', 'Priority',
     'Branch', 'PR URL', 'Blocked By', 'Created At',
     'Activated At', 'Completed At',
   ]
@@ -17,7 +17,7 @@ export function exportWorkItemsCsv(items: WorkItem[]): string {
   const rows = items.map(item => [
     item.id,
     item.title,
-    item.description,
+    item.plan?.file || '',
     item.worker?.commit_strategy || '',
     item.status,
     String(item.priority),

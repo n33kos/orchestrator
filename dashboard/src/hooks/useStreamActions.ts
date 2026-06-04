@@ -200,7 +200,6 @@ export function useStreamActions({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: `${item.title} (copy)`,
-          description: item.description,
           priority: item.priority + 1,
           branch: item.environment?.branch || '',
         }),

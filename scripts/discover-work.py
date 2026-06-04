@@ -104,7 +104,7 @@ def parse_markdown_source(path: Path) -> list[dict]:
             items.append(
                 {
                     "title": title,
-                    "description": f"From: {current_section}" if current_section else "",
+                    "plan_body": f"From: {current_section}" if current_section else "",
                     "source_ref": f"{path.name}:{current_section}",
 
                     "priority": infer_priority(title),
@@ -120,9 +120,9 @@ def parse_markdown_source(path: Path) -> list[dict]:
                 items.append(
                     {
                         "title": title,
-                        "description": f"From: {current_section}",
+                        "plan_body": f"From: {current_section}",
                         "source_ref": f"{path.name}:{current_section}",
-    
+
                         "priority": infer_priority(title),
                     }
                 )
@@ -286,14 +286,12 @@ def poll_github_issues(source_name: str, config: dict) -> list[dict]:
             if label_lower in priority_labels:
                 priority = min(priority, priority_labels[label_lower])
 
-        # Truncate body for description
-        description = body[:500].strip()
-        if len(body) > 500:
-            description += "..."
+        # Carry the full body as plan content (not truncated)
+        plan_body = body.strip()
 
         items.append({
             "title": f"#{issue_number}: {title}",
-            "description": description,
+            "plan_body": plan_body,
             "source": source_name,
             "source_ref": issue_url,
             "priority": priority,
@@ -367,16 +365,14 @@ def poll_jira_issues(source_name: str, config: dict) -> list[dict]:
         description_doc = fields.get("description")
 
         # Extract plain text from Atlassian Document Format
-        description = ""
+        plan_body = ""
         if description_doc and isinstance(description_doc, dict):
             for block in description_doc.get("content", []):
                 for inline in block.get("content", []):
                     if inline.get("type") == "text":
-                        description += inline.get("text", "")
-                description += "\n"
-            description = description[:500].strip()
-            if len(description) >= 500:
-                description += "..."
+                        plan_body += inline.get("text", "")
+                plan_body += "\n"
+            plan_body = plan_body.strip()
 
         # Map priority
         priority_name = (fields.get("priority") or {}).get("name", "").lower()
@@ -384,7 +380,7 @@ def poll_jira_issues(source_name: str, config: dict) -> list[dict]:
 
         items.append({
             "title": f"{key}: {summary}",
-            "description": description,
+            "plan_body": plan_body,
             "source": source_name,
             "source_ref": f"https://{domain}/browse/{key}",
             "priority": priority,
@@ -457,7 +453,7 @@ def main():
         if args.output_json:
             print(json.dumps([{
                 "title": item["title"],
-                "description": item.get("description", ""),
+                "plan_body": item.get("plan_body", ""),
                 "priority": item["priority"],
                 "source": item.get("source", "discovery"),
                 "source_ref": item.get("source_ref", ""),
@@ -466,19 +462,38 @@ def main():
             print("\n--- NEW ITEMS (dry run) ---")
             for item in unique:
                 print(f"  p{item['priority']} {item['title']}")
-                if item.get("description"):
-                    print(f"    {item['description']}")
+                if item.get("plan_body"):
+                    print(f"    {item['plan_body'][:200]}")
         return
+
+    # Resolve plans directory from environment config (with sensible fallback).
+    plans_dir_raw = env_config.get("plans", {}).get("plans_directory") or env_config.get(
+        "artifacts", {}
+    ).get("artifacts_directory") or "~/.claude/orchestrator/plans"
+    plans_dir = Path(plans_dir_raw.replace("~", str(Path.home())))
+    plans_dir.mkdir(parents=True, exist_ok=True)
 
     # Add new items to queue
     for item in unique:
         item_id = generate_id()
+
+        # Write a starter plan file from the discovered content.
+        plan_path = plans_dir / f"{item_id}.md"
+        plan_body = item.get("plan_body", "").strip()
+        plan_contents = f"# {item['title']}\n\n"
+        if item.get("source_ref"):
+            plan_contents += f"_Source: {item['source_ref']}_\n\n"
+        if plan_body:
+            plan_contents += plan_body + "\n"
+        else:
+            plan_contents += "_(no body — fill in implementation details before activating.)_\n"
+        plan_path.write_text(plan_contents)
+
         queue_item = {
             "id": item_id,
             "source": item.get("source", "discovery"),
             "source_ref": item.get("source_ref", ""),
             "title": item["title"],
-            "description": item.get("description", ""),
             "priority": item["priority"],
             "status": "queued",
             "blocked_by": [],
@@ -497,7 +512,7 @@ def main():
                 "delegator_enabled": True,
             },
             "plan": {
-                "file": None,
+                "file": str(plan_path),
                 "summary": None,
                 "approved": False,
                 "approved_at": None,

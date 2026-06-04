@@ -29,7 +29,7 @@ interface WorkStreamCardProps {
   onStatusChange: (id: string, status: WorkItemStatus) => void
   onPriorityChange: (id: string, priority: number) => void
   onDelegatorToggle: (id: string, enabled: boolean) => void
-  onEdit: (id: string, updates: { title?: string; description?: string }) => void
+  onEdit: (id: string, updates: { title?: string }) => void
   onDelete: (id: string) => void
   onDuplicate?: (id: string) => void
   onActivateStream?: (id: string) => void
@@ -273,19 +273,6 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
           </span>
         </div>
       </div>
-
-      {expanded ? (
-        <InlineEdit
-          value={item.description}
-          onSave={description => onEdit(item.id, { description })}
-          className={classnames(styles.Description, styles.DescriptionExpanded)}
-          multiline
-        />
-      ) : (
-        <p className={styles.Description}>
-          {item.description}
-        </p>
-      )}
 
       {!expanded && (
         <div className={styles.Meta}>

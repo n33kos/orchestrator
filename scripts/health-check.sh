@@ -237,21 +237,19 @@ if [[ "$AUTO_RECOVER" == "true" && ${#ZOMBIES[@]} -gt 0 ]]; then
         # Find the session's cwd from vmux sessions output
         CWD="$(echo "$SESSIONS_RAW" | grep -A5 "$zid" | grep 'cwd:' | sed 's/.*cwd: *//' | head -1)"
         if [[ -n "$CWD" ]]; then
-            echo "  Reconnecting $zid ($CWD)..."
-            if $VMUX reconnect "$CWD" 2>&1; then
-                emit_event "health.recovered" "Recovered zombie session $zid" --session-id "$zid"
+            # The orchestrator no longer uses `vmux reconnect`/`attach` — the
+            # simplified model is: kill the zombie and spawn a fresh session
+            # at the same cwd. The reconcile loop will re-send task
+            # instructions on the next pass.
+            echo "  Killing zombie $zid and respawning at $CWD..."
+            $VMUX kill "$zid" 2>/dev/null || true
+            sleep 2
+            if $VMUX spawn "$CWD" 2>&1; then
+                emit_event "health.respawned" "Respawned zombie $zid at $CWD" --session-id "$zid"
+                echo "    Respawned successfully"
             else
-                echo "    Reconnect failed — attempting full respawn..."
-                # Kill the broken session and respawn
-                $VMUX kill "$zid" 2>/dev/null || true
-                sleep 2
-                if $VMUX spawn "$CWD" 2>&1; then
-                    emit_event "health.respawned" "Respawned dead session $zid at $CWD" --session-id "$zid"
-                    echo "    Respawned successfully"
-                else
-                    echo "    Full respawn also failed for $zid"
-                    emit_event "health.recovery_failed" "Failed to recover zombie $zid (reconnect + respawn both failed)" --session-id "$zid" --severity error
-                fi
+                echo "    Respawn failed for $zid"
+                emit_event "health.recovery_failed" "Failed to respawn zombie $zid at $CWD" --session-id "$zid" --severity error
             fi
         else
             echo "  Cannot find cwd for $zid, skipping"

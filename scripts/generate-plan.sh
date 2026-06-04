@@ -65,8 +65,8 @@ if [[ -n "$EXISTING_PLAN" && "$EXISTING_PLAN" != "None" ]]; then
 fi
 
 # Extract fields in a single call
-IFS=$'\x1f' read -r ITEM_TITLE ITEM_DESC ITEM_BRANCH ENV_REPO \
-    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" title description environment.branch environment.repo)
+IFS=$'\x1f' read -r ITEM_TITLE ITEM_BRANCH ENV_REPO \
+    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" title environment.branch environment.repo)
 ENV_REPO="$(echo "$ENV_REPO" | sed "s|~|$HOME|")"
 
 # Determine the target repo for context
@@ -84,7 +84,6 @@ You are generating an implementation plan for a work item. Output a well-structu
 Work item:
 - ID: $ITEM_ID
 - Title: $ITEM_TITLE
-- Description: $ITEM_DESC
 - Branch: $ITEM_BRANCH
 - Repository: $TARGET_REPO
 

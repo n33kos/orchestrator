@@ -124,7 +124,6 @@ def migrate_item(item: dict) -> dict:
     new_item = {
         "id": item["id"],
         "title": item.get("title", ""),
-        "description": item.get("description", ""),
         "source": item.get("source", "manual"),
         "priority": item.get("priority", 99),
         "status": item.get("status", "queued"),
@@ -201,6 +200,7 @@ def main():
             assert "pr_url" not in item, f"{item['id']} still has top-level pr_url"
             assert "delegator_enabled" not in item, f"{item['id']} still has top-level delegator_enabled"
             assert "delegator_id" not in item, f"{item['id']} still has top-level delegator_id"
+            assert "description" not in item, f"{item['id']} still has top-level description"
         print("Verification passed: all items have new schema, no old fields remain")
 
 

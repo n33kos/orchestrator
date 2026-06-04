@@ -374,19 +374,15 @@ Branch: $ITEM_BRANCH
 Status: Activating now — follow the plan steps in order."
 fi
 
-# Retry sending the task message until the session is in standby
-MESSAGE_SENT=false
-for attempt in $(seq 1 12); do
-    if $VMUX send "$SESSION_ID" "$TASK_MESSAGE" 2>/dev/null; then
-        echo "  Task instructions sent to worker"
-        MESSAGE_SENT=true
-        break
-    fi
-    echo "  Attempt $attempt/12: session not ready, waiting 5s..."
-    sleep 5
-done
-if [[ "$MESSAGE_SENT" == "false" ]]; then
-    echo "  WARNING: Could not send task instructions after 60s (worker may not have entered standby)" >&2
+# Single send attempt. If it fails, the reconcile loop will retry next cycle —
+# the orchestrator no longer papers over vmux-side bugs with retry loops here.
+SEND_OUT="$($VMUX send "$SESSION_ID" "$TASK_MESSAGE" 2>&1)" || true
+if echo "$SEND_OUT" | grep -qi "message sent"; then
+    echo "  Task instructions sent to worker"
+    cd "$SCRIPT_DIR" && $QUEUE_PY update "$ITEM_ID" environment.task_instructions_delivered=true
+else
+    echo "  WARNING: vmux send did not confirm delivery — reconcile will retry next cycle" >&2
+    echo "    vmux output: $SEND_OUT" >&2
 fi
 
 # Step 3: Update queue item status
