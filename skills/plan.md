@@ -9,7 +9,7 @@ Generate an implementation plan for a queued or planning-status work item.
 
 ## Default plan format — interactive HTML
 
-**All new plans are written as self-contained interactive HTML files using the `plan-html` skill (`~/.claude/skills/plan-html/`).** Plans live at `~/.claude/orchestrator/plans/<item-id>.html` (NOT the skill's default `~/Desktop/plans/` — orchestrator's centralized plans dir).
+**All new plans are written as self-contained interactive HTML files using the `present-html` skill (`~/.claude/skills/present-html/`).** Plans live at `~/.claude/orchestrator/plans/<item-id>.html` (NOT the skill's default `~/Desktop/plans/` — orchestrator's centralized plans dir).
 
 The HTML format gives each plan:
 - Persistent checkbox task state per step (localStorage-backed when viewed in a browser)
@@ -24,7 +24,7 @@ Only fall back to markdown if the user explicitly asks for it (e.g., "make a mar
 
 1. If no item ID is provided, show the queue with `bash ~/orchestrator/scripts/status.sh` and ask which item to plan.
 
-2. Invoke the `plan-html` skill to author the plan. Pass the canonical path:
+2. Invoke the `present-html` skill to author the plan. Pass the canonical path:
    - Output file: `~/.claude/orchestrator/plans/<item-id>.html`
    - Title: the item's `title` field
    - Slug: `<item-id>` (used as localStorage namespace)
@@ -45,7 +45,7 @@ Only fall back to markdown if the user explicitly asks for it (e.g., "make a mar
 
 ## Legacy auto-generation (markdown — deprecated)
 
-The old auto-gen path `bash ~/orchestrator/scripts/generate-plan.sh <item-id>` produces markdown. It still runs from the scheduler for items in `planning` status, but is being phased out. New plans authored manually should always use HTML via `plan-html`.
+The old auto-gen path `bash ~/orchestrator/scripts/generate-plan.sh <item-id>` produces markdown. It still runs from the scheduler for items in `planning` status, but is being phased out. New plans authored manually should always use HTML via `present-html`.
 
 ## Plan File Format
 

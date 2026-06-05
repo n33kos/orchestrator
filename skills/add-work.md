@@ -19,7 +19,7 @@ When a `repo_key` is provided, the item automatically inherits per-repo settings
 
 ## Plan file convention
 
-Plans are written as **interactive HTML** by default (using the `plan-html` skill — see `/plan` for the full process). Path convention: `~/.claude/orchestrator/plans/<item-id>.html`. The Python snippet below leaves `plan.file` as `None` initially; the `/plan` skill or whichever workflow generates the plan should populate that field with the `.html` path. Only fall back to `.md` if the user explicitly asks for markdown.
+Plans are written as **interactive HTML** by default (using the `present-html` skill — see `/plan` for the full process). Path convention: `~/.claude/orchestrator/plans/<item-id>.html`. The Python snippet below leaves `plan.file` as `None` initially; the `/plan` skill or whichever workflow generates the plan should populate that field with the `.html` path. Only fall back to `.md` if the user explicitly asks for markdown.
 
 Then add the item to the queue:
 
