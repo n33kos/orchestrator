@@ -75,13 +75,47 @@ def _fetch_ccusage_sessions() -> list[dict]:
         if not use_offline:
             _mark_pricing_refreshed()
 
-        return data.get("sessions", [])
+        # ccusage <20 emitted {"sessions": [...]} with a path-style `sessionId`
+        # field. v20+ emits {"session": [...]} where each entry's `period` is the
+        # raw session UUID and no path is included. Accept both shapes and
+        # normalize to the old contract (`sessionId` = path-style project dir +
+        # uuid) so the matching logic below keeps working.
+        sessions = data.get("sessions") or data.get("session") or []
+        needs_mapping = any("sessionId" not in s for s in sessions)
+        if needs_mapping:
+            uuid_to_dir = _build_uuid_to_project_dir_map()
+            for s in sessions:
+                if "sessionId" not in s:
+                    uuid = s.get("period", "")
+                    proj_dir = uuid_to_dir.get(uuid, "")
+                    # Old-style sessionId was effectively the project dir name;
+                    # append the uuid for uniqueness. Prefix matching in
+                    # _match_sessions only relies on the dir-name prefix.
+                    s["sessionId"] = f"{proj_dir}-{uuid}" if proj_dir else ""
+        return sessions
     except subprocess.TimeoutExpired:
         print("[spend] ccusage timed out")
         return []
     except (json.JSONDecodeError, Exception) as e:
         print(f"[spend] ccusage parse error: {e}")
         return []
+
+
+def _build_uuid_to_project_dir_map() -> dict[str, str]:
+    """Map session UUID -> project directory name from ~/.claude/projects/.
+
+    The directory name IS the path-style id ccusage used to emit (slashes and
+    dots replaced with dashes), so it slots directly into the legacy
+    `sessionId` prefix-matching contract.
+    """
+    import glob
+
+    mapping: dict[str, str] = {}
+    pattern = os.path.expanduser("~/.claude/projects/*/*.jsonl")
+    for path in glob.glob(pattern):
+        uuid = os.path.basename(path)[:-6]  # strip .jsonl
+        mapping[uuid] = os.path.basename(os.path.dirname(path))
+    return mapping
 
 
 def _match_sessions(
@@ -133,7 +167,14 @@ def _match_sessions(
 
 def update_spend(cfg: Config) -> None:
     """Update spend metadata for non-completed queue items."""
-    _TRACKABLE_STATUSES = {"active", "review", "planning"}
+    _TRACKABLE_STATUSES = {
+        "active",
+        "review",
+        "planning",
+        "ready_for_review",
+        "blocked_review_findings",
+        "blocked",
+    }
 
     with locked_queue() as ctx:
         data = ctx["data"]
