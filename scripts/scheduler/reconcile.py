@@ -616,26 +616,27 @@ def reconcile_state(cfg: Config, dry_run: bool) -> None:
             else:
                 _worker_missing_since.pop(item_id, None)
 
-            # Task-instruction redelivery safety net.
-            # If the worker session is alive AND we have never verified delivery
-            # of the initial task brief, attempt redelivery now. This catches
-            # the common failure mode where vmux's daemon returned an error
-            # response on first spawn but the script's exit code didn't reflect
-            # it. Without this loop, the worker sits in standby indefinitely
-            # with no idea what to do.
+            # Initial task brief — the ONE and ONLY place the brief is sent.
+            # Fires exactly once, for a freshly-activated item whose session is
+            # up and which has never been briefed. Gated to status == "active"
+            # so it never fires for a review item, and gated to not-yet-delivered
+            # so a respawn or restart (which never clears the flag) can't re-send.
+            # Spawning is decoupled from briefing (see _spawn_worker), so this is
+            # the single trigger for the brief across all state transitions.
             session_alive_for_item = (
                 _normalize_session_id(session_id) in live_sessions
                 if session_id else False
             )
             instructions_delivered = bool(env.get("task_instructions_delivered"))
             if (
-                session_alive_for_item
+                status == "active"
+                and session_alive_for_item
                 and not instructions_delivered
                 and not is_paused
                 and not dry_run
             ):
                 print(
-                    f"[reconcile] Task instructions never confirmed delivered for {item_id} — retrying send"
+                    f"[reconcile] Sending initial task brief to {item_id} (first activation)"
                 )
                 if _send_task_instructions(cfg, item_id, _normalize_session_id(session_id)):
                     subprocess.run(
@@ -791,7 +792,14 @@ def _find_session_by_cwd(cfg: Config, worktree_path: str) -> str | None:
 
 
 def _spawn_worker(cfg: Config, item_id: str, worktree_path: str, session_name: str) -> None:
-    """Spawn a vmux worker session, send task instructions, and update queue."""
+    """Spawn (or re-establish) a vmux worker session and record its id.
+
+    This is pure infrastructure: it never sends the initial task brief. Briefing
+    is decoupled and owned by a single site in reconcile_state() that fires once,
+    only for a freshly-activated item. Spawning happens on activation, zombie
+    respawn, restart recovery, and review upkeep, so coupling the brief to it is
+    what caused repeated re-sends.
+    """
     if os.path.realpath(worktree_path) == os.path.realpath(PROJECT_ROOT):
         print(f"[reconcile] REFUSING to spawn worker for {item_id} at orchestrator root ({worktree_path})", file=sys.stderr)
         return
@@ -810,21 +818,13 @@ def _spawn_worker(cfg: Config, item_id: str, worktree_path: str, session_name: s
             new_id = hashlib.sha256(worktree_path.encode()).hexdigest()[:12]
             print(f"[reconcile] WARNING: Could not find session by CWD, using computed ID {new_id}", file=sys.stderr)
 
+        # Record the new session id only. Briefing is not this function's job.
         subprocess.run(
             ["python3", "-m", "lib.queue", "update", item_id,
-             f"environment.session_id={new_id}",
-             "environment.task_instructions_delivered=false"],
+             f"environment.session_id={new_id}"],
             cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
         )
         print(f"[reconcile] Worker spawned for {item_id} (session: {new_id})")
-
-        delivered = _send_task_instructions(cfg, item_id, new_id)
-        if delivered:
-            subprocess.run(
-                ["python3", "-m", "lib.queue", "update", item_id,
-                 "environment.task_instructions_delivered=true"],
-                cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
-            )
         _set_session_hue(item_id, new_id)
     except Exception as e:
         print(f"[reconcile] WARNING: Failed to spawn worker for {item_id}: {e}", file=sys.stderr)
