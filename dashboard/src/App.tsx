@@ -159,7 +159,7 @@ export function App() {
   const [sortField, setSortField] = usePersistedState<SortField>('sortField', 'priority')
   const [sortDirection, setSortDirection] = usePersistedState<SortDirection>('sortDirection', 'asc')
   const [statusFilter, setStatusFilter] = useState<Set<WorkItemStatus>>(
-    new Set<WorkItemStatus>(['active', 'planning', 'queued', 'review', 'completed'])
+    new Set<WorkItemStatus>(['active', 'planning', 'queued', 'review', 'completed', 'cancelled'])
   )
   const searchRef = useRef<HTMLInputElement>(null)
   const mainRef = useRef<HTMLElement>(null)
@@ -179,11 +179,16 @@ export function App() {
   ]
 
   const filteredItems = useMemo(() => {
+    const KNOWN_STATUSES = new Set<string>(['queued', 'planning', 'active', 'review', 'completed', 'cancelled'])
     let pool = queue.items
 
-    // Apply multi-select status filter
+    // Apply multi-select status filter. Any status NOT in the known set
+    // (blocked_review_findings, blocked, ready_for_review, or any future
+    // status) is ALWAYS shown, never filtered out — a ticket must never become
+    // invisible just because its status isn't one of the filter chips, or it
+    // silently keeps a worker/delegator spending money unseen.
     if (statusFilter.size > 0) {
-      pool = pool.filter(i => statusFilter.has(i.status))
+      pool = pool.filter(i => statusFilter.has(i.status) || !KNOWN_STATUSES.has(i.status))
     }
 
     if (debouncedSearch.trim()) {
@@ -359,7 +364,7 @@ export function App() {
     setActiveTab('projects')
     // Clear search and show all statuses so the item isn't filtered out
     setSearchQuery('')
-    setStatusFilter(new Set<WorkItemStatus>(['active', 'planning', 'queued', 'review', 'completed']))
+    setStatusFilter(new Set<WorkItemStatus>(['active', 'planning', 'queued', 'review', 'completed', 'cancelled']))
     setFocusedItemId(id)
   }
 
@@ -538,7 +543,7 @@ export function App() {
             <Breadcrumb
               tab={activeTab}
               searchQuery={debouncedSearch.trim() || undefined}
-              statusFilter={statusFilter.size === 5 ? undefined : Array.from(statusFilter).join(', ')}
+              statusFilter={statusFilter.size === 6 ? undefined : Array.from(statusFilter).join(', ')}
               viewMode={viewMode}
               itemCount={filteredItems.length}
             />

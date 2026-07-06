@@ -167,13 +167,12 @@ def _match_sessions(
 
 def update_spend(cfg: Config) -> None:
     """Update spend metadata for non-completed queue items."""
+    # Statuses where a worker/delegator may still be spending. Blocked-ness and
+    # review-findings are fields now, not statuses, so they're gone from here.
     _TRACKABLE_STATUSES = {
         "active",
         "review",
         "planning",
-        "ready_for_review",
-        "blocked_review_findings",
-        "blocked",
     }
 
     with locked_queue() as ctx:

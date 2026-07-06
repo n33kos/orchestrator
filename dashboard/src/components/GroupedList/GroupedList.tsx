@@ -12,13 +12,14 @@ interface GroupedListProps {
   onNavigate: (id: string) => void
 }
 
-const STATUS_ORDER: WorkItemStatus[] = ['active', 'review', 'queued', 'planning', 'completed']
+const STATUS_ORDER: WorkItemStatus[] = ['active', 'review', 'queued', 'planning', 'completed', 'cancelled']
 const STATUS_LABELS: Record<string, string> = {
   active: 'Active',
   review: 'In Review',
   queued: 'Queued',
   planning: 'Planning',
   completed: 'Completed',
+  cancelled: 'Cancelled',
 }
 
 function getQuickAction(status: WorkItemStatus): { label: string; nextStatus: WorkItemStatus } | null {
@@ -33,15 +34,24 @@ export function GroupedList({ items, onStatusChange, onNavigate }: GroupedListPr
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
   const groups = useMemo(() => {
-    const map = new Map<WorkItemStatus, WorkItem[]>()
+    const map = new Map<string, WorkItem[]>()
     for (const item of items) {
       const list = map.get(item.status) || []
       list.push(item)
       map.set(item.status, list)
     }
-    return STATUS_ORDER
+    const ordered = STATUS_ORDER
       .filter(s => map.has(s))
       .map(status => ({ status, items: map.get(status)! }))
+    // Append any status not in STATUS_ORDER (blocked_review_findings, blocked,
+    // ready_for_review, or any future status) as its own group so a ticket is
+    // never hidden just because its status isn't a known one.
+    const known = new Set<string>(STATUS_ORDER)
+    const extra = Array.from(map.keys())
+      .filter(s => !known.has(s))
+      .sort()
+      .map(status => ({ status: status as WorkItemStatus, items: map.get(status)! }))
+    return [...ordered, ...extra]
   }, [items])
 
   function toggleCollapse(status: string) {

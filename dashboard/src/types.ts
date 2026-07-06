@@ -1,4 +1,4 @@
-export type WorkItemStatus = 'queued' | 'planning' | 'active' | 'review' | 'completed'
+export type WorkItemStatus = 'queued' | 'planning' | 'active' | 'review' | 'completed' | 'cancelled'
 
 export interface StackStep {
   position: number

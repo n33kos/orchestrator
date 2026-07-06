@@ -30,6 +30,7 @@ const COLUMNS: ColumnDef[] = [
   { key: 'active', status: 'active', label: 'Active' },
   { key: 'review', status: 'review', label: 'Review' },
   { key: 'completed', status: 'completed', label: 'Completed' },
+  { key: 'cancelled', status: 'cancelled', label: 'Cancelled' },
 ]
 
 function sortItems(items: WorkItem[], field: SortField, direction: SortDirection): WorkItem[] {
@@ -90,6 +91,7 @@ export function KanbanBoard({ items, sortField = 'priority', sortDirection = 'as
     active: [],
     review: [],
     completed: [],
+    cancelled: [],
   }
 
   for (const item of items) {
@@ -99,6 +101,10 @@ export function KanbanBoard({ items, sortField = 'priority', sortDirection = 'as
       grouped.queued.push(item)
     } else if (item.status in grouped) {
       grouped[item.status as ColumnKey].push(item)
+    } else {
+      // Any non-standard status (blocked_review_findings, blocked, etc.) must
+      // never be dropped — surface it in Review so it stays visible.
+      grouped.review.push(item)
     }
   }
 

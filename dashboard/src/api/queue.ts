@@ -121,13 +121,19 @@ export function registerQueueRoutes(server: ViteDevServer) {
       // Validate status transitions
       if (body.status !== undefined && body.status !== item.status) {
         const validTransitions: Record<string, string[]> = {
-          queued: ['planning', 'active'],
-          planning: ['queued', 'active'],
-          active: ['review', 'completed'],
-          review: ['active', 'completed', 'queued'],
+          queued: ['planning', 'active', 'cancelled'],
+          planning: ['queued', 'active', 'cancelled'],
+          active: ['review', 'completed', 'cancelled'],
+          review: ['active', 'completed', 'queued', 'cancelled'],
           completed: ['queued'], // Allow re-queuing completed items
+          cancelled: ['queued'], // Allow re-opening a cancelled item
         }
-        const allowed = validTransitions[item.status] || []
+        // Any non-standard status (blocked_review_findings, blocked,
+        // ready_for_review, or any future status) can always be moved to a
+        // standard state — especially completed/cancelled — so a stuck item can
+        // be resolved and its delegator stopped from spending.
+        const FALLBACK = ['queued', 'planning', 'active', 'review', 'completed', 'cancelled']
+        const allowed = validTransitions[item.status] ?? FALLBACK
         if (!allowed.includes(body.status)) {
           res.statusCode = 409
           res.end(JSON.stringify({ error: `Invalid transition: ${item.status} → ${body.status}` }))
@@ -135,7 +141,22 @@ export function registerQueueRoutes(server: ViteDevServer) {
         }
       }
 
-      if (body.status !== undefined) item.status = body.status
+      if (body.status !== undefined) {
+        const prevStatus = item.status
+        item.status = body.status
+        // Mirror the automated lifecycle on manual transitions: stamp
+        // activated_at/completed_at on entry, and clear completed_at when an
+        // item leaves the completed state (e.g. re-queued for more work).
+        if (body.status === 'active' && !item.activated_at) {
+          item.activated_at = new Date().toISOString()
+        }
+        if (body.status === 'completed' && !item.completed_at) {
+          item.completed_at = new Date().toISOString()
+        }
+        if (prevStatus === 'completed' && body.status !== 'completed') {
+          item.completed_at = null
+        }
+      }
       if (body.priority !== undefined) item.priority = body.priority
       if (body.title !== undefined) item.title = body.title
       // Nested field updates

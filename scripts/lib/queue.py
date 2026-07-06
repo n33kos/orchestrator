@@ -71,6 +71,22 @@ def locked_queue(queue_path: Optional[str] = None, write: bool = False):
         yield result
 
         if write and result.get("modified", False):
+            # Schema-enforce the write boundary: an invalid status, an unknown
+            # structured key, or a wrong-typed field can never be persisted —
+            # this is what stops non-deterministic writers (the delegator) from
+            # corrupting the queue. Aborts the write atomically on any violation.
+            try:
+                from lib.validate_queue import validate_item
+            except ImportError:
+                from scripts.lib.validate_queue import validate_item
+            violations = []
+            for _it in result["data"].get("items", []):
+                violations.extend(validate_item(_it))
+            if violations:
+                raise ValueError(
+                    "Refusing to write queue.json — schema violations:\n  "
+                    + "\n  ".join(violations)
+                )
             with open(path, "w") as f:
                 json.dump(result["data"], f, indent=2)
                 f.write("\n")

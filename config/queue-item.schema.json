@@ -1,0 +1,80 @@
+{
+  "$schema": "orchestrator/queue-item/v1",
+  "description": "Canonical schema for a single work item in queue.json. Validated deterministically by scripts/lib/validate_queue.py at the queue write boundary. status is a single-dimensional lifecycle; orthogonal conditions (blocked, review findings, ready-for-review) live as fields, never as statuses.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id", "title", "source", "priority", "status", "blocked_by",
+    "created_at", "activated_at", "completed_at",
+    "environment", "worker", "plan", "runtime"
+  ],
+  "properties": {
+    "id": { "type": "string" },
+    "title": { "type": "string" },
+    "source": { "type": "string" },
+    "source_ref": { "type": ["string", "null"] },
+    "repo_key": { "type": ["string", "null"] },
+    "priority": { "type": "integer" },
+    "status": {
+      "type": "string",
+      "enum": ["queued", "planning", "active", "review", "completed", "cancelled"]
+    },
+    "blocked_by": { "type": "array" },
+    "created_at": { "type": "string" },
+    "activated_at": { "type": ["string", "null"] },
+    "completed_at": { "type": ["string", "null"] },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repo", "branch", "session_id", "use_worktree", "worktree_path"],
+      "properties": {
+        "repo": { "type": ["string", "null"] },
+        "branch": { "type": ["string", "null"] },
+        "session_id": { "type": ["string", "null"] },
+        "use_worktree": { "type": "boolean" },
+        "worktree_path": { "type": ["string", "null"] },
+        "task_instructions_delivered": { "type": "boolean" }
+      }
+    },
+    "worker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit_strategy", "delegator_enabled"],
+      "properties": {
+        "commit_strategy": {
+          "type": "string",
+          "enum": ["branch_and_pr", "graphite_stack", "commit_to_main"]
+        },
+        "delegator_enabled": { "type": "boolean" },
+        "directives_enabled": { "type": "boolean" },
+        "directive_overrides": { "type": "object" },
+        "stack_steps": { "type": "array" }
+      }
+    },
+    "plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "summary", "approved", "approved_at"],
+      "properties": {
+        "file": { "type": ["string", "null"] },
+        "summary": { "type": ["string", "null"] },
+        "approved": { "type": "boolean" },
+        "approved_at": { "type": ["string", "null"] }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "delegator_status": { "type": ["string", "null"] },
+        "spend": { "type": ["object", "null"] },
+        "last_activity": { "type": ["string", "null"] },
+        "pr_url": { "type": ["string", "null"] },
+        "stack_prs": { "type": ["array", "string", "null"] },
+        "completion_message": { "type": ["string", "null"] },
+        "directives": { "type": ["object", "null"] },
+        "ready_for_review": { "type": ["boolean", "null"] }
+      }
+    }
+  }
+}
