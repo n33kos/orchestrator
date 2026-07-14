@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -144,6 +145,7 @@ def _resolve_item_repo(cfg: Config, item: dict) -> "RepoConfig":
     result.use_worktree = env.get("use_worktree") if "use_worktree" in env else rc.use_worktree
     result.commit_strategy = worker.get("commit_strategy") or rc.commit_strategy
     result.branching_pattern = rc.branching_pattern
+    result.base_branch = env.get("base_branch") or rc.base_branch
     result.worktree_setup = rc.worktree_setup
     result.worktree_setup_quick = rc.worktree_setup_quick
     result.worktree_teardown = rc.worktree_teardown
@@ -221,14 +223,16 @@ def _start_worktree_setup(cfg: Config, item: dict, branch: str, rc: "RepoConfig 
     log_file = log_dir / f"worktree-setup-{item_id}.log"
 
     worktree_path = f"{worktree_prefix}{branch}"
+    base_branch = rc.base_branch or "main"
     setup_cmd = rc.worktree_setup.format(
         branch=branch, path=worktree_path, repo_path=main_repo,
+        base_branch=base_branch,
     )
 
     # Update main under a per-repo lock so concurrent activations in the same
     # cycle don't race on .git/index.lock when both try to fetch+checkout+pull
     # against the same source repo.
-    if not _update_main_repo_locked(main_repo, log_file):
+    if not _update_main_repo_locked(main_repo, log_file, base_branch):
         print(f"[scheduler] Main repo update FAILED for {item_id} — see {log_file}")
         return
 
@@ -244,8 +248,8 @@ def _start_worktree_setup(cfg: Config, item: dict, branch: str, rc: "RepoConfig 
         )
 
 
-def _update_main_repo_locked(main_repo: str, log_file_path: Path) -> bool:
-    """Run fetch + checkout main + pull under a per-repo flock. Returns True on success.
+def _update_main_repo_locked(main_repo: str, log_file_path: Path, base_branch: str = "main") -> bool:
+    """Run fetch + checkout base_branch + pull under a per-repo flock. Returns True on success.
 
     Holds an exclusive flock on a per-repo lockfile so concurrent activations
     targeting the same source repo don't race on `.git/index.lock`.
@@ -255,7 +259,8 @@ def _update_main_repo_locked(main_repo: str, log_file_path: Path) -> bool:
     repo_hash = hashlib.sha1(main_repo.encode()).hexdigest()[:16]
     lock_file = lock_dir / f"main-repo-{repo_hash}.lock"
 
-    cmd = "git fetch origin main && git checkout main && git pull --ff-only origin main"
+    b = shlex.quote(base_branch)
+    cmd = f"git fetch origin {b} && git checkout {b} && git pull --ff-only origin {b}"
     with open(lock_file, "w") as lf, open(log_file_path, "w") as out:
         fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
         try:

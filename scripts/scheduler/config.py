@@ -106,8 +106,9 @@ class RepoConfig:
         self.commit_strategy: str = "branch_and_pr"
         self.use_worktree: bool = True
         self.branching_pattern: str = ""
-        self.worktree_setup: str = "git worktree add -b {branch} {path} main"
-        self.worktree_setup_quick: str = "git worktree add -b {branch} {path} main"
+        self.base_branch: str = "main"
+        self.worktree_setup: str = "git worktree add -b {branch} {path} {base_branch}"
+        self.worktree_setup_quick: str = "git worktree add -b {branch} {path} {base_branch}"
         self.worktree_teardown: str = "git worktree remove {path}"
         self.worktree_list: str = "git worktree list --porcelain"
         self.worktree_dev: str = ""
@@ -130,8 +131,8 @@ class Config:
         self.tool_graphite: str = ""
 
         # Worktree commands (from _defaults, for backward compat)
-        self.worktree_setup: str = "git worktree add -b {branch} {path} main"
-        self.worktree_setup_quick: str = "git worktree add -b {branch} {path} main"
+        self.worktree_setup: str = "git worktree add -b {branch} {path} {base_branch}"
+        self.worktree_setup_quick: str = "git worktree add -b {branch} {path} {base_branch}"
         self.worktree_teardown: str = "git worktree remove {path}"
         self.worktree_list: str = "git worktree list --porcelain"
         self.worktree_dev: str = ""
@@ -211,13 +212,16 @@ def _build_repo_config(
     rc.branching_pattern = repo_vals.get(
         "branching_pattern", defaults.get("branching_pattern", "")
     )
+    rc.base_branch = repo_vals.get(
+        "base_branch", defaults.get("base_branch", "main")
+    )
     rc.worktree_setup = repo_vals.get(
         "worktree.setup",
-        defaults.get("worktree.setup", "git worktree add -b {branch} {path} main"),
+        defaults.get("worktree.setup", "git worktree add -b {branch} {path} {base_branch}"),
     )
     rc.worktree_setup_quick = repo_vals.get(
         "worktree.setup_quick",
-        defaults.get("worktree.setup_quick", "git worktree add -b {branch} {path} main"),
+        defaults.get("worktree.setup_quick", "git worktree add -b {branch} {path} {base_branch}"),
     )
     rc.worktree_teardown = repo_vals.get(
         "worktree.teardown",
