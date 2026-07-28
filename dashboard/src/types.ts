@@ -7,6 +7,19 @@ export interface StackStep {
   completed: boolean
 }
 
+export interface WorkItemIntegration {
+  adapter: string
+  provider: string
+  issue_id: string | null
+  identifier: string | null
+  url: string | null
+  context_file: string | null
+  blocked_by_refs?: string[]
+  announced_at?: string | null
+  synced_status?: string | null
+  synced_at?: string | null
+}
+
 export interface WorkItemEnvironment {
   repo: string | null
   use_worktree: boolean
@@ -48,6 +61,7 @@ export interface WorkItem {
   priority: number
   status: WorkItemStatus
   blocked_by: string[]
+  integration?: WorkItemIntegration | null
   created_at: string
   activated_at: string | null
   completed_at: string | null

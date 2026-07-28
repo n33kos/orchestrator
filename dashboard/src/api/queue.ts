@@ -1,4 +1,4 @@
-import { execFile } from 'child_process'
+import { execFile, execFileSync } from 'child_process'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
@@ -52,11 +52,13 @@ export function registerQueueRoutes(server: ViteDevServer) {
         res.statusCode = 400; res.end(JSON.stringify({ error: 'title is required' })); return
       }
       const data = readQueue()
-      const maxId = data.items.reduce((max: number, i: { id: string }) => {
-        const n = parseInt(i.id.replace('ws-', ''), 10)
-        return n > max ? n : max
-      }, 0)
-      const newItemId = `ws-${String(maxId + 1).padStart(3, '0')}`
+      // Allocate through the shared counter rather than the queue's own maximum.
+      // The queue alone does not know about archived items, so deriving an id from
+      // it can reissue one that an archived item already owns.
+      const newItemId = execFileSync(
+        join(__dirname, '..', '..', '..', 'scripts', 'next-ws-id.sh'),
+        { encoding: 'utf-8', env: { ...process.env, HOME: homedir() } },
+      ).trim()
       // Persist any free-form body the dashboard collected as the starter plan
       // file content — that's the single source of truth for ticket content.
       const planBody = (body.planBody || body.description || '').toString()
