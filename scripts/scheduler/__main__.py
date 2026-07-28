@@ -33,6 +33,7 @@ from scripts.scheduler.discovery import (
     announce_imports,
     discover_work,
     route_unrouted_items,
+    sync_blocked_by,
     sync_integrations,
 )
 from scripts.scheduler.spend import update_spend
@@ -174,6 +175,7 @@ def main():
             check_planning_timeouts(cfg)
             discover_work(cfg, args.dry_run)
             route_unrouted_items(cfg, args.dry_run)
+            sync_blocked_by(cfg, args.dry_run)
             generate_plans(cfg, args.dry_run)
             reconcile_state(cfg, args.dry_run)
             discover_pr_urls(cfg, args.dry_run)
@@ -224,6 +226,7 @@ def main():
             check_planning_timeouts(cfg)
             discover_work(cfg, args.dry_run)
             route_unrouted_items(cfg, args.dry_run)
+            sync_blocked_by(cfg, args.dry_run)
             generate_plans(cfg, args.dry_run)
             reconcile_state(cfg, args.dry_run)
             discover_pr_urls(cfg, args.dry_run)

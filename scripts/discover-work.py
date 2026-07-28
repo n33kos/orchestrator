@@ -219,6 +219,7 @@ def poll_linear(config: dict) -> list[dict]:
             "url": issue.get("url", ""),
             "labels": [n.get("name", "") for n in ((issue.get("labels") or {}).get("nodes") or [])],
             "repo_key": resolve_repo_key(config, issue),
+            "blocked_by_refs": linear_blockers(issue),
         })
 
     return items
@@ -273,6 +274,26 @@ def render_linear_context(issue: dict) -> str:
             lines.append(body)
 
     return "\n".join(lines).strip()
+
+
+def linear_blockers(issue: dict) -> list[str]:
+    """Identifiers of the issues that block this one.
+
+    Linear models blocking on the blocking issue, so an issue's own blockers are
+    found on its inverse relations. Blockers that are already done or cancelled
+    are not blockers.
+    """
+    blockers = []
+    for relation in ((issue.get("inverseRelations") or {}).get("nodes") or []):
+        if relation.get("type") != "blocks":
+            continue
+        blocker = relation.get("issue") or {}
+        if (blocker.get("state") or {}).get("type") in ("completed", "canceled"):
+            continue
+        identifier = blocker.get("identifier")
+        if identifier:
+            blockers.append(identifier)
+    return blockers
 
 
 def resolve_repo_key(config: dict, issue: dict) -> str:
@@ -427,7 +448,7 @@ def build_queue_item(item_id: str, discovered: dict) -> dict:
         "title": discovered["title"],
         "priority": discovered["priority"],
         "status": "planning",
-        "blocked_by": [],
+        "blocked_by": list(discovered.get("blocked_by_refs") or []),
         "created_at": datetime.now().isoformat(),
         "activated_at": None,
         "completed_at": None,
@@ -438,6 +459,7 @@ def build_queue_item(item_id: str, discovered: dict) -> dict:
             "identifier": discovered.get("identifier") or None,
             "url": discovered.get("url") or None,
             "context_file": context_file,
+            "blocked_by_refs": list(discovered.get("blocked_by_refs") or []),
             "synced_status": None,
             "synced_at": None,
         },

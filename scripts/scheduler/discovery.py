@@ -167,6 +167,90 @@ def route_unrouted_items(cfg: Config, dry_run: bool) -> None:
             ctx["modified"] = True
 
 
+def _completed_blockers(identifiers: list[str]) -> set[str]:
+    """Which of these tracker identifiers are already done or cancelled.
+
+    Linear's issue lookup accepts a human identifier while its filters want UUIDs,
+    so the batch is expressed as one aliased query rather than a filtered list.
+    """
+    aliases = {f"i{index}": identifier for index, identifier in enumerate(identifiers)}
+    body = "\n".join(
+        f'  {alias}: issue(id: "{identifier}") {{ identifier state {{ type }} }}'
+        for alias, identifier in aliases.items()
+    )
+    data = linear_api.query(f"query OrchestratorBlockerStates {{\n{body}\n}}")
+
+    completed = set()
+    for node in data.values():
+        if node and (node.get("state") or {}).get("type") in ("completed", "canceled"):
+            completed.add(node["identifier"])
+    return completed
+
+
+def sync_blocked_by(cfg: Config, dry_run: bool) -> None:
+    """Keep blocked_by in step with the tracker's blocking relations.
+
+    A blocker that has been imported is referenced by its queue id. One that has
+    not is held as its tracker identifier, which reconciliation treats as
+    unsatisfied, so a partially imported chain still sequences correctly. Refs
+    are re-checked against the tracker so a blocker completed outside the
+    orchestrator stops blocking.
+    """
+    with locked_queue() as ctx:
+        items = list(ctx["data"].get("items", []))
+
+    queue_id_by_identifier = {
+        (item.get("integration") or {}).get("identifier"): item["id"]
+        for item in items
+        if (item.get("integration") or {}).get("identifier")
+    }
+
+    unimported = {
+        ref
+        for item in items
+        for ref in ((item.get("integration") or {}).get("blocked_by_refs") or [])
+        if ref not in queue_id_by_identifier
+    }
+
+    # Anything still outside the queue may have been completed in the tracker.
+    cleared: set[str] = set()
+    if unimported and not dry_run:
+        try:
+            cleared = _completed_blockers(sorted(unimported))
+        except linear_api.LinearError as err:
+            print(f"[scheduler] Could not check blocker states: {err}", file=sys.stderr)
+
+    updates: dict[str, list[str]] = {}
+
+    for item in items:
+        refs = (item.get("integration") or {}).get("blocked_by_refs") or []
+        if not refs:
+            continue
+
+        desired = [
+            queue_id_by_identifier.get(ref, ref)
+            for ref in refs
+            if ref not in cleared
+        ]
+        if desired != list(item.get("blocked_by") or []):
+            updates[item["id"]] = desired
+
+    if not updates:
+        return
+
+    if dry_run:
+        for item_id, desired in updates.items():
+            print(f"[scheduler] Would set {item_id} blocked_by to {desired}")
+        return
+
+    with locked_queue(write=True) as ctx:
+        for item in ctx["data"].get("items", []):
+            if item["id"] in updates:
+                item["blocked_by"] = updates[item["id"]]
+                print(f"[scheduler] {item['id']} blocked_by: {updates[item['id']] or 'nothing'}")
+                ctx["modified"] = True
+
+
 def _writeback_for(adapter_name: str) -> dict:
     for adapter in sources.load_sources(PROJECT_ROOT)["adapters"]:
         if adapter["name"] == adapter_name:

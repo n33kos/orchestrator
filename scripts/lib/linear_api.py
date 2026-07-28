@@ -149,6 +149,7 @@ query OrchestratorIssues($filter: IssueFilter, $first: Int!, $withComments: Bool
       project { id name }
       assignee { id displayName }
       labels { nodes { name } }
+      inverseRelations { nodes { type issue { identifier state { type } } } }
       comments(first: 30) @include(if: $withComments) {
         nodes { body createdAt user { displayName } }
       }

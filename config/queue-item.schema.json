@@ -31,6 +31,7 @@
         "identifier": { "type": ["string", "null"] },
         "url": { "type": ["string", "null"] },
         "context_file": { "type": ["string", "null"] },
+        "blocked_by_refs": { "type": "array" },
         "announced_at": { "type": ["string", "null"] },
         "synced_status": { "type": ["string", "null"] },
         "synced_at": { "type": ["string", "null"] }

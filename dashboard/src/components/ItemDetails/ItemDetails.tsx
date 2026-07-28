@@ -353,7 +353,7 @@ export function ItemDetails({
                   />
                   <span className={styles.DepText}>
                     <strong>{depId}</strong>
-                    {dep ? ` — ${dep.title}` : " (unknown)"}
+                    {dep ? ` — ${dep.title}` : " (not in queue)"}
                     {isResolved ? " (completed)" : ""}
                   </span>
                   {onUpdateBlockedBy && (
