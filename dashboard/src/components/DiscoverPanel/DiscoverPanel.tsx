@@ -2,92 +2,239 @@ import { useState, useEffect, useCallback } from 'react'
 import styles from './DiscoverPanel.module.scss'
 import { useFocusTrap } from '../../hooks/useFocusTrap.ts'
 
+type FieldKind = 'text' | 'number' | 'boolean' | 'list' | 'select' | 'textarea'
+
+interface FieldSpec {
+  key: string
+  label: string
+  kind: FieldKind
+  default: unknown
+  help?: string
+  options?: string[]
+}
+
+interface AdapterTypeSpec {
+  label: string
+  help?: string
+  fields: FieldSpec[]
+}
+
+interface Adapter {
+  name: string
+  type: string
+  enabled: boolean
+  config: Record<string, unknown>
+  defaults: Record<string, unknown>
+  writeback: {
+    enabled: boolean
+    comment_on_import: boolean
+    status_map: Record<string, string>
+  }
+  problems?: string[]
+}
+
 interface DiscoveredItem {
   title: string
   priority: number
-  description?: string
   source?: string
-}
-
-interface SourceConfig {
-  name: string
-  type: string
-  detail: string
+  repo_key?: string
+  new?: boolean
 }
 
 interface DiscoverPanelProps {
   onClose: () => void
-  onQueueRefresh: () => void
 }
 
-export function DiscoverPanel({ onClose, onQueueRefresh }: DiscoverPanelProps) {
-  const [sources, setSources] = useState<SourceConfig[]>([])
-  const [preview, setPreview] = useState<DiscoveredItem[]>([])
-  const [output, setOutput] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [running, setRunning] = useState(false)
-  const [selectedSource, setSelectedSource] = useState<string>('')
-  const [lastRun, setLastRun] = useState<string | null>(null)
+const WRITEBACK_STATUSES = ['queued', 'planning', 'active', 'review', 'completed']
+
+export function DiscoverPanel({ onClose }: DiscoverPanelProps) {
+  const [types, setTypes] = useState<Record<string, AdapterTypeSpec>>({})
+  const [adapters, setAdapters] = useState<Adapter[]>([])
+  const [selected, setSelected] = useState(0)
+  const [dirty, setDirty] = useState(false)
+  const [status, setStatus] = useState('')
+  const [preview, setPreview] = useState<DiscoveredItem[] | null>(null)
+  const [previewing, setPreviewing] = useState(false)
   const trapRef = useFocusTrap<HTMLDivElement>()
 
-  const fetchSources = useCallback(async () => {
+  const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/discover/sources')
-      if (res.ok) {
-        const data = await res.json()
-        setSources(data.sources || [])
-      }
-    } catch { /* ignore */ }
+      const [typesRes, sourcesRes] = await Promise.all([
+        fetch('/api/discover/adapter-types'),
+        fetch('/api/discover/sources'),
+      ])
+      if (typesRes.ok) setTypes((await typesRes.json()).types || {})
+      if (sourcesRes.ok) setAdapters((await sourcesRes.json()).adapters || [])
+    } catch {
+      setStatus('Could not load adapter configuration')
+    }
   }, [])
 
-  useEffect(() => { fetchSources() }, [fetchSources])
+  useEffect(() => { load() }, [load])
 
-  async function handleDryRun() {
-    setLoading(true)
-    setPreview([])
-    setOutput('')
-    try {
-      const body: Record<string, unknown> = { dryRun: true }
-      if (selectedSource) body.source = selectedSource
-      const res = await fetch('/api/discover', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        if (data.items && Array.isArray(data.items)) {
-          setPreview(data.items)
-        }
-        setOutput(data.output || 'No output')
-      }
-    } catch {
-      setOutput('Failed to run dry-run discovery')
-    }
-    setLoading(false)
+  const adapter = adapters[selected]
+  const spec = adapter ? types[adapter.type] : undefined
+
+  function mutate(change: (draft: Adapter) => void) {
+    setAdapters(prev => prev.map((a, i) => {
+      if (i !== selected) return a
+      const draft = structuredClone(a)
+      change(draft)
+      return draft
+    }))
+    setDirty(true)
+    setStatus('')
   }
 
-  async function handleDiscover() {
-    setRunning(true)
+  function addAdapter(type: string) {
+    const fields = types[type]?.fields || []
+    const config: Record<string, unknown> = {}
+    for (const field of fields) config[field.key] = field.default
+    setSelected(adapters.length)
+    setAdapters(prev => [...prev, {
+      name: `${type}-${prev.length + 1}`,
+      type,
+      enabled: false,
+      config,
+      defaults: { repo_key: '', priority: 3, commit_strategy: '', delegator_enabled: true },
+      writeback: { enabled: false, comment_on_import: false, status_map: {} },
+    }])
+    setDirty(true)
+  }
+
+  function removeAdapter() {
+    setAdapters(prev => prev.filter((_, i) => i !== selected))
+    setSelected(0)
+    setPreview(null)
+    setDirty(true)
+  }
+
+  async function save() {
+    setStatus('Saving...')
     try {
-      const body: Record<string, unknown> = {}
-      if (selectedSource) body.source = selectedSource
+      const res = await fetch('/api/discover/sources', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version: 1, adapters }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setStatus(data.error || 'Save failed')
+        return
+      }
+      setAdapters(data.adapters || adapters)
+      setDirty(false)
+      setStatus('Saved. The scheduler picks this up on its next discovery cycle.')
+    } catch {
+      setStatus('Save failed')
+    }
+  }
+
+  async function runPreview() {
+    if (!adapter) return
+    setPreviewing(true)
+    setPreview(null)
+    try {
       const res = await fetch('/api/discover', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ dryRun: true, source: adapter.name }),
       })
-      if (res.ok) {
-        const data = await res.json()
-        setOutput(data.output || 'Discovery complete')
-        setLastRun(new Date().toISOString())
-        setPreview([])
-        onQueueRefresh()
-      }
+      const data = await res.json()
+      setPreview(data.items || [])
+      if (!res.ok) setStatus(data.error || 'Preview failed')
     } catch {
-      setOutput('Failed to run discovery')
+      setStatus('Preview failed')
     }
-    setRunning(false)
+    setPreviewing(false)
+  }
+
+  function renderField(field: FieldSpec) {
+    const value = adapter!.config[field.key]
+
+    let control
+    switch (field.kind) {
+      case 'boolean':
+        control = (
+          <button
+            className={`${styles.Toggle} ${value ? styles.ToggleOn : ''}`}
+            role="switch"
+            aria-checked={!!value}
+            onClick={() => mutate(d => { d.config[field.key] = !value })}
+          >
+            <span className={styles.ToggleKnob} />
+          </button>
+        )
+        break
+      case 'number':
+        control = (
+          <input
+            className={styles.Input}
+            type="number"
+            value={String(value ?? '')}
+            onChange={e => mutate(d => { d.config[field.key] = Number(e.target.value) })}
+          />
+        )
+        break
+      case 'select':
+        control = (
+          <select
+            className={styles.Input}
+            value={String(value ?? '')}
+            onChange={e => mutate(d => { d.config[field.key] = e.target.value })}
+          >
+            {(field.options || []).map(option => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+        )
+        break
+      case 'list':
+        control = (
+          <input
+            className={styles.Input}
+            type="text"
+            placeholder="comma separated"
+            value={Array.isArray(value) ? value.join(', ') : String(value ?? '')}
+            onChange={e => mutate(d => {
+              d.config[field.key] = e.target.value
+                .split(',')
+                .map(part => part.trim())
+                .filter(Boolean)
+            })}
+          />
+        )
+        break
+      case 'textarea':
+        control = (
+          <textarea
+            className={styles.Textarea}
+            rows={3}
+            value={String(value ?? '')}
+            onChange={e => mutate(d => { d.config[field.key] = e.target.value })}
+          />
+        )
+        break
+      default:
+        control = (
+          <input
+            className={styles.Input}
+            type="text"
+            value={String(value ?? '')}
+            onChange={e => mutate(d => { d.config[field.key] = e.target.value })}
+          />
+        )
+    }
+
+    return (
+      <div className={styles.Field} key={field.key}>
+        <label className={styles.FieldLabel}>
+          {field.label}
+          {field.help && <span className={styles.FieldHelp}>{field.help}</span>}
+        </label>
+        <div className={styles.FieldControl}>{control}</div>
+      </div>
+    )
   }
 
   return (
@@ -98,10 +245,8 @@ export function DiscoverPanel({ onClose, onQueueRefresh }: DiscoverPanelProps) {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              <line x1="11" y1="8" x2="11" y2="14" />
-              <line x1="8" y1="11" x2="14" y2="11" />
             </svg>
-            Discover Work
+            Work Sources
           </div>
           <button className={styles.CloseButton} onClick={onClose} aria-label="Close">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -111,67 +256,173 @@ export function DiscoverPanel({ onClose, onQueueRefresh }: DiscoverPanelProps) {
         </div>
 
         <div className={styles.Body}>
-          {sources.length > 0 && (
-            <div className={styles.SourceSection}>
-              <div className={styles.SectionLabel}>Sources</div>
-              <div className={styles.SourceList}>
+          <p className={styles.Intro}>
+            The scheduler polls every enabled adapter on its discovery interval. Imported
+            items arrive queued with no plan, so they follow the normal plan-and-approve flow.
+          </p>
+
+          <div className={styles.SourceSection}>
+            <div className={styles.SectionLabel}>Adapters</div>
+            <div className={styles.SourceList}>
+              {adapters.map((a, i) => (
                 <button
-                  className={`${styles.SourceChip} ${!selectedSource ? styles.SourceChipActive : ''}`}
-                  onClick={() => setSelectedSource('')}
+                  key={`${a.name}-${i}`}
+                  className={`${styles.SourceChip} ${i === selected ? styles.SourceChipActive : ''} ${a.enabled ? '' : styles.SourceChipOff}`}
+                  onClick={() => { setSelected(i); setPreview(null) }}
                 >
-                  All
+                  <span className={styles.SourceType}>{a.type}</span>
+                  {a.name}
                 </button>
-                {sources.map(s => (
-                  <button
-                    key={s.name}
-                    className={`${styles.SourceChip} ${selectedSource === s.name ? styles.SourceChipActive : ''}`}
-                    onClick={() => setSelectedSource(s.name)}
-                    title={`${s.type}: ${s.detail}`}
-                  >
-                    <span className={styles.SourceType}>{s.type}</span>
-                    {s.name}
-                  </button>
-                ))}
+              ))}
+            </div>
+            <div className={styles.AddRow}>
+              {Object.entries(types).map(([type, typeSpec]) => (
+                <button key={type} className={styles.AddButton} onClick={() => addAdapter(type)}>
+                  + {typeSpec.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {adapter && spec && (
+            <div className={styles.Editor}>
+              {!!adapter.problems?.length && (
+                <div className={styles.Problems}>{adapter.problems.join('; ')}</div>
+              )}
+
+              <div className={styles.Field}>
+                <label className={styles.FieldLabel}>Name</label>
+                <div className={styles.FieldControl}>
+                  <input
+                    className={styles.Input}
+                    type="text"
+                    value={adapter.name}
+                    onChange={e => mutate(d => { d.name = e.target.value })}
+                  />
+                </div>
               </div>
+
+              <div className={styles.Field}>
+                <label className={styles.FieldLabel}>
+                  Enabled
+                  {spec.help && <span className={styles.FieldHelp}>{spec.help}</span>}
+                </label>
+                <div className={styles.FieldControl}>
+                  <button
+                    className={`${styles.Toggle} ${adapter.enabled ? styles.ToggleOn : ''}`}
+                    role="switch"
+                    aria-checked={adapter.enabled}
+                    onClick={() => mutate(d => { d.enabled = !d.enabled })}
+                  >
+                    <span className={styles.ToggleKnob} />
+                  </button>
+                </div>
+              </div>
+
+              <div className={styles.SectionLabel}>Filter</div>
+              {spec.fields.map(renderField)}
+
+              <div className={styles.SectionLabel}>Defaults for imported items</div>
+              <div className={styles.Field}>
+                <label className={styles.FieldLabel}>Repo key</label>
+                <div className={styles.FieldControl}>
+                  <input
+                    className={styles.Input}
+                    type="text"
+                    value={String(adapter.defaults.repo_key ?? '')}
+                    onChange={e => mutate(d => { d.defaults.repo_key = e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className={styles.Field}>
+                <label className={styles.FieldLabel}>
+                  Delegator
+                  <span className={styles.FieldHelp}>Run a delegator against imported items.</span>
+                </label>
+                <div className={styles.FieldControl}>
+                  <button
+                    className={`${styles.Toggle} ${adapter.defaults.delegator_enabled ? styles.ToggleOn : ''}`}
+                    role="switch"
+                    aria-checked={!!adapter.defaults.delegator_enabled}
+                    onClick={() => mutate(d => { d.defaults.delegator_enabled = !d.defaults.delegator_enabled })}
+                  >
+                    <span className={styles.ToggleKnob} />
+                  </button>
+                </div>
+              </div>
+
+              <div className={styles.SectionLabel}>Status writeback</div>
+              <div className={styles.Field}>
+                <label className={styles.FieldLabel}>
+                  Push status back
+                  <span className={styles.FieldHelp}>
+                    Update the source issue when this item changes status. Linear only.
+                  </span>
+                </label>
+                <div className={styles.FieldControl}>
+                  <button
+                    className={`${styles.Toggle} ${adapter.writeback.enabled ? styles.ToggleOn : ''}`}
+                    role="switch"
+                    aria-checked={adapter.writeback.enabled}
+                    onClick={() => mutate(d => { d.writeback.enabled = !d.writeback.enabled })}
+                  >
+                    <span className={styles.ToggleKnob} />
+                  </button>
+                </div>
+              </div>
+              {adapter.writeback.enabled && WRITEBACK_STATUSES.map(orchestratorStatus => (
+                <div className={styles.Field} key={orchestratorStatus}>
+                  <label className={styles.FieldLabel}>{orchestratorStatus}</label>
+                  <div className={styles.FieldControl}>
+                    <input
+                      className={styles.Input}
+                      type="text"
+                      placeholder="leave blank to not sync"
+                      value={adapter.writeback.status_map[orchestratorStatus] || ''}
+                      onChange={e => mutate(d => {
+                        if (e.target.value.trim()) {
+                          d.writeback.status_map[orchestratorStatus] = e.target.value
+                        } else {
+                          delete d.writeback.status_map[orchestratorStatus]
+                        }
+                      })}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
           <div className={styles.Actions}>
-            <button className={styles.DryRunButton} onClick={handleDryRun} disabled={loading}>
-              {loading ? 'Scanning...' : 'Preview'}
+            <button className={styles.DryRunButton} onClick={runPreview} disabled={previewing || !adapter}>
+              {previewing ? 'Checking...' : 'Preview matches'}
             </button>
-            <button className={styles.RunButton} onClick={handleDiscover} disabled={running}>
-              {running ? 'Discovering...' : 'Discover & Add'}
+            <button className={styles.RunButton} onClick={save} disabled={!dirty}>
+              {dirty ? 'Save' : 'Saved'}
             </button>
+            {adapters.length > 1 && (
+              <button className={styles.RemoveButton} onClick={removeAdapter}>Remove</button>
+            )}
           </div>
 
-          {preview.length > 0 && (
+          {preview && (
             <div className={styles.PreviewSection}>
               <div className={styles.SectionLabel}>
-                {preview.length} new item{preview.length !== 1 ? 's' : ''} found
+                {preview.length} matched, {preview.filter(item => item.new).length} not yet imported
               </div>
               <div className={styles.PreviewList}>
                 {preview.map((item, i) => (
                   <div key={i} className={styles.PreviewItem}>
                     <span className={styles.PreviewPriority}>P{item.priority}</span>
                     <span className={styles.PreviewTitle}>{item.title}</span>
+                    {!item.new && <span className={styles.PreviewType}>already queued</span>}
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {output && !preview.length && (
-            <div className={styles.OutputSection}>
-              <pre className={styles.Output}>{output}</pre>
-            </div>
-          )}
-
-          {lastRun && (
-            <div className={styles.LastRun}>
-              Last run: {new Date(lastRun).toLocaleTimeString()}
-            </div>
-          )}
+          {status && <div className={styles.LastRun}>{status}</div>}
         </div>
       </div>
     </div>

@@ -1,166 +1,344 @@
 #!/usr/bin/env python3
-"""
-Discover new work items from configured sources.
+"""Discover work items from configured adapters.
 
-Reads config/sources.yml, polls each source adapter, deduplicates against
-the existing queue, and adds new items.
+Reads adapters from config/sources.json, polls each one, deduplicates against
+the queue, and adds what is new. Imported items land as `queued` with no plan,
+so the scheduler's plan generation picks them up and the normal approve-then-
+activate flow applies. The issue body and discussion are written to a context
+file that plan generation reads.
 
 Usage:
-    python3 scripts/discover-work.py [--dry-run] [--source NAME]
+    python3 scripts/discover-work.py [--dry-run] [--output-json] [--source NAME]
+    python3 scripts/discover-work.py --describe-adapters
 """
 
 import json
 import re
+import subprocess
 import sys
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from lib import linear_api, secrets, sources  # noqa: E402
+from lib.queue import locked_queue  # noqa: E402
 
 
-def load_yaml_simple(path: Path) -> dict:
-    """Minimal YAML parser for our simple config format."""
-    result = {}
-    current_section = None
-    current_item = None
-    current_item_name = None
-
-    with open(path) as f:
-        for line in f:
-            stripped = line.rstrip()
-            if not stripped or stripped.lstrip().startswith("#"):
-                continue
-
-            indent = len(line) - len(line.lstrip())
-
-            if indent == 0 and stripped.endswith(":"):
-                current_section = stripped[:-1]
-                result[current_section] = {}
-                current_item = None
-                continue
-
-            if current_section and indent == 2:
-                if stripped.rstrip().endswith(":"):
-                    current_item_name = stripped.strip()[:-1]
-                    result[current_section][current_item_name] = {}
-                    current_item = result[current_section][current_item_name]
-                else:
-                    key, _, val = stripped.strip().partition(":")
-                    result[current_section][key.strip()] = val.strip()
-
-            elif current_item is not None and indent >= 4:
-                key, _, val = stripped.strip().partition(":")
-                current_item[key.strip()] = val.strip()
-
-    return result
+CONTEXT_DIR = Path.home() / ".claude" / "orchestrator" / "context"
 
 
-def deep_merge(base: dict, override: dict) -> dict:
-    """Recursively merge override into base. Override values win."""
-    merged = dict(base)
-    for key, val in override.items():
-        if key in merged and isinstance(merged[key], dict) and isinstance(val, dict):
-            merged[key] = deep_merge(merged[key], val)
-        else:
-            merged[key] = val
-    return merged
+# --- Adapters -------------------------------------------------------------
+#
+# Each adapter returns a list of discovered items. A discovered item carries a
+# title, a priority, a source_ref used for deduplication, an optional context
+# markdown body, and optional provider identifiers for status writeback.
 
 
-def load_yaml_with_local(path: Path) -> dict:
-    """Load a YAML config, merging a .local.yml override if it exists."""
-    config = load_yaml_simple(path)
-    local_path = path.with_suffix("").with_suffix(".local.yml")
-    if local_path.exists():
-        local_config = load_yaml_simple(local_path)
-        config = deep_merge(config, local_config)
-    return config
-
-
-def parse_markdown_source(path: Path) -> list[dict]:
-    """Parse a markdown plan file for actionable work items.
-
-    Looks for structured sections with task-like headings:
-    - ## or ### headings that look like tasks
-    - Checkbox items (- [ ] or - [x])
-    - Numbered items under task sections
-    """
+def poll_markdown(config: dict) -> list[dict]:
+    """Parse checkbox and numbered task items out of a local markdown file."""
+    path = Path(str(config.get("path", "")).replace("~", str(Path.home())))
     if not path.exists():
         print(f"  Warning: {path} not found, skipping", file=sys.stderr)
         return []
 
     items = []
-    content = path.read_text()
     current_section = ""
 
-    for line in content.split("\n"):
-        # Track section context
-        heading_match = re.match(r"^(#{2,3})\s+(.+)", line)
-        if heading_match:
-            current_section = heading_match.group(2).strip()
+    for line in path.read_text().split("\n"):
+        heading = re.match(r"^(#{2,3})\s+(.+)", line)
+        if heading:
+            current_section = heading.group(2).strip()
             continue
 
-        # Look for unchecked task items
-        task_match = re.match(r"^[-*]\s+\[\s\]\s+(.+)", line)
-        if task_match:
-            title = task_match.group(1).strip()
+        title = ""
+        checkbox = re.match(r"^[-*]\s+\[\s\]\s+(.+)", line)
+        if checkbox:
+            title = checkbox.group(1).strip()
+        else:
+            numbered = re.match(r"^\d+\.\s+(.+)", line)
+            if numbered and current_section:
+                candidate = numbered.group(1).strip()
+                if len(candidate) < 100 and has_action_verb(candidate):
+                    title = candidate
+
+        if title:
             items.append(
                 {
                     "title": title,
-                    "plan_body": f"From: {current_section}" if current_section else "",
-                    "source_ref": f"{path.name}:{current_section}",
-
+                    "context": f"From: {current_section}" if current_section else "",
+                    "source_ref": f"{path.name}:{current_section}:{title}",
                     "priority": infer_priority(title),
                 }
             )
 
-        # Look for numbered items that look like tasks
-        numbered_match = re.match(r"^\d+\.\s+(.+)", line)
-        if numbered_match and current_section:
-            title = numbered_match.group(1).strip()
-            # Skip items that are just descriptions (too long or no verb)
-            if len(title) < 100 and has_action_verb(title):
-                items.append(
-                    {
-                        "title": title,
-                        "plan_body": f"From: {current_section}",
-                        "source_ref": f"{path.name}:{current_section}",
+    return items
 
-                        "priority": infer_priority(title),
-                    }
-                )
+
+def poll_github(config: dict) -> list[dict]:
+    """Poll GitHub Issues using the gh CLI."""
+    repo = str(config.get("repo", "")).strip()
+    if not repo:
+        print("  Error: github adapter missing 'repo'", file=sys.stderr)
+        return []
+
+    cmd = [
+        "gh", "issue", "list",
+        "--repo", repo,
+        "--state", str(config.get("state", "open")),
+        "--limit", str(config.get("limit", 20)),
+        "--json", "number,title,body,labels,assignees,createdAt,url",
+    ]
+
+    assignee = str(config.get("assignee", "")).strip()
+    if assignee:
+        cmd.extend(["--assignee", assignee])
+
+    for label in as_list(config.get("labels")):
+        cmd.extend(["--label", label])
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode != 0:
+            print(f"  gh CLI error: {result.stderr.strip()}", file=sys.stderr)
+            return []
+        issues = json.loads(result.stdout)
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError) as err:
+        print(f"  Error polling GitHub: {err}", file=sys.stderr)
+        return []
+
+    label_priorities = {
+        "p0": 1, "p1": 2, "p2": 3, "p3": 4,
+        "critical": 1, "urgent": 1, "high": 2, "low": 4,
+    }
+
+    items = []
+    for issue in issues:
+        priority = 3
+        for label in issue.get("labels", []):
+            mapped = label_priorities.get(label.get("name", "").lower().strip())
+            if mapped:
+                priority = min(priority, mapped)
+
+        items.append({
+            "title": f"#{issue.get('number', 0)}: {issue.get('title', '')}",
+            "context": (issue.get("body") or "").strip(),
+            "source_ref": issue.get("url", ""),
+            "priority": priority,
+            "issue_id": str(issue.get("number", "")),
+            "identifier": f"#{issue.get('number', '')}",
+            "url": issue.get("url", ""),
+        })
 
     return items
 
 
+def poll_jira(config: dict) -> list[dict]:
+    """Poll Jira issues through the REST API."""
+    domain = str(config.get("domain", "")).strip()
+    board = str(config.get("board", "")).strip()
+    if not domain or not board:
+        print("  Error: jira adapter requires 'domain' and 'board'", file=sys.stderr)
+        return []
+
+    email = secrets.get("JIRA_EMAIL")
+    token = secrets.get("JIRA_API_TOKEN")
+    if not email or not token:
+        print("  Skipping Jira: JIRA_EMAIL and JIRA_API_TOKEN required", file=sys.stderr)
+        return []
+
+    jql = str(config.get("filter") or "").strip() or (
+        f"project = {board} AND assignee = currentUser() AND status != Done"
+    )
+    url = (
+        f"https://{domain}/rest/api/3/search?jql={jql}"
+        f"&maxResults={config.get('limit', 20)}"
+        "&fields=summary,description,priority,labels,status,issuetype,assignee,created"
+    )
+
+    try:
+        result = subprocess.run(
+            ["curl", "-s", "-u", f"{email}:{token}", "-H", "Accept: application/json", url],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            print(f"  Jira API error: {result.stderr.strip()}", file=sys.stderr)
+            return []
+        data = json.loads(result.stdout)
+    except (subprocess.TimeoutExpired, json.JSONDecodeError) as err:
+        print(f"  Error polling Jira: {err}", file=sys.stderr)
+        return []
+
+    if "errorMessages" in data:
+        print(f"  Jira error: {data['errorMessages']}", file=sys.stderr)
+        return []
+
+    priorities = {"highest": 1, "high": 2, "medium": 3, "low": 4, "lowest": 4}
+
+    items = []
+    for issue in data.get("issues", []):
+        key = issue.get("key", "")
+        fields = issue.get("fields", {})
+        items.append({
+            "title": f"{key}: {fields.get('summary', '')}",
+            "context": flatten_adf(fields.get("description")),
+            "source_ref": f"https://{domain}/browse/{key}",
+            "priority": priorities.get((fields.get("priority") or {}).get("name", "").lower(), 3),
+            "issue_id": issue.get("id", ""),
+            "identifier": key,
+            "url": f"https://{domain}/browse/{key}",
+        })
+
+    return items
+
+
+def poll_linear(config: dict) -> list[dict]:
+    """Poll Linear issues through the GraphQL API."""
+    if not linear_api.api_key():
+        print("  Skipping Linear: LINEAR_API_KEY required", file=sys.stderr)
+        return []
+
+    try:
+        issues = linear_api.fetch_issues(config)
+    except linear_api.LinearError as err:
+        print(f"  Linear API error: {err}", file=sys.stderr)
+        return []
+
+    items = []
+    for issue in issues:
+        identifier = issue.get("identifier", "")
+        items.append({
+            "title": f"{identifier}: {issue.get('title', '')}",
+            "context": render_linear_context(issue),
+            "source_ref": issue.get("url", "") or f"linear:{identifier}",
+            "priority": linear_priority_to_queue(issue.get("priority")),
+            "issue_id": issue.get("id", ""),
+            "identifier": identifier,
+            "url": issue.get("url", ""),
+            "labels": [n.get("name", "") for n in ((issue.get("labels") or {}).get("nodes") or [])],
+            "repo_key": resolve_repo_key(config, issue),
+        })
+
+    return items
+
+
+ADAPTERS = {
+    "markdown": poll_markdown,
+    "github": poll_github,
+    "jira": poll_jira,
+    "linear": poll_linear,
+}
+
+
+# --- Helpers --------------------------------------------------------------
+
+
+def render_linear_context(issue: dict) -> str:
+    """Build the markdown context body handed to plan generation."""
+    lines = []
+    state = (issue.get("state") or {}).get("name")
+    project = (issue.get("project") or {}).get("name")
+    labels = [n.get("name", "") for n in ((issue.get("labels") or {}).get("nodes") or [])]
+
+    meta = []
+    if state:
+        meta.append(f"Status: {state}")
+    if project:
+        meta.append(f"Project: {project}")
+    if labels:
+        meta.append(f"Labels: {', '.join(labels)}")
+    if meta:
+        lines.append(" | ".join(meta))
+        lines.append("")
+
+    description = (issue.get("description") or "").strip()
+    lines.append("## Description")
+    lines.append("")
+    lines.append(description or "_(no description on the issue)_")
+
+    comments = ((issue.get("comments") or {}).get("nodes")) or []
+    if comments:
+        lines.append("")
+        lines.append("## Discussion")
+        for comment in comments:
+            author = (comment.get("user") or {}).get("displayName", "unknown")
+            body = (comment.get("body") or "").strip()
+            if not body:
+                continue
+            lines.append("")
+            lines.append(f"**{author}**")
+            lines.append("")
+            lines.append(body)
+
+    return "\n".join(lines).strip()
+
+
+def resolve_repo_key(config: dict, issue: dict) -> str:
+    """Route an issue to a repo by label.
+
+    Returns an empty string when no label matches, which leaves the item
+    deliberately unrouted rather than guessing a repository.
+    """
+    labels = {
+        str(n.get("name", "")).strip().lower()
+        for n in ((issue.get("labels") or {}).get("nodes") or [])
+    }
+
+    for entry in as_list(config.get("repo_label_map")):
+        label, _, repo_key = entry.partition("=")
+        if not repo_key.strip():
+            continue
+        if label.strip().lower() in labels:
+            return repo_key.strip()
+
+    return ""
+
+
+def linear_priority_to_queue(priority) -> int:
+    """Linear uses 0=None, 1=Urgent..4=Low. The queue uses 1=highest."""
+    mapping = {1: 1, 2: 2, 3: 3, 4: 4}
+    try:
+        return mapping.get(int(priority), 3)
+    except (TypeError, ValueError):
+        return 3
+
+
+def flatten_adf(document) -> str:
+    """Extract plain text from an Atlassian Document Format body."""
+    if not isinstance(document, dict):
+        return ""
+    parts = []
+    for block in document.get("content", []):
+        text = "".join(
+            inline.get("text", "")
+            for inline in block.get("content", [])
+            if inline.get("type") == "text"
+        )
+        parts.append(text)
+    return "\n".join(parts).strip()
+
+
+def as_list(value) -> list[str]:
+    if isinstance(value, list):
+        return [str(v).strip() for v in value if str(v).strip()]
+    if isinstance(value, str) and value.strip():
+        return [part.strip() for part in value.split(",") if part.strip()]
+    return []
+
+
 def has_action_verb(text: str) -> bool:
-    """Check if text starts with or contains an action verb."""
-    action_verbs = [
-        "add",
-        "fix",
-        "update",
-        "remove",
-        "migrate",
-        "convert",
-        "replace",
-        "refactor",
-        "implement",
-        "create",
-        "build",
-        "move",
-        "rename",
-        "delete",
-        "extract",
-        "split",
-        "merge",
-        "upgrade",
-        "audit",
-        "test",
+    verbs = [
+        "add", "fix", "update", "remove", "migrate", "convert", "replace",
+        "refactor", "implement", "create", "build", "move", "rename",
+        "delete", "extract", "split", "merge", "upgrade", "audit", "test",
     ]
     lower = text.lower()
-    return any(lower.startswith(v) or f" {v} " in lower for v in action_verbs)
-
+    return any(lower.startswith(v) or f" {v} " in lower for v in verbs)
 
 
 def infer_priority(title: str) -> int:
-    """Infer priority from title keywords."""
     lower = title.lower()
     if any(w in lower for w in ["critical", "urgent", "blocker", "p0"]):
         return 1
@@ -168,369 +346,203 @@ def infer_priority(title: str) -> int:
         return 2
     if any(w in lower for w in ["low", "minor", "nice to have", "p3"]):
         return 4
-    return 3  # Default medium
-
-
-def load_queue(queue_path: Path) -> dict:
-    """Load the current queue."""
-    if queue_path.exists():
-        return json.loads(queue_path.read_text())
-    return {"version": 1, "items": []}
+    return 3
 
 
 def deduplicate(new_items: list[dict], existing_items: list[dict]) -> list[dict]:
-    """Remove items that already exist in the queue (by source_ref or title)."""
-    existing_titles = {item["title"].lower().strip() for item in existing_items}
-    existing_refs = set()
-    for item in existing_items:
-        ref = item.get("source_ref", "")
-        if ref:
-            existing_refs.add(ref.strip())
+    """Drop items already represented in the queue, by source_ref then title."""
+    existing_titles = {item.get("title", "").lower().strip() for item in existing_items}
+    existing_refs = {
+        str(item.get("source_ref") or "").strip()
+        for item in existing_items
+        if item.get("source_ref")
+    }
 
     unique = []
     for item in new_items:
-        source_ref = item.get("source_ref", "").strip()
-        # Skip if source_ref matches an existing item
-        if source_ref and source_ref in existing_refs:
+        ref = str(item.get("source_ref") or "").strip()
+        if ref and ref in existing_refs:
             continue
-        # Skip if exact title match
         if item["title"].lower().strip() in existing_titles:
             continue
         unique.append(item)
+        if ref:
+            existing_refs.add(ref)
     return unique
 
 
 def generate_id() -> str:
-    """Generate the next sequential work item ID using the shared counter."""
-    import subprocess
-
-    script = Path(__file__).parent / "next-ws-id.sh"
-    result = subprocess.run([str(script)], capture_output=True, text=True)
+    result = subprocess.run([str(SCRIPT_DIR / "next-ws-id.sh")], capture_output=True, text=True)
     if result.returncode != 0:
         print(f"  Error generating ID: {result.stderr.strip()}", file=sys.stderr)
         sys.exit(1)
     return result.stdout.strip()
 
 
-def poll_github_issues(source_name: str, config: dict) -> list[dict]:
-    """Poll GitHub Issues using the gh CLI.
-
-    Config keys:
-        repo: owner/repo (required)
-        labels: comma-separated labels to filter by
-        assignee: filter by assignee (default: @me)
-        state: issue state (default: open)
-        limit: max issues to fetch (default: 20)
-    """
-    import subprocess
-
-    repo = config.get("repo", "")
-    if not repo:
-        print("  Error: github source missing 'repo'", file=sys.stderr)
+def poll_adapter(adapter: dict) -> list[dict]:
+    """Poll one adapter and stamp its provenance onto every item."""
+    poll = ADAPTERS.get(adapter["type"])
+    if poll is None:
+        print(f"  Unknown adapter type: {adapter['type']}")
         return []
 
-    cmd = [
-        "gh", "issue", "list",
-        "--repo", repo,
-        "--state", config.get("state", "open"),
-        "--limit", config.get("limit", "20"),
-        "--json", "number,title,body,labels,assignees,createdAt,url",
-    ]
-
-    assignee = config.get("assignee", "@me")
-    if assignee:
-        cmd.extend(["--assignee", assignee])
-
-    labels = config.get("labels", "")
-    if labels:
-        # Handle both "label1,label2" and "['label1', 'label2']" formats
-        cleaned = labels.strip("[]\"' ")
-        for label in cleaned.split(","):
-            label = label.strip("\"' ")
-            if label:
-                cmd.extend(["--label", label])
-
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        if result.returncode != 0:
-            print(f"  gh CLI error: {result.stderr.strip()}", file=sys.stderr)
-            return []
-
-        issues = json.loads(result.stdout)
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError) as e:
-        print(f"  Error polling GitHub: {e}", file=sys.stderr)
+    problems = sources.validate_adapter(adapter)
+    if problems:
+        print(f"  Misconfigured: {'; '.join(problems)}", file=sys.stderr)
         return []
 
-    # Map priority from labels
-    priority_mapping = {}
-    for key, val in config.items():
-        if key.startswith("priority_mapping"):
-            # Simple key:value pairs under priority_mapping aren't parsed well
-            # by our minimal YAML parser, so also check label names
-            pass
+    items = poll(adapter["config"])
+    defaults = adapter["defaults"]
 
-    priority_labels = {"p0": 1, "p1": 2, "p2": 3, "p3": 4, "critical": 1, "urgent": 1, "high": 2, "low": 4}
-
-    items = []
-    for issue in issues:
-        title = issue.get("title", "")
-        body = issue.get("body", "") or ""
-        labels_list = [l.get("name", "") for l in issue.get("labels", [])]
-        issue_number = issue.get("number", 0)
-        issue_url = issue.get("url", "")
-
-        # Determine priority from labels
-        priority = 3  # default medium
-        for label in labels_list:
-            label_lower = label.lower().strip()
-            if label_lower in priority_labels:
-                priority = min(priority, priority_labels[label_lower])
-
-        # Carry the full body as plan content (not truncated)
-        plan_body = body.strip()
-
-        items.append({
-            "title": f"#{issue_number}: {title}",
-            "plan_body": plan_body,
-            "source": source_name,
-            "source_ref": issue_url,
-            "priority": priority,
-        })
+    for item in items:
+        item["adapter"] = adapter["name"]
+        item["provider"] = adapter["type"]
+        item["defaults"] = defaults
+        if not item.get("repo_key"):
+            item["repo_key"] = str(defaults.get("repo_key") or "")
+        if defaults.get("priority") and item.get("priority") == 3:
+            item["priority"] = int(defaults["priority"])
 
     return items
 
 
-def poll_jira_issues(source_name: str, config: dict) -> list[dict]:
-    """Poll Jira issues using the Jira REST API via curl.
-
-    Config keys:
-        domain: Jira domain (e.g. mycompany.atlassian.net) — required
-        board: board/project key to filter (e.g. CONSUMER) — required
-        filter: JQL filter string (default: assignee = currentUser() AND status != Done)
-        limit: max issues to fetch (default: 20)
-
-    Environment:
-        JIRA_EMAIL — Jira account email
-        JIRA_API_TOKEN — Jira API token (from https://id.atlassian.com/manage-profile/security/api-tokens)
-    """
-    import subprocess
-    import os
-
-    domain = config.get("domain", "")
-    board = config.get("board", "")
-    if not domain or not board:
-        print("  Error: jira source requires 'domain' and 'board'", file=sys.stderr)
-        return []
-
-    email = os.environ.get("JIRA_EMAIL", "")
-    token = os.environ.get("JIRA_API_TOKEN", "")
-    if not email or not token:
-        print("  Skipping Jira: JIRA_EMAIL and JIRA_API_TOKEN env vars required", file=sys.stderr)
-        return []
-
-    jql = config.get("filter", f"project = {board} AND assignee = currentUser() AND status != Done")
-    limit = config.get("limit", "20")
-
-    url = f"https://{domain}/rest/api/3/search?jql={jql}&maxResults={limit}&fields=summary,description,priority,labels,status,issuetype,assignee,created"
-
-    try:
-        result = subprocess.run(
-            [
-                "curl", "-s", "-u", f"{email}:{token}",
-                "-H", "Accept: application/json",
-                url,
-            ],
-            capture_output=True, text=True, timeout=30,
-        )
-        if result.returncode != 0:
-            print(f"  Jira API error: {result.stderr.strip()}", file=sys.stderr)
-            return []
-
-        data = json.loads(result.stdout)
-    except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
-        print(f"  Error polling Jira: {e}", file=sys.stderr)
-        return []
-
-    if "errorMessages" in data:
-        print(f"  Jira error: {data['errorMessages']}", file=sys.stderr)
-        return []
-
-    priority_mapping = {"highest": 1, "high": 2, "medium": 3, "low": 4, "lowest": 4}
-
-    items = []
-    for issue in data.get("issues", []):
-        key = issue.get("key", "")
-        fields = issue.get("fields", {})
-        summary = fields.get("summary", "")
-        description_doc = fields.get("description")
-
-        # Extract plain text from Atlassian Document Format
-        plan_body = ""
-        if description_doc and isinstance(description_doc, dict):
-            for block in description_doc.get("content", []):
-                for inline in block.get("content", []):
-                    if inline.get("type") == "text":
-                        plan_body += inline.get("text", "")
-                plan_body += "\n"
-            plan_body = plan_body.strip()
-
-        # Map priority
-        priority_name = (fields.get("priority") or {}).get("name", "").lower()
-        priority = priority_mapping.get(priority_name, 3)
-
-        items.append({
-            "title": f"{key}: {summary}",
-            "plan_body": plan_body,
-            "source": source_name,
-            "source_ref": f"https://{domain}/browse/{key}",
-            "priority": priority,
-        })
-
-    return items
+def write_context(item_id: str, body: str) -> str | None:
+    if not body.strip():
+        return None
+    CONTEXT_DIR.mkdir(parents=True, exist_ok=True)
+    path = CONTEXT_DIR / f"{item_id}.md"
+    path.write_text(body.rstrip() + "\n")
+    return str(path)
 
 
-def main():
+def build_queue_item(item_id: str, discovered: dict) -> dict:
+    defaults = discovered.get("defaults") or {}
+    context_file = write_context(item_id, discovered.get("context", ""))
+
+    return {
+        "id": item_id,
+        "source": discovered.get("adapter", "discovery"),
+        "source_ref": discovered.get("source_ref", ""),
+        "repo_key": discovered.get("repo_key") or None,
+        "title": discovered["title"],
+        "priority": discovered["priority"],
+        "status": "planning",
+        "blocked_by": [],
+        "created_at": datetime.now().isoformat(),
+        "activated_at": None,
+        "completed_at": None,
+        "integration": {
+            "adapter": discovered.get("adapter", ""),
+            "provider": discovered.get("provider", ""),
+            "issue_id": discovered.get("issue_id") or None,
+            "identifier": discovered.get("identifier") or None,
+            "url": discovered.get("url") or None,
+            "context_file": context_file,
+            "synced_status": None,
+            "synced_at": None,
+        },
+        "environment": {
+            "repo": None,
+            "use_worktree": True,
+            "branch": None,
+            "worktree_path": None,
+            "session_id": None,
+        },
+        "worker": {
+            "commit_strategy": defaults.get("commit_strategy") or "branch_and_pr",
+            "delegator_enabled": bool(defaults.get("delegator_enabled", True)),
+        },
+        "plan": {
+            "file": None,
+            "summary": None,
+            "approved": False,
+            "approved_at": None,
+        },
+        "runtime": {
+            "delegator_status": None,
+            "spend": None,
+            "last_activity": None,
+            "pr_url": None,
+            "stack_prs": None,
+            "completion_message": None,
+        },
+    }
+
+
+def main() -> None:
     import argparse
+    import functools
 
-    parser = argparse.ArgumentParser(description="Discover work items from sources")
+    parser = argparse.ArgumentParser(description="Discover work items from adapters")
     parser.add_argument("--dry-run", action="store_true", help="Show discoveries without adding")
-    parser.add_argument("--output-json", action="store_true", help="Output discovered items as JSON (implies --dry-run)")
-    parser.add_argument("--source", type=str, help="Only poll a specific source")
+    parser.add_argument("--output-json", action="store_true", help="Emit discoveries as JSON (implies dry run)")
+    parser.add_argument("--source", type=str, default="", help="Only poll one adapter by name")
+    parser.add_argument("--describe-adapters", action="store_true", help="Emit adapter field specs as JSON")
     args = parser.parse_args()
 
-    project_root = Path(__file__).parent.parent
-    sources_config = load_yaml_with_local(project_root / "config" / "sources.yml")
-    env_config = load_yaml_with_local(project_root / "config" / "environment.yml")
+    if args.describe_adapters:
+        print(json.dumps(sources.describe_adapters()))
+        return
 
-    queue_path = Path(
-        env_config.get("state", {}).get("queue_file", "~/.claude/orchestrator/queue.json").replace(
-            "~", str(Path.home())
-        )
-    )
-    queue = load_queue(queue_path)
+    # With --output-json, stdout carries only the JSON payload.
+    log = functools.partial(print, file=sys.stderr) if args.output_json else print
 
-    sources = sources_config.get("sources", {})
-    if args.source:
-        sources = {k: v for k, v in sources.items() if k == args.source}
+    with locked_queue() as ctx:
+        existing_items = list(ctx["data"].get("items", []))
 
-    all_new = []
+    adapters = sources.enabled_adapters(PROJECT_ROOT, args.source)
+    if not adapters:
+        log("No enabled adapters configured.")
+        return
 
-    for name, config in sources.items():
-        source_type = config.get("type", "unknown")
-        print(f"Polling source: {name} (type: {source_type})")
+    discovered: list[dict] = []
+    for adapter in adapters:
+        log(f"Polling adapter: {adapter['name']} (type: {adapter['type']})")
+        items = poll_adapter(adapter)
+        discovered.extend(items)
+        log(f"  Found {len(items)} items")
 
-        if source_type == "markdown":
-            path = Path(config.get("path", "").replace("~", str(Path.home())))
-            items = parse_markdown_source(path)
-            for item in items:
-                item["source"] = name
-            all_new.extend(items)
-            print(f"  Found {len(items)} items")
+    unique = deduplicate(discovered, existing_items)
+    log(f"\nTotal discovered: {len(discovered)}")
+    log(f"New (after dedup): {len(unique)}")
 
-        elif source_type == "jira":
-            items = poll_jira_issues(name, config)
-            all_new.extend(items)
-            print(f"  Found {len(items)} items")
-
-        elif source_type == "github":
-            items = poll_github_issues(name, config)
-            all_new.extend(items)
-            print(f"  Found {len(items)} items")
-
-        else:
-            print(f"  Unknown source type: {source_type}")
-
-    # Deduplicate
-    unique = deduplicate(all_new, queue["items"])
-    print(f"\nTotal discovered: {len(all_new)}")
-    print(f"New (after dedup): {len(unique)}")
+    if args.output_json:
+        # Report everything the filter matched, flagging what is already queued, so
+        # a preview never reads as "nothing matched" when the truth is "already here".
+        new_refs = {str(item.get("source_ref") or "") for item in unique}
+        print(json.dumps([{
+            "title": item["title"],
+            "priority": item["priority"],
+            "source": item.get("adapter", "discovery"),
+            "source_ref": item.get("source_ref", ""),
+            "repo_key": item.get("repo_key", ""),
+            "new": str(item.get("source_ref") or "") in new_refs,
+        } for item in discovered]))
+        return
 
     if not unique:
         print("No new items to add.")
         return
 
-    if args.output_json or args.dry_run:
-        if args.output_json:
-            print(json.dumps([{
-                "title": item["title"],
-                "plan_body": item.get("plan_body", ""),
-                "priority": item["priority"],
-                "source": item.get("source", "discovery"),
-                "source_ref": item.get("source_ref", ""),
-            } for item in unique]))
-        else:
-            print("\n--- NEW ITEMS (dry run) ---")
-            for item in unique:
-                print(f"  p{item['priority']} {item['title']}")
-                if item.get("plan_body"):
-                    print(f"    {item['plan_body'][:200]}")
+    if args.dry_run:
+        print("\n--- NEW ITEMS (dry run) ---")
+        for item in unique:
+            print(f"  p{item['priority']} {item['title']}")
         return
 
-    # Resolve plans directory from environment config (with sensible fallback).
-    plans_dir_raw = env_config.get("plans", {}).get("plans_directory") or env_config.get(
-        "artifacts", {}
-    ).get("artifacts_directory") or "~/.claude/orchestrator/plans"
-    plans_dir = Path(plans_dir_raw.replace("~", str(Path.home())))
-    plans_dir.mkdir(parents=True, exist_ok=True)
+    added = []
+    with locked_queue(write=True) as ctx:
+        # Re-check inside the lock so a concurrent writer cannot produce a duplicate.
+        fresh = deduplicate(unique, ctx["data"].get("items", []))
+        for item in fresh:
+            item_id = generate_id()
+            ctx["data"]["items"].append(build_queue_item(item_id, item))
+            added.append((item_id, item["title"]))
+            ctx["modified"] = True
 
-    # Add new items to queue
-    for item in unique:
-        item_id = generate_id()
-
-        # Write a starter plan file from the discovered content.
-        plan_path = plans_dir / f"{item_id}.md"
-        plan_body = item.get("plan_body", "").strip()
-        plan_contents = f"# {item['title']}\n\n"
-        if item.get("source_ref"):
-            plan_contents += f"_Source: {item['source_ref']}_\n\n"
-        if plan_body:
-            plan_contents += plan_body + "\n"
-        else:
-            plan_contents += "_(no body — fill in implementation details before activating.)_\n"
-        plan_path.write_text(plan_contents)
-
-        queue_item = {
-            "id": item_id,
-            "source": item.get("source", "discovery"),
-            "source_ref": item.get("source_ref", ""),
-            "title": item["title"],
-            "priority": item["priority"],
-            "status": "queued",
-            "blocked_by": [],
-            "created_at": datetime.now().isoformat(),
-            "activated_at": None,
-            "completed_at": None,
-            "environment": {
-                "repo": None,
-                "use_worktree": True,
-                "branch": None,
-                "worktree_path": None,
-                "session_id": None,
-            },
-            "worker": {
-                "commit_strategy": "branch_and_pr",
-                "delegator_enabled": True,
-            },
-            "plan": {
-                "file": str(plan_path),
-                "summary": None,
-                "approved": False,
-                "approved_at": None,
-            },
-            "runtime": {
-                "delegator_status": None,
-                "spend": None,
-                "last_activity": None,
-                "pr_url": None,
-                "stack_prs": None,
-                "completion_message": None,
-            },
-        }
-        queue["items"].append(queue_item)
-        print(f"  Added: {item_id} — {item['title']}")
-
-    queue_path.write_text(json.dumps(queue, indent=2) + "\n")
-    print(f"\nQueue updated: {len(unique)} new items added.")
+    for item_id, title in added:
+        print(f"  Added: {item_id} — {title}")
+    print(f"\nQueue updated: {len(added)} new items added.")
 
 
 if __name__ == "__main__":

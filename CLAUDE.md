@@ -122,6 +122,27 @@ Delegators are **not** persistent sessions. They are stateless `claude --print` 
 - **Never run all tests** — always target specific test files.
 - **Self-targeting items (orchestrator repo)**: When creating a work item that targets the orchestrator repo itself, ALWAYS set `environment.repo` to a workspace subdirectory (e.g. `~/.claude/orchestrator/workspaces/<item-id>`) and `environment.use_worktree: false`. NEVER point `environment.repo` to the orchestrator root — this would cause vmux to spawn a worker session at the orchestrator's own directory, taking over the orchestrator's session. Also set `worker.commit_strategy: commit_to_main` since these items commit directly to main without branches or PRs.
 
+## Work Discovery
+
+Adapters in `config/sources.json` are polled by the scheduler on the
+`discovery.interval` cycle. There is no manual import step. Each adapter declares
+a filter, defaults for the items it creates, and an optional writeback mapping from
+orchestrator status to source-tracker status.
+
+Imported items land as `queued` with no plan and an `integration` block linking back
+to the source issue. The issue body and discussion are written to
+`~/.claude/orchestrator/context/<item-id>.md`, which `generate-plan.sh` feeds into
+the plan prompt. Plans still require approval before activation, so importing a
+ticket never starts work on its own.
+
+Credentials resolve from the process environment first and
+`~/.claude/orchestrator/.env` second. The scheduler runs under launchd and does not
+source a shell profile, so a `.zshrc` export alone is not visible to it.
+
+Adapter field specs live in `scripts/lib/sources.py`. Adding a field there makes it
+appear in the dashboard form automatically; never duplicate the field list in
+TypeScript.
+
 ## Work Queue Management
 
 - Queue file: `~/.claude/orchestrator/queue.json`

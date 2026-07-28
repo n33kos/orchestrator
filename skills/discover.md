@@ -1,37 +1,40 @@
 ---
-description: Discover new work items from configured sources (GitHub Issues, markdown plans)
+description: Inspect the configured work sources and poll them on demand
 user_invocable: true
 ---
 
-# Discover Work
+# Work Discovery
 
-Run work discovery to find new items from configured sources (GitHub Issues, markdown plan files).
+The scheduler polls every enabled adapter in `config/sources.json` on its own
+interval (`discovery.interval` in `config/environment.yml`), so discovery normally
+needs no manual step. Use this skill to inspect adapters or force a poll.
 
-## Process
-
-1. Run discovery in dry-run mode first to preview:
+## Show the configured adapters
 
 ```bash
-python3 ~/orchestrator/scripts/discover-work.py --dry-run
+cd ~/orchestrator/scripts && python3 -m lib.sources get
 ```
 
-2. Show the user what was found: new items, their inferred types and priorities
-3. Ask if they want to add the discovered items
-4. If yes, run without dry-run:
+Each adapter reports a `problems` array. A non-empty array means the adapter is
+misconfigured and will be skipped at poll time.
+
+## Preview what an adapter would import
+
+```bash
+python3 ~/orchestrator/scripts/discover-work.py --dry-run --source <adapter-name>
+```
+
+## Poll now instead of waiting for the scheduler
 
 ```bash
 python3 ~/orchestrator/scripts/discover-work.py
 ```
 
-5. Report what was added to the queue
+Report which items were added, then stop. Imported items arrive as `queued` with
+no plan, so the scheduler generates a plan from the issue body and discussion and
+leaves it unapproved. Approval and activation stay a human decision.
 
-## Options
+## Change what gets imported
 
-- `--source NAME` — Only poll a specific source (e.g., `--source github-issues`)
-- `--dry-run` — Preview without adding
-
-## Sources
-
-Sources are configured in `~/orchestrator/config/sources.yml`. Current sources:
-- **markdown** — Parse markdown plan files for task items
-- **github** — Poll GitHub Issues assigned to you with optional label filters
+Adapter configuration lives in the dashboard's Work Sources panel. Editing
+`config/sources.json` by hand works too; the scheduler rereads it each cycle.

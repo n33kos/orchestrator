@@ -4,8 +4,9 @@
 # Usage:
 #   ./scripts/generate-plan.sh <item-id> [--auto-approve]
 #
-# Generates a markdown plan file in the configured plans directory and
-# stores a reference in the queue item's metadata. Moves the item to "planning" status.
+# Generates a markdown plan file in the configured plans directory and stores a
+# reference in the queue item's metadata. A completed plan moves the item out of
+# "planning" and into "queued", where it awaits approval.
 
 set -euo pipefail
 
@@ -20,6 +21,7 @@ eval "$("$SCRIPT_DIR/parse-config.sh" "$CONFIG")"
 
 QUEUE_FILE="$CONFIG_QUEUE_FILE"
 REPO_PATH="$CONFIG_REPO_PATH"
+REPOSITORIES_JSON="$CONFIG_REPOSITORIES_JSON"
 PLANS_DIR="${CONFIG_ARTIFACTS_DIR:-$HOME/.claude/orchestrator/plans}"
 QUEUE_PY="python3 -m lib.queue"
 
@@ -65,12 +67,36 @@ if [[ -n "$EXISTING_PLAN" && "$EXISTING_PLAN" != "None" ]]; then
 fi
 
 # Extract fields in a single call
-IFS=$'\x1f' read -r ITEM_TITLE ITEM_BRANCH ENV_REPO \
-    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" title environment.branch environment.repo)
+IFS=$'\x1f' read -r ITEM_TITLE ITEM_BRANCH ENV_REPO REPO_KEY \
+    < <(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" title environment.branch environment.repo repo_key)
 ENV_REPO="$(echo "$ENV_REPO" | sed "s|~|$HOME|")"
 
-# Determine the target repo for context
-TARGET_REPO="${ENV_REPO:-$REPO_PATH}"
+# Determine the target repo. An explicit environment.repo wins, then repo_key's
+# configured path, then the _defaults path.
+TARGET_REPO=""
+if [[ -n "$ENV_REPO" && "$ENV_REPO" != "None" ]]; then
+    TARGET_REPO="$ENV_REPO"
+elif [[ -n "$REPO_KEY" && "$REPO_KEY" != "None" ]]; then
+    TARGET_REPO="$(python3 -c "
+import json, os, sys
+repos = json.loads(sys.argv[1])
+repo = repos.get(sys.argv[2]) or repos.get('_defaults', {})
+print(os.path.expanduser(repo.get('path', '')))
+" "$REPOSITORIES_JSON" "$REPO_KEY")"
+fi
+TARGET_REPO="${TARGET_REPO:-$REPO_PATH}"
+
+# Source context is the imported ticket body and discussion, when the item came
+# from a work-discovery adapter rather than being entered by hand.
+CONTEXT_FILE="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" integration.context_file 2>/dev/null)" || true
+SOURCE_CONTEXT=""
+if [[ -n "$CONTEXT_FILE" && "$CONTEXT_FILE" != "None" ]]; then
+    CONTEXT_FILE="${CONTEXT_FILE/#\~/$HOME}"
+    if [[ -s "$CONTEXT_FILE" ]]; then
+        SOURCE_CONTEXT="$(cat "$CONTEXT_FILE")"
+        echo "  Source context: $CONTEXT_FILE"
+    fi
+fi
 
 echo "Generating plan for: $ITEM_TITLE ($ITEM_ID)"
 echo "  Repo: $TARGET_REPO"
@@ -86,7 +112,15 @@ Work item:
 - Title: $ITEM_TITLE
 - Branch: $ITEM_BRANCH
 - Repository: $TARGET_REPO
+${SOURCE_CONTEXT:+
+The work item was imported from an issue tracker. Its description and discussion
+follow. Treat this as the authoritative statement of intent and ground the plan in
+it rather than inventing scope.
 
+--- SOURCE CONTEXT ---
+$SOURCE_CONTEXT
+--- END SOURCE CONTEXT ---
+}
 Generate a plan document with:
 1. A title header matching the work item title
 2. A "Summary" section with 1-3 sentences describing the implementation approach
@@ -148,18 +182,9 @@ content = sys.stdin.read().strip()
 summary_match = re.search(r'## Summary\s*\n+(.*?)(?=\n## |\Z)', content, re.DOTALL)
 summary = summary_match.group(1).strip() if summary_match else content[:200]
 
-# Extract steps: lines starting with - [ ] or - [x]
-steps = []
-for i, match in enumerate(re.finditer(r'- \[([ x])\]\s*(.+)', content)):
-    done = match.group(1) == 'x'
-    text = match.group(2).strip()
-    steps.append({'id': f'step-{i+1}', 'text': text, 'done': done})
-
 plan = {
     'summary': summary,
-    'steps': steps,
     'approved': False,
-    'created_at': datetime.now(timezone.utc).isoformat(),
     'approved_at': None,
 }
 
@@ -169,7 +194,7 @@ print(json.dumps(plan))
 # Validate that the JSON extraction succeeded
 if [[ -z "$PLAN_JSON" ]] || ! echo "$PLAN_JSON" | python3 -c "import json, sys; json.load(sys.stdin)" 2>/dev/null; then
     echo "  WARNING: Plan JSON extraction failed, using fallback summary"
-    PLAN_JSON='{"summary":"Plan generated — see plan file for details","steps":[],"approved":false,"created_at":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","approved_at":null}'
+    PLAN_JSON='{"summary":"Plan generated. See plan file for details.","approved":false,"approved_at":null}'
 fi
 
 # Auto-approve if requested
@@ -198,15 +223,15 @@ with locked_queue(write=True) as ctx:
     item = find_item(ctx['data'], '$ITEM_ID')
     if item:
         item.setdefault('plan', {}).update(plan)
-        if item['status'] == 'queued':
-            item['status'] = 'planning'
+        if item['status'] == 'planning':
+            item['status'] = 'queued'
         ctx['modified'] = True
 " <<< "$PLAN_JSON"
 
 echo ""
 echo "Plan saved."
 echo "  File: $PLAN_FILE"
-echo "  Status: planning"
+echo "  Status: queued (awaiting plan approval)"
 
 # Print the plan summary
 echo ""
@@ -216,12 +241,7 @@ import json, sys
 plan = json.load(sys.stdin)
 print(f'  {plan[\"summary\"]}')
 print()
-for step in plan['steps']:
-    marker = 'x' if step['done'] else ' '
-    print(f'  [{marker}] {step[\"text\"]}')
-approved = plan.get('approved', False)
-print()
-print(f'  Approved: {approved}')
+print(f'  Approved: {plan.get(\"approved\", False)}')
 "
 
 emit_event "plan.generated" "Plan generated for $ITEM_TITLE" --item-id "$ITEM_ID"

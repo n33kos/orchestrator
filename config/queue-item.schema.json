@@ -20,6 +20,22 @@
       "enum": ["queued", "planning", "active", "review", "completed", "cancelled"]
     },
     "blocked_by": { "type": "array" },
+    "integration": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "description": "Link back to the external issue this item was discovered from. Absent for hand-entered items.",
+      "properties": {
+        "adapter": { "type": "string" },
+        "provider": { "type": "string" },
+        "issue_id": { "type": ["string", "null"] },
+        "identifier": { "type": ["string", "null"] },
+        "url": { "type": ["string", "null"] },
+        "context_file": { "type": ["string", "null"] },
+        "announced_at": { "type": ["string", "null"] },
+        "synced_status": { "type": ["string", "null"] },
+        "synced_at": { "type": ["string", "null"] }
+      }
+    },
     "created_at": { "type": "string" },
     "activated_at": { "type": ["string", "null"] },
     "completed_at": { "type": ["string", "null"] },

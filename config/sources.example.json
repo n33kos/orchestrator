@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "adapters": [
+    {
+      "name": "linear-orchestrator",
+      "type": "linear",
+      "enabled": false,
+      "config": {
+        "team": "Front-end Platform Team",
+        "assignee": "me",
+        "labels": ["orchestrator"],
+        "states": [],
+        "project": "",
+        "min_priority": 0,
+        "include_comments": true,
+        "raw_filter": "",
+        "limit": 20
+      },
+      "defaults": {
+        "repo_key": "babylist-web",
+        "priority": 3,
+        "commit_strategy": "branch_and_pr",
+        "delegator_enabled": true
+      },
+      "writeback": {
+        "enabled": true,
+        "comment_on_import": true,
+        "status_map": {
+          "active": "In Progress",
+          "review": "In Review",
+          "completed": "Done"
+        }
+      }
+    },
+    {
+      "name": "github-issues",
+      "type": "github",
+      "enabled": false,
+      "config": {
+        "repo": "owner/repo",
+        "assignee": "@me",
+        "labels": ["agent/claude-code"],
+        "state": "open",
+        "limit": 20
+      },
+      "defaults": {
+        "repo_key": "",
+        "priority": 3,
+        "commit_strategy": "branch_and_pr",
+        "delegator_enabled": true
+      },
+      "writeback": {
+        "enabled": false,
+        "comment_on_import": false,
+        "status_map": {}
+      }
+    }
+  ]
+}

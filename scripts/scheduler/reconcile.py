@@ -330,7 +330,7 @@ def generate_plans(cfg: Config, dry_run: bool) -> None:
     for item in data["items"]:
         plan = item.get("plan") or {}
         has_plan = isinstance(plan, dict) and (plan.get("summary") or plan.get("file"))
-        if item["status"] == "queued" and not has_plan:
+        if item["status"] in ("queued", "planning") and not has_plan:
             item_id, item_title = item["id"], item["title"]
             if dry_run:
                 print(f"[scheduler] Would generate plan for: {item_id} — {item_title}")
@@ -352,34 +352,43 @@ def generate_plans(cfg: Config, dry_run: bool) -> None:
 
 
 def check_planning_timeouts(cfg: Config) -> None:
-    """Revert items stuck in 'planning' without a completed plan back to 'queued'."""
+    """Warn about items stuck in 'planning' without a completed plan.
+
+    'planning' is where an item without a plan legitimately waits, and
+    generate_plans retries it every cycle, so a stuck item is reported rather
+    than pushed forward. Promoting it to 'queued' here would move an unplanned
+    item toward activation.
+    """
     now = datetime.now(timezone.utc)
     timeout = timedelta(minutes=10)
 
-    with locked_queue(write=True) as ctx:
-        data = ctx["data"]
-        for item in data["items"]:
-            if item["status"] != "planning":
-                continue
-            plan = item.get("plan") or {}
-            if isinstance(plan, dict) and plan.get("summary"):
-                continue
-            activated = item.get("activated_at") or item.get("created_at")
-            if not activated:
-                continue
-            try:
-                activated_dt = datetime.fromisoformat(activated.replace("Z", "+00:00"))
-                if activated_dt.tzinfo is None:
-                    activated_dt = activated_dt.replace(tzinfo=timezone.utc)
-                if now - activated_dt > timeout:
-                    item_id, item_title = item["id"], item["title"]
-                    print(f"[scheduler] Planning timeout: {item_id} ({item_title}) — reverting to queued")
-                    emit_event("scheduler.planning_timeout", f"Plan timed out for {item_title}", item_id=item_id, severity="warn")
-                    item["status"] = "queued"
-                    item["plan"] = {"file": None, "summary": None, "approved": False, "approved_at": None}
-                    ctx["modified"] = True
-            except (ValueError, TypeError):
-                continue
+    with locked_queue() as ctx:
+        items = list(ctx["data"]["items"])
+
+    for item in items:
+        if item["status"] != "planning":
+            continue
+        plan = item.get("plan") or {}
+        if isinstance(plan, dict) and plan.get("summary"):
+            continue
+        activated = item.get("activated_at") or item.get("created_at")
+        if not activated:
+            continue
+        try:
+            activated_dt = datetime.fromisoformat(activated.replace("Z", "+00:00"))
+            if activated_dt.tzinfo is None:
+                activated_dt = activated_dt.replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError):
+            continue
+        if now - activated_dt > timeout:
+            item_id, item_title = item["id"], item["title"]
+            print(f"[scheduler] Still planning after {timeout}: {item_id} ({item_title})")
+            emit_event(
+                "scheduler.planning_stalled",
+                f"No plan yet for {item_title}",
+                item_id=item_id,
+                severity="warn",
+            )
 
 
 def process_worker_completions(cfg: Config, dry_run: bool) -> None:

@@ -921,10 +921,7 @@ export function App() {
         />
       )}
       {showDiscoverPanel && (
-        <DiscoverPanel
-          onClose={() => setShowDiscoverPanel(false)}
-          onQueueRefresh={queue.refresh}
-        />
+        <DiscoverPanel onClose={() => setShowDiscoverPanel(false)} />
       )}
       {showShortcuts && (
         <ShortcutSheet onClose={() => setShowShortcuts(false)} />

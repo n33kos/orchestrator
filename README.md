@@ -72,7 +72,8 @@ orchestrator/
 ├── config/
 │   ├── environment.yml            # Site-specific values (paths, tools, identity)
 │   ├── environment.local.yml      # Personal overrides (gitignored)
-│   ├── sources.yml                # Work source definitions
+│   ├── sources.example.json       # Work source adapter template
+│   ├── sources.json               # Work source adapters (gitignored)
 │   ├── sources.local.yml          # Personal source overrides (gitignored)
 │   └── com.orchestrator.scheduler.plist  # launchd service definition
 ├── skills/                # CLI skills (slash commands)
@@ -80,7 +81,7 @@ orchestrator/
 │   ├── add-work.md        # /add-work — add item to queue
 │   ├── activate.md        # /activate — create worktree + session + delegator
 │   ├── teardown.md        # /teardown — kill session, remove worktree
-│   ├── discover.md        # /discover — scan sources for new work
+│   ├── discover.md        # /discover — inspect and poll work sources
 │   ├── health.md          # /health — detect zombies and stalls
 │   ├── schedule.md        # /schedule — run queue scheduler
 │   └── plan.md            # /plan — generate implementation plan
@@ -97,7 +98,7 @@ orchestrator/
 │   ├── delegator-status.sh         # Delegator instance monitoring
 │   ├── health-check.sh             # Zombie/stall/dependency detection
 │   ├── status.sh                   # Comprehensive status report
-│   ├── discover-work.py            # Work discovery (markdown, GitHub, Jira)
+│   ├── discover-work.py            # Work discovery (Linear, GitHub, Jira, markdown)
 │   ├── generate-plan.sh            # Auto-generate plan for queued item
 │   ├── migrate-plans.sh            # Migrate inline plans to markdown files
 │   ├── sync-plan-metadata.sh       # Sync metadata headers in plan files
@@ -272,6 +273,8 @@ The web dashboard is a PWA built with Vite 7, React 19, TypeScript 5.9, and Sass
 | `/api/stream/teardown` | POST | Full stream teardown |
 | `/api/health` | GET | Health check (JSON) |
 | `/api/discover` | POST | Trigger work discovery |
+| `/api/discover/sources` | GET, PUT | Read and replace the configured adapters |
+| `/api/discover/adapter-types` | GET | Field specs for rendering adapter forms |
 | `/api/delegators` | GET | Delegator status |
 | `/api/delegators/spawn` | POST | Spawn a delegator |
 | `/api/pr-status` | GET | Fetch GitHub PR metadata |
@@ -298,13 +301,27 @@ All site-specific values. Override with `config/environment.local.yml` (gitignor
 | `dashboard` | `port` (3201) |
 | `scheduler` | `poll_interval` (120s), `cleanup_every`, `archive_after_days` |
 | `stall_detection` | `threshold_minutes` (30) |
+| `discovery` | `interval` (900s, 0 disables), `writeback` |
 
-### `config/sources.yml`
+### `config/sources.json`
 
-Defines where the orchestrator discovers work. Supported adapters:
-- `markdown` — Parse task items from markdown plan files
-- `github` — Poll GitHub Issues via `gh` CLI
-- `jira` — Jira integration (requires jira CLI/API)
+Defines the adapters the scheduler polls for new work. Edit it from the dashboard's
+Work Sources panel, or by hand starting from `config/sources.example.json`. The file
+is gitignored because adapter config is personal.
+
+Supported adapter types:
+- `linear` — Poll a Linear team via GraphQL (requires `LINEAR_API_KEY`)
+- `github` — Poll GitHub Issues via the `gh` CLI
+- `jira` — Poll Jira via the REST API (requires `JIRA_EMAIL` and `JIRA_API_TOKEN`)
+- `markdown` — Parse task items from a local markdown file
+
+Each adapter carries a `config` block (the source-specific filter), a `defaults`
+block applied to imported items, and a `writeback` block that maps orchestrator
+statuses onto source-tracker statuses.
+
+Credentials come from the process environment, falling back to
+`~/.claude/orchestrator/.env`. The scheduler runs under launchd, which does not
+source a shell profile, so an `export` in `.zshrc` alone is not enough.
 
 ## Dependencies
 

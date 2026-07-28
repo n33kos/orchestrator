@@ -107,6 +107,7 @@ class RepoConfig:
         self.use_worktree: bool = True
         self.branching_pattern: str = ""
         self.base_branch: str = "main"
+        self.description: str = ""
         self.worktree_setup: str = "git worktree add -b {branch} {path} {base_branch}"
         self.worktree_setup_quick: str = "git worktree add -b {branch} {path} {base_branch}"
         self.worktree_teardown: str = "git worktree remove {path}"
@@ -169,6 +170,10 @@ class Config:
         self.cleanup_every: int = 10
         self.archive_after_days: int = 7
 
+        # Work discovery (0 disables polling of configured adapters)
+        self.discovery_interval: int = 900
+        self.discovery_writeback: bool = True
+
         # Stall Detection
         self.stall_threshold_min: int = 30
 
@@ -212,6 +217,7 @@ def _build_repo_config(
     rc.branching_pattern = repo_vals.get(
         "branching_pattern", defaults.get("branching_pattern", "")
     )
+    rc.description = repo_vals.get("description", "")
     rc.base_branch = repo_vals.get(
         "base_branch", defaults.get("base_branch", "main")
     )
@@ -339,6 +345,8 @@ def load_config(project_root: Optional[str] = None) -> Config:
     # Scheduler
     cfg.poll_interval = cfg._int(values.get("scheduler.poll_interval", "120"), 120)
     cfg.cleanup_every = cfg._int(values.get("scheduler.cleanup_every", "10"), 10)
+    cfg.discovery_interval = cfg._int(values.get("discovery.interval", "900"), 900)
+    cfg.discovery_writeback = cfg._bool(values.get("discovery.writeback", "true"))
     cfg.archive_after_days = cfg._int(
         values.get("scheduler.archive_after_days", "7"), 7
     )

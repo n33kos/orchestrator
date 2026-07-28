@@ -35,6 +35,22 @@ trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 # Read, increment, write.
 current=$(cat "$COUNTER_FILE")
 current=${current:-0}
+
+# The counter can fall behind when IDs are assigned without going through this
+# script. Reissuing a used ID would collide with its plan file, worktree, and
+# session name, so take the high-water mark across the queue and the archive.
+HIGHEST="$(
+  find "${HOME}/.claude/orchestrator" -maxdepth 2 \
+    \( -name 'queue.json' -o -path '*/archive/*.json' \) -type f -print0 2>/dev/null |
+  xargs -0 grep -ho 'ws-[0-9]\{1,\}' 2>/dev/null |
+  sed 's/ws-0*//' |
+  sort -n |
+  tail -1
+)"
+if [[ -n "$HIGHEST" && "$HIGHEST" -gt "$current" ]]; then
+  current="$HIGHEST"
+fi
+
 next=$((current + 1))
 echo -n "$next" > "$COUNTER_FILE"
 

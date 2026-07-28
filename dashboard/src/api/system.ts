@@ -76,41 +76,60 @@ export function registerSystemRoutes(server: ViteDevServer) {
     }
   })
 
-  // GET /api/discover/sources — list configured work discovery sources
-  server.middlewares.use('/api/discover/sources', (_req, res) => {
+  // GET /api/discover/adapter-types — field specs for rendering adapter forms
+  server.middlewares.use('/api/discover/adapter-types', (_req, res) => {
     res.setHeader('Content-Type', 'application/json')
-    try {
-      const sourcesPath = join(__dirname, '..', '..', '..', 'config', 'sources.yml')
-      const content = readConfigWithLocal(sourcesPath)
-      const sources: { name: string; type: string; detail: string }[] = []
-      let currentName = ''
-      let currentType = ''
-      let currentDetail = ''
-
-      for (const line of content.split('\n')) {
-        const nameMatch = line.match(/^  (\S[^:]+):/)
-        if (nameMatch && !line.trim().startsWith('#')) {
-          if (currentName) sources.push({ name: currentName, type: currentType, detail: currentDetail })
-          currentName = nameMatch[1]
-          currentType = ''
-          currentDetail = ''
-          continue
-        }
-        const typeMatch = line.match(/^\s+type:\s*(.+)/)
-        if (typeMatch) { currentType = typeMatch[1].trim(); continue }
-        const repoMatch = line.match(/^\s+repo:\s*(.+)/)
-        if (repoMatch) { currentDetail = repoMatch[1].trim(); continue }
-        const pathMatch = line.match(/^\s+path:\s*(.+)/)
-        if (pathMatch && !currentDetail) { currentDetail = pathMatch[1].trim(); continue }
-        const domainMatch = line.match(/^\s+domain:\s*(.+)/)
-        if (domainMatch && !currentDetail) { currentDetail = domainMatch[1].trim(); continue }
+    execFile('python3', ['-m', 'lib.sources', 'describe'], {
+      cwd: join(__dirname, '..', '..', '..', 'scripts'),
+      timeout: 10000,
+      env: { ...process.env, HOME: homedir() },
+    }, (err, stdout, stderr) => {
+      if (err) {
+        res.statusCode = 500
+        res.end(JSON.stringify({ error: stderr || String(err) }))
+        return
       }
-      if (currentName) sources.push({ name: currentName, type: currentType, detail: currentDetail })
+      res.end(stdout)
+    })
+  })
 
-      res.end(JSON.stringify({ sources }))
-    } catch {
-      res.end(JSON.stringify({ sources: [] }))
+  // GET /api/discover/sources — read adapters; PUT — replace them
+  server.middlewares.use('/api/discover/sources', async (req, res) => {
+    res.setHeader('Content-Type', 'application/json')
+    const cwd = join(__dirname, '..', '..', '..', 'scripts')
+    const options = { cwd, timeout: 10000, env: { ...process.env, HOME: homedir() } }
+
+    if (req.method === 'PUT' || req.method === 'POST') {
+      let body: string
+      try {
+        body = await readBody(req)
+        JSON.parse(body)
+      } catch (err) {
+        res.statusCode = 400
+        res.end(JSON.stringify({ error: `invalid JSON body: ${String(err)}` }))
+        return
+      }
+
+      const child = execFile('python3', ['-m', 'lib.sources', 'set'], options, (err, stdout, stderr) => {
+        if (err) {
+          res.statusCode = 400
+          res.end(stdout || JSON.stringify({ error: stderr || String(err) }))
+          return
+        }
+        res.end(stdout)
+      })
+      child.stdin?.end(body)
+      return
     }
+
+    execFile('python3', ['-m', 'lib.sources', 'get'], options, (err, stdout, stderr) => {
+      if (err) {
+        res.statusCode = 500
+        res.end(JSON.stringify({ error: stderr || String(err), adapters: [] }))
+        return
+      }
+      res.end(stdout)
+    })
   })
 
   // POST /api/discover — trigger work discovery

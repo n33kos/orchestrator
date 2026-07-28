@@ -87,6 +87,14 @@ scheduler:
   cleanup_every: 10  # cycles between cleanup runs
   archive_after_days: 7
 
+# Work Discovery
+# Adapters are configured in config/sources.json (edit them from the dashboard).
+# interval  — seconds between adapter polls; 0 disables discovery entirely
+# writeback — push orchestrator status changes back to the source issue tracker
+discovery:
+  interval: 900
+  writeback: true
+
 # Delegator Directives
 # Per-status instructions that the delegator evaluates during its monitoring cycle.
 # Directives are loaded from delegator/directives/<status>/*.md files.

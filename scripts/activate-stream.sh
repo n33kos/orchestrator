@@ -105,9 +105,11 @@ IFS=$'\x1f' read -r ITEM_STATUS ITEM_BRANCH ITEM_TITLE DELEGATOR_ENABLED ENV_REP
 resolve_repo_config "$REPO_KEY"
 
 # Per-item overrides take precedence over repo config
+HAS_REPO_OVERRIDE=false
 if [[ -n "$ENV_REPO" && "$ENV_REPO" != "None" ]]; then
     ENV_REPO="${ENV_REPO/#\~/$HOME}"
     REPO_PATH="$ENV_REPO"
+    HAS_REPO_OVERRIDE=true
 fi
 if [[ -n "$USE_WORKTREE" && "$USE_WORKTREE" != "None" ]]; then
     [[ "$USE_WORKTREE" == "True" ]] && REPO_USE_WORKTREE="true" || REPO_USE_WORKTREE="false"
@@ -118,6 +120,23 @@ fi
 # Reassign for backward compat with downstream logic
 USE_WORKTREE="$([[ "$REPO_USE_WORKTREE" == "true" ]] && echo "True" || echo "False")"
 COMMIT_STRATEGY="$REPO_COMMIT_STRATEGY"
+
+# An item with neither a repo_key nor an explicit repo override has not been routed
+# to a repository at all. Falling through to _defaults would pick a repo by accident,
+# so refuse instead and say what is missing.
+if [[ "$REPO_KEY" == "_defaults" && "$HAS_REPO_OVERRIDE" == "false" ]]; then
+    echo "ERROR: Item $ITEM_ID has no repo_key and no environment.repo override." >&2
+    echo "       Set repo_key to one of the repositories in config/environment.yml before activating." >&2
+    exit 1
+fi
+
+# Worktree items need a real git repository to branch from. Non-worktree items are
+# allowed a path that does not exist yet, since activation creates the directory.
+if [[ "$USE_WORKTREE" == "True" && ! -d "$REPO_PATH" ]]; then
+    echo "ERROR: Item $ITEM_ID resolves to repo path '$REPO_PATH', which does not exist." >&2
+    echo "       repo_key is '$REPO_KEY'. Fix the repo_key or its configured path." >&2
+    exit 1
+fi
 
 # Validate status
 if [[ "$ITEM_STATUS" != "queued" && "$ITEM_STATUS" != "planning" ]]; then

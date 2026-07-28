@@ -144,7 +144,7 @@ export function CommandPalette({ items, sessionsWithItems, onClose, onNavigateTo
       cmds.push({ id: 'cmd-view', label: 'Toggle view mode', description: 'Switch between card and compact table view', icon: 'view', action: () => { onClose(); onToggleViewMode() } })
     }
     if (onDiscoverWork) {
-      cmds.push({ id: 'cmd-discover', label: 'Discover work', description: 'Scan configured sources for new work items', icon: 'discover', action: () => { onClose(); onDiscoverWork() } })
+      cmds.push({ id: 'cmd-discover', label: 'Work sources', description: 'Configure the adapters the scheduler polls for new work', icon: 'discover', action: () => { onClose(); onDiscoverWork() } })
     }
     if (onHealthCheck) {
       cmds.push({ id: 'cmd-health', label: 'Health check', description: 'Check for zombies, stalled streams, and issues', icon: 'health', action: () => { onClose(); onHealthCheck() } })

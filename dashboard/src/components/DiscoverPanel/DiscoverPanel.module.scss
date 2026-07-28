@@ -226,3 +226,151 @@
   color: var(--color-text-muted);
   text-align: center;
 }
+
+.Intro {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.SourceChipOff {
+  opacity: 0.55;
+}
+
+.AddRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.AddButton {
+  padding: 4px 10px;
+  font-size: 11px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px dashed var(--color-border);
+  color: var(--color-text-muted);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-text);
+    border-color: var(--color-accent);
+  }
+}
+
+.Editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.Problems {
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-danger, #b4433a);
+  color: var(--color-danger, #b4433a);
+  font-size: 12px;
+}
+
+.Field {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.FieldLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--color-text);
+  flex: 1;
+  min-width: 0;
+}
+
+.FieldHelp {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
+.FieldControl {
+  flex: 0 0 200px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.Input,
+.Textarea {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-accent);
+  }
+}
+
+.Textarea {
+  resize: vertical;
+  font-family: var(--font-mono, monospace);
+}
+
+.Toggle {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-hover);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.ToggleOn {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.ToggleKnob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+
+  .ToggleOn & {
+    transform: translateX(16px);
+  }
+}
+
+.RemoveButton {
+  padding: 8px 12px;
+  font-size: 13px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-danger, #b4433a);
+    border-color: var(--color-danger, #b4433a);
+  }
+}

@@ -29,6 +29,12 @@ from scripts.scheduler.reconcile import (
 )
 from scripts.scheduler.activate import teardown_merged
 from scripts.scheduler.cleanup import cleanup_completed, rotate_event_log
+from scripts.scheduler.discovery import (
+    announce_imports,
+    discover_work,
+    route_unrouted_items,
+    sync_integrations,
+)
 from scripts.scheduler.spend import update_spend
 from scripts.scheduler.delegator import (
     check_services,
@@ -166,10 +172,14 @@ def main():
             process_worker_completions(cfg, args.dry_run)
             teardown_merged(cfg, args.dry_run)
             check_planning_timeouts(cfg)
+            discover_work(cfg, args.dry_run)
+            route_unrouted_items(cfg, args.dry_run)
             generate_plans(cfg, args.dry_run)
             reconcile_state(cfg, args.dry_run)
             discover_pr_urls(cfg, args.dry_run)
             check_and_activate(cfg, args.dry_run)
+            announce_imports(cfg, args.dry_run)
+            sync_integrations(cfg, args.dry_run)
             update_spend(cfg)
             return
 
@@ -212,10 +222,14 @@ def main():
             process_worker_completions(cfg, args.dry_run)
             teardown_merged(cfg, args.dry_run)
             check_planning_timeouts(cfg)
+            discover_work(cfg, args.dry_run)
+            route_unrouted_items(cfg, args.dry_run)
             generate_plans(cfg, args.dry_run)
             reconcile_state(cfg, args.dry_run)
             discover_pr_urls(cfg, args.dry_run)
             check_and_activate(cfg, args.dry_run)
+            announce_imports(cfg, args.dry_run)
+            sync_integrations(cfg, args.dry_run)
             update_spend(cfg)
 
             cycle += 1
