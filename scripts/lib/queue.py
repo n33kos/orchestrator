@@ -250,6 +250,26 @@ def _cli_update(args: list[str], queue_path: str) -> None:
         ctx["modified"] = True
 
 
+def _cli_write(args: list[str], queue_path: str) -> None:
+    """write
+
+    Replace the whole queue document with JSON read from stdin, under the same lock
+    and schema validation as every other writer. This is the entry point for callers
+    outside Python, so that validation lives in exactly one place.
+    """
+    incoming = json.loads(sys.stdin.read())
+    if not isinstance(incoming, dict) or not isinstance(incoming.get("items"), list):
+        print("ERROR: expected an object with an 'items' array", file=sys.stderr)
+        sys.exit(1)
+
+    with locked_queue(queue_path, write=True) as ctx:
+        ctx["data"].clear()
+        ctx["data"].update(incoming)
+        ctx["modified"] = True
+
+    print(json.dumps({"ok": True, "items": len(incoming["items"])}))
+
+
 def _cli_count(args: list[str], queue_path: str) -> None:
     """count [--status STATUS]"""
     status = None
@@ -298,7 +318,7 @@ def main() -> None:
 
     if len(sys.argv) < 2:
         print("Usage: python3 -m lib.queue <command> [args...]", file=sys.stderr)
-        print("Commands: get, get-item, update, count, list", file=sys.stderr)
+        print("Commands: get, get-item, update, write, count, list", file=sys.stderr)
         sys.exit(1)
 
     command = sys.argv[1]
@@ -308,6 +328,7 @@ def main() -> None:
         "get": _cli_get,
         "get-item": _cli_get_item,
         "update": _cli_update,
+        "write": _cli_write,
         "count": _cli_count,
         "list": _cli_list,
     }

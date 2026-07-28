@@ -42,7 +42,7 @@ export function GlobalSearch({ items, sessions, onClose, onNavigateToItem, onNav
     const itemResults: SearchResult[] = items
       .filter(i =>
         i.title.toLowerCase().includes(q) ||
-        i.description.toLowerCase().includes(q) ||
+        (i.plan?.summary || '').toLowerCase().includes(q) ||
         (i.environment?.branch || '').toLowerCase().includes(q) ||
         i.id.toLowerCase().includes(q),
       )

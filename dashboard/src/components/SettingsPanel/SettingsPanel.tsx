@@ -18,7 +18,7 @@ interface SettingsPanelProps {
   onClipboardImport?: (
     items: {
       title: string;
-      description?: string;
+      planBody?: string;
       type?: string;
       priority?: number;
     }[],

@@ -4,7 +4,7 @@
  */
 export interface ClipboardWorkItem {
   title: string
-  description?: string
+  planBody?: string
   type?: string
   priority?: number
 }
@@ -22,7 +22,7 @@ export function parseClipboardItems(text: string): ClipboardWorkItem[] {
         .filter((i: Record<string, unknown>) => i.title)
         .map((i: Record<string, unknown>) => ({
           title: String(i.title),
-          description: i.description ? String(i.description) : undefined,
+          planBody: i.description ? String(i.description) : undefined,
 
           priority: typeof i.priority === 'number' ? i.priority : undefined,
         }))
@@ -47,7 +47,7 @@ export function parseClipboardItems(text: string): ClipboardWorkItem[] {
             const cols = line.split(delimiter).map(c => c.trim())
             return {
               title: cols[titleIdx] || '',
-              description: descIdx >= 0 ? cols[descIdx] : undefined,
+              planBody: descIdx >= 0 ? cols[descIdx] : undefined,
               type: typeIdx >= 0 ? cols[typeIdx] : undefined,
               priority: priorityIdx >= 0 && cols[priorityIdx] ? Number(cols[priorityIdx]) : undefined,
             }

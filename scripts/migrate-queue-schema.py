@@ -14,6 +14,9 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from lib.validate_queue import validate_item  # noqa: E402
+
 QUEUE_PATH = os.path.expanduser("~/.claude/orchestrator/queue.json")
 BACKUP_PATH = QUEUE_PATH + f".backup-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}"
 
@@ -156,6 +159,14 @@ def main():
         data = json.load(f)
 
     # Backup
+    # This migration predates the schema and is not idempotent: rerunning it over
+    # already-migrated items resets plan.approved and nulls runtime.pr_url. If the
+    # queue already conforms there is nothing to migrate, so refuse rather than
+    # quietly destroying approvals and PR links.
+    if not any(validate_item(item) for item in data.get("items", [])):
+        print("Queue already matches the schema. Nothing to migrate.")
+        return
+
     if not dry_run:
         with open(BACKUP_PATH, "w") as f:
             json.dump(data, f, indent=2)
@@ -184,24 +195,21 @@ def main():
             f.write("\n")
         print(f"Migrated {len(migrated_items)} items")
 
-    # Verify
+    # Verify against the schema itself rather than a hand-copied field list, which
+    # would drift the moment the schema changes.
     if not dry_run:
         with open(QUEUE_PATH) as f:
             verify = json.load(f)
+        violations = []
         for item in verify["items"]:
-            assert "environment" in item, f"{item['id']} missing environment"
-            assert "worker" in item, f"{item['id']} missing worker"
-            assert "plan" in item, f"{item['id']} missing plan"
-            assert "runtime" in item, f"{item['id']} missing runtime"
-            assert "metadata" not in item, f"{item['id']} still has metadata"
-            assert "branch" not in item, f"{item['id']} still has top-level branch"
-            assert "worktree_path" not in item, f"{item['id']} still has top-level worktree_path"
-            assert "session_id" not in item, f"{item['id']} still has top-level session_id"
-            assert "pr_url" not in item, f"{item['id']} still has top-level pr_url"
-            assert "delegator_enabled" not in item, f"{item['id']} still has top-level delegator_enabled"
-            assert "delegator_id" not in item, f"{item['id']} still has top-level delegator_id"
-            assert "description" not in item, f"{item['id']} still has top-level description"
-        print("Verification passed: all items have new schema, no old fields remain")
+            violations.extend(validate_item(item))
+        if violations:
+            print("ERROR: migrated queue does not match the schema:", file=sys.stderr)
+            for v in violations:
+                print(f"  {v}", file=sys.stderr)
+            print(f"The pre-migration backup is at {BACKUP_PATH}", file=sys.stderr)
+            sys.exit(1)
+        print(f"Verification passed: {len(verify['items'])} items match the schema")
 
 
 if __name__ == "__main__":

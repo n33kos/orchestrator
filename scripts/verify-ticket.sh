@@ -61,6 +61,21 @@ def main() -> int:
 
     failures: list[str] = []
 
+    # Schema drift breaks every writer at once, not just this ticket, so it is
+    # checked here rather than left to be discovered as a downstream bug.
+    conformance = subprocess.run(
+        ["python3", str(Path(__file__).resolve().parent / "check-schema-conformance.py")],
+        capture_output=True, text=True,
+    )
+    if conformance.returncode != 0:
+        failures.append("schema conformance")
+        print(f"  {CROSS} schema conformance check failed")
+        for line in conformance.stdout.strip().splitlines():
+            if line.startswith("FAIL") or line.startswith("  "):
+                print(f"      {line.strip()}")
+    else:
+        print(f"  {CHECK} schema conformance")
+
     def ok(msg: str) -> None:
         print(f"  {CHECK} {msg}")
 

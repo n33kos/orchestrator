@@ -41,11 +41,20 @@ export function useQueue(pollIntervalMs = 5000) {
     }
   }, [fetchQueue, pollIntervalMs])
 
-  const updateItem = useCallback(async (id: string, updates: { status?: WorkItemStatus; priority?: number; title?: string; description?: string; environment?: Partial<WorkItem['environment']>; worker?: Partial<WorkItem['worker']>; plan?: Partial<WorkItem['plan']>; runtime?: Partial<WorkItem['runtime']> }) => {
+  const updateItem = useCallback(async (id: string, updates: { status?: WorkItemStatus; priority?: number; title?: string; environment?: Partial<WorkItem['environment']>; worker?: Partial<WorkItem['worker']>; plan?: Partial<WorkItem['plan']>; runtime?: Partial<WorkItem['runtime']> }) => {
     // Optimistic update: apply changes locally before API responds
     setItems(prev => prev.map(item => {
       if (item.id !== id) return item
-      const updated = { ...item, ...updates }
+      // Sub-objects arrive partial, so they are merged rather than replaced.
+      // A shallow spread would drop required keys from environment, worker, or plan.
+      const updated: WorkItem = {
+        ...item,
+        ...updates,
+        environment: { ...item.environment, ...(updates.environment || {}) },
+        worker: { ...item.worker, ...(updates.worker || {}) },
+        plan: { ...item.plan, ...(updates.plan || {}) },
+        runtime: { ...item.runtime, ...(updates.runtime || {}) },
+      }
       if (updates.status === 'active' && !item.activated_at) {
         updated.activated_at = new Date().toISOString()
       }

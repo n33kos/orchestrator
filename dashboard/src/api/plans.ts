@@ -3,7 +3,7 @@ import { execFile } from 'child_process'
 import { join } from 'path'
 import { homedir } from 'os'
 import type { ViteDevServer } from 'vite'
-import { readBody } from './helpers'
+import { readBody, writeQueue } from './helpers'
 
 export function registerPlanRoutes(server: ViteDevServer) {
   // POST /api/plan/generate — generate an implementation plan for a work item
@@ -142,7 +142,7 @@ export function registerPlanRoutes(server: ViteDevServer) {
         item.status = 'planning'
       }
 
-      writeFileSync(queuePath, JSON.stringify(queueData, null, 2) + '\n', 'utf-8')
+      writeQueue(queueData)
 
       res.setHeader('Content-Type', 'application/json')
       res.end(JSON.stringify({ ok: true, approved }))

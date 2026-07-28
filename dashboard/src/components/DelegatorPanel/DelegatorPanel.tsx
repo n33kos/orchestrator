@@ -3,14 +3,7 @@ import classnames from 'classnames'
 import styles from './DelegatorPanel.module.scss'
 import { timeAgo } from '../../utils/time.ts'
 import type { DelegatorStatus } from '../../hooks/useDelegators.ts'
-
-interface WorkItem {
-  id: string
-  title: string
-  status?: ItemStatus
-  worker?: { delegator_enabled?: boolean }
-  runtime?: { spend?: Record<string, unknown> | null }
-}
+import type { WorkItem, WorkItemStatus } from '../../types'
 
 interface DelegatorPanelProps {
   delegators: DelegatorStatus[]
@@ -27,7 +20,6 @@ const healthLabels: Record<string, { label: string; cls: string }> = {
   error: { label: 'Error', cls: 'statusError' },
 }
 
-type ItemStatus = 'queued' | 'planning' | 'active' | 'review' | 'completed'
 
 /**
  * Derive effective delegator health based on both the state file health
@@ -35,25 +27,16 @@ type ItemStatus = 'queued' | 'planning' | 'active' | 'review' | 'completed'
  */
 function deriveEffectiveHealth(
   rawHealth: string,
-  itemStatus: ItemStatus | undefined,
+  itemStatus: WorkItemStatus | undefined,
   delegatorEnabled: boolean | undefined,
   stallDetected: boolean,
 ): string {
   if (stallDetected) return 'stale'
   if (rawHealth === 'error') return 'error'
   if (delegatorEnabled === false) return 'disabled'
-  const activeStatuses: ItemStatus[] = ['active', 'review']
+  const activeStatuses: WorkItemStatus[] = ['active', 'review']
   if (itemStatus && !activeStatuses.includes(itemStatus)) return 'standby'
   return rawHealth // healthy or stale pass through
-}
-
-const statusLabels: Record<string, { label: string; cls: string }> = {
-  initializing: { label: 'Initializing', cls: 'statusInit' },
-  monitoring: { label: 'Monitoring', cls: 'statusActive' },
-  reviewing: { label: 'Reviewing', cls: 'statusReview' },
-  idle: { label: 'Idle', cls: 'statusIdle' },
-  error: { label: 'Error', cls: 'statusError' },
-  completed: { label: 'Completed', cls: 'statusDone' },
 }
 
 function parseTriageOutput(raw: unknown): { decision: string; reason: string } | null {
@@ -162,7 +145,7 @@ export function DelegatorPanel({ delegators, loading, items, onRefresh }: Delega
     const matchedItem = items?.find(i => i.id === d.item_id)
     const effective = deriveEffectiveHealth(
       d.health?.status || 'unknown',
-      matchedItem?.status as ItemStatus | undefined,
+      matchedItem?.status as WorkItemStatus | undefined,
       matchedItem?.worker?.delegator_enabled,
       d.stall_detected,
     )

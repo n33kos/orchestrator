@@ -1,3 +1,5 @@
+import type { WorkItemStatus } from '../../types'
+
 export interface StatusBadgeProps {
-  status: 'queued' | 'planning' | 'active' | 'review' | 'completed'
+  status: WorkItemStatus
 }

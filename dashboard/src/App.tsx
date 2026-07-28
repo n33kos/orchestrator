@@ -385,7 +385,7 @@ export function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title: item.title,
-            planBody: item.planBody || item.description || '',
+            planBody: item.planBody || '',
             priority: item.priority ?? 50,
             branch: item.environment?.branch || '',
           }),
@@ -509,7 +509,6 @@ export function App() {
             loading={delegatorData.loading}
             items={queue.items}
             onRefresh={delegatorData.refresh}
-            onSendMessage={actions.handleSendMessage}
           />
         ) : activeTab === 'sessions' ? (
           <SessionsView
@@ -809,7 +808,7 @@ export function App() {
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     title: item.title,
-                    planBody: item.description || '',
+                    planBody: item.planBody || '',
                     priority: item.priority ?? 50,
                     branch: '',
                   }),

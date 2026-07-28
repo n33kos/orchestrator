@@ -1,3 +1,4 @@
+import { execFileSync } from 'child_process'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
@@ -101,6 +102,30 @@ export function readQueue() {
   return JSON.parse(readFileSync(queuePath, 'utf-8'))
 }
 
+const scriptsDir = join(__dirname, '..', '..', '..', 'scripts')
+
+/**
+ * Persist the queue through the Python writer, which holds the same advisory lock
+ * as the scheduler and validates every item against config/queue-item.schema.json.
+ *
+ * Writing the file directly from here would skip both: an item shaped wrongly by the
+ * dashboard would block every later write across the whole system, and a concurrent
+ * scheduler write would be clobbered. Validation deliberately lives in one place
+ * rather than being reimplemented in TypeScript, where it would drift.
+ *
+ * Throws when the document is invalid, so a route can surface the reason instead of
+ * silently persisting something broken.
+ */
 export function writeQueue(data: Record<string, unknown>) {
-  writeFileSync(queuePath, JSON.stringify(data, null, 2) + '\n')
+  try {
+    execFileSync('python3', ['-m', 'lib.queue', 'write'], {
+      cwd: scriptsDir,
+      input: JSON.stringify(data),
+      encoding: 'utf-8',
+      env: { ...process.env, HOME: homedir() },
+    })
+  } catch (err) {
+    const detail = (err as { stderr?: string }).stderr || String(err)
+    throw new Error(`Refused to write queue: ${detail}`)
+  }
 }

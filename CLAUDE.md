@@ -111,6 +111,19 @@ Delegators are **not** persistent sessions. They are stateless `claude --print` 
 
 ## Critical Rules
 
+- **Schema conformance.** `config/queue-item.schema.json` is the single definition of a
+  work item, and `scripts/lib/validate_queue.py` enforces it at the write boundary
+  across every item, so one malformed item blocks all later writes. Never write
+  `queue.json` directly. Python callers use `scripts/lib/queue.py`; anything outside
+  Python pipes a full document to `python3 -m lib.queue write`, which locks and
+  validates. Never restate the status or commit-strategy enums, or the item shape, in
+  a second place; import `WorkItemStatus` and `WorkItem` from `dashboard/src/types.ts`.
+  After touching the schema, any item writer, or any dashboard item type, run:
+  ```bash
+  python3 scripts/check-schema-conformance.py
+  ```
+  `verify-ticket.sh` runs it too. There is no `description` field on an item; ticket
+  content lives in the plan file.
 - **Ticket creation discipline.** Every ticket created in this repo MUST be verified end-to-end before being declared ready. After writing the queue item and plan file, run:
   ```bash
   scripts/verify-ticket.sh <item-id>
