@@ -1,0 +1,155 @@
+.Markdown {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text);
+  overflow-wrap: break-word;
+
+  > :first-child {
+    margin-top: 0;
+  }
+
+  > :last-child {
+    margin-bottom: 0;
+  }
+}
+
+.Paragraph {
+  margin: 0 0 10px;
+}
+
+.Heading1,
+.Heading2,
+.Heading3,
+.Heading4,
+.Heading5,
+.Heading6 {
+  margin: 16px 0 8px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text);
+}
+
+.Heading1 {
+  font-size: 16px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.Heading2 {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.Heading3 {
+  font-size: 13px;
+}
+
+.Heading4,
+.Heading5,
+.Heading6 {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.List {
+  margin: 0 0 10px;
+  padding-left: 20px;
+
+  .List {
+    margin: 4px 0 0;
+  }
+
+  li {
+    margin: 2px 0;
+  }
+}
+
+.TaskItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  list-style: none;
+  margin-left: -20px;
+}
+
+.Checkbox {
+  margin: 3px 0 0;
+  flex: 0 0 auto;
+  accent-color: var(--color-accent);
+  pointer-events: none;
+}
+
+.InlineCode {
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-border-subtle);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.92em;
+  // Plans routinely inline long file paths and selectors, which would otherwise
+  // push the whole panel sideways.
+  overflow-wrap: anywhere;
+}
+
+.CodeBlock {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-border-subtle);
+
+  code {
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre;
+  }
+}
+
+.Quote {
+  margin: 0 0 10px;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.Rule {
+  margin: 14px 0;
+  border: 0;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.Link {
+  color: var(--color-accent);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.TableWrap {
+  margin: 0 0 10px;
+  overflow-x: auto;
+}
+
+.Table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+
+  th,
+  td {
+    padding: 5px 9px;
+    text-align: left;
+    border: 1px solid var(--color-border-subtle);
+  }
+
+  th {
+    background: var(--color-surface-hover);
+    font-weight: 600;
+  }
+}

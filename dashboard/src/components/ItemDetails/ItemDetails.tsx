@@ -18,6 +18,7 @@ import type {
   StackStep,
 } from "../../types.ts";
 import type { DelegatorStatus } from "../../hooks/useDelegators.ts";
+import { Markdown } from "../Markdown/Markdown.tsx";
 
 export interface ItemDetailsProps {
   item: WorkItem;
@@ -652,7 +653,7 @@ export function ItemDetails({
                 </span>
               </div>
               {itemPlan?.summary && (
-                <p className={styles.NotesText}>{itemPlan.summary}</p>
+                <Markdown className={styles.NotesText}>{itemPlan.summary}</Markdown>
               )}
             </>
           )}
@@ -697,9 +698,7 @@ export function ItemDetails({
           ) : planError ? (
             <span className={styles.EmptyText}>{planError}</span>
           ) : planContent ? (
-            <pre className={styles.DescriptionText} style={{ whiteSpace: "pre-wrap" }}>
-              {planContent}
-            </pre>
+            <Markdown className={styles.DescriptionText}>{planContent}</Markdown>
           ) : (
             <span className={styles.EmptyText}>
               {itemPlanFile
