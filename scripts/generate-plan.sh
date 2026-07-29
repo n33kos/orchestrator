@@ -62,6 +62,9 @@ if [[ -n "$EXISTING_PLAN" && "$EXISTING_PLAN" != "None" ]]; then
     if [[ -f "$EXISTING_PLAN" && -s "$EXISTING_PLAN" ]]; then
         echo "Plan file already exists for $ITEM_ID: $EXISTING_PLAN"
         echo "Skipping generation — use --force to overwrite."
+        # Still finalize. A hand-written plan needs the same preparation and the same
+        # readiness gate, otherwise an item can reach queued without being activatable.
+        python3 "$SCRIPT_DIR/finalize-plan.py" "$ITEM_ID"
         exit 0
     fi
 fi
@@ -85,6 +88,24 @@ print(os.path.expanduser(repo.get('path', '')))
 " "$REPOSITORIES_JSON" "$REPO_KEY")"
 fi
 TARGET_REPO="${TARGET_REPO:-$REPO_PATH}"
+
+# When the item has no repository yet, the planning call picks one. It already holds the
+# full ticket context, so a separate inference pass would be a second model call over
+# the same information.
+NEEDS_REPO=false
+if [[ ( -z "$REPO_KEY" || "$REPO_KEY" == "None" ) && ( -z "$ENV_REPO" || "$ENV_REPO" == "None" ) ]]; then
+    NEEDS_REPO=true
+fi
+
+REPO_CATALOGUE="$(python3 -c "
+import json, sys
+repos = json.loads(sys.argv[1])
+for key, repo in sorted(repos.items()):
+    if key == '_defaults':
+        continue
+    desc = repo.get('description') or ''
+    print(f\"- {key}: {desc}\" if desc else f\"- {key}\")
+" "$REPOSITORIES_JSON")"
 
 # Source context is the imported ticket body and discussion, when the item came
 # from a work-discovery adapter rather than being entered by hand.
@@ -121,7 +142,17 @@ it rather than inventing scope.
 $SOURCE_CONTEXT
 --- END SOURCE CONTEXT ---
 }
-Generate a plan document with:
+Begin your output with a metadata block in exactly this form, then the plan:
+
+---
+repo_key: <one repository key from the list below${NEEDS_REPO:+, required}>
+branch_slug: <3 to 5 lowercase words, hyphen separated, naming this work>
+---
+
+Repositories:
+$REPO_CATALOGUE
+
+Then generate a plan document with:
 1. A title header matching the work item title
 2. A "Summary" section with 1-3 sentences describing the implementation approach
 3. A "Steps" section with concrete, actionable steps as a numbered checklist (use - [ ] format)
@@ -166,13 +197,38 @@ PLAN_OUTPUT="$("$CLAUDE_BIN" --print --model sonnet "$PLAN_PROMPT" 2>"$LOGS_DIR/
 
 echo "Plan generated successfully."
 
+# Split the metadata header off the plan body. A missing or malformed header is not an
+# error: finalize-plan.py derives what it needs deterministically instead.
+PLAN_META="$(printf '%s' "$PLAN_OUTPUT" | python3 -c "
+import re, sys
+text = sys.stdin.read()
+match = re.match(r'\s*---\s*\n(.*?)\n\s*---\s*\n?', text, re.DOTALL)
+if not match:
+    sys.exit(0)
+fields = {}
+for line in match.group(1).splitlines():
+    key, sep, value = line.partition(':')
+    if sep:
+        fields[key.strip()] = value.strip().strip('<>')
+print(fields.get('repo_key', ''))
+print(fields.get('branch_slug', ''))
+")"
+PLAN_REPO_KEY="$(printf '%s' "$PLAN_META" | sed -n 1p)"
+PLAN_BRANCH_SLUG="$(printf '%s' "$PLAN_META" | sed -n 2p)"
+
+PLAN_BODY="$(printf '%s' "$PLAN_OUTPUT" | python3 -c "
+import re, sys
+text = sys.stdin.read()
+print(re.sub(r'^\s*---\s*\n.*?\n\s*---\s*\n?', '', text, count=1, flags=re.DOTALL).lstrip())
+")"
+
 # Write plan to file
 PLAN_FILE="$PLANS_DIR/${ITEM_ID}.md"
-echo "$PLAN_OUTPUT" > "$PLAN_FILE"
+printf '%s\n' "$PLAN_BODY" > "$PLAN_FILE"
 echo "  Plan written to: $PLAN_FILE"
 
 # Also generate a lightweight JSON summary for the queue metadata (backward compat)
-PLAN_JSON="$(echo "$PLAN_OUTPUT" | python3 -c "
+PLAN_JSON="$(printf '%s' "$PLAN_BODY" | python3 -c "
 import sys, re, json
 from datetime import datetime, timezone
 
@@ -213,7 +269,7 @@ fi
 # Update queue item: simple fields via queue.py, plan object via locked_queue
 cd "$SCRIPT_DIR" && $QUEUE_PY update "$ITEM_ID" plan.file="$PLAN_FILE"
 
-# Set the plan object and conditionally update status (requires locked write)
+# Store the plan summary.
 cd "$SCRIPT_DIR" && python3 -c "
 import json, sys
 sys.path.insert(0, '.')
@@ -223,15 +279,17 @@ with locked_queue(write=True) as ctx:
     item = find_item(ctx['data'], '$ITEM_ID')
     if item:
         item.setdefault('plan', {}).update(plan)
-        if item['status'] == 'planning':
-            item['status'] = 'queued'
         ctx['modified'] = True
 " <<< "$PLAN_JSON"
+
+# Finish preparing the item and promote it only if it is genuinely activatable.
+python3 "$SCRIPT_DIR/finalize-plan.py" "$ITEM_ID" \
+    --repo-key "$PLAN_REPO_KEY" --branch-slug "$PLAN_BRANCH_SLUG"
 
 echo ""
 echo "Plan saved."
 echo "  File: $PLAN_FILE"
-echo "  Status: queued (awaiting plan approval)"
+
 
 # Print the plan summary
 echo ""

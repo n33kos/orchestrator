@@ -1133,3 +1133,27 @@
     transform: translateY(0);
   }
 }
+
+.StallNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0 0 10px;
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-warning, #b4833a) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-warning, #b4833a) 45%, transparent);
+  color: var(--color-text);
+  font-size: 12px;
+  line-height: 1.45;
+
+  svg {
+    flex: 0 0 auto;
+    margin-top: 1px;
+    color: var(--color-warning, #b4833a);
+  }
+
+  strong {
+    font-weight: 600;
+  }
+}

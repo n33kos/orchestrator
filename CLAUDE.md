@@ -127,6 +127,20 @@ Delegators are **not** persistent sessions. They are stateless `claude --print` 
   ```
   `verify-ticket.sh` runs it too. There is no `description` field on an item; ticket
   content lives in the plan file.
+- **Readiness.** `scripts/scheduler/readiness.py` is the only definition of whether an
+  item can advance. It returns the reasons an item cannot activate, never a boolean, and
+  resolves the repository through the repo config rather than restating where one comes
+  from. Never reimplement or restate those conditions anywhere else; that is how the gate
+  fell behind `repo_key` and silently stranded every imported item. The scheduler records
+  the reasons to `runtime.blocked_reasons` each cycle, and the dashboard card shows them,
+  so a stalled item always says why.
+- **`queued` means ready.** An item in `queued` must be activatable the moment its plan is
+  approved. Preparation happens during plan generation, which already holds the item's full
+  context: the planning call picks the repository and names the branch, then
+  `scripts/finalize-plan.py` applies them, checks readiness, and promotes `planning` to
+  `queued` only if nothing but approval is outstanding. An item that cannot be prepared
+  stays in `planning` with its reasons recorded. Never promote an item to `queued` by hand
+  without running that gate.
 - **Ticket creation discipline.** Every ticket created in this repo MUST be verified end-to-end before being declared ready. After writing the queue item and plan file, run:
   ```bash
   scripts/verify-ticket.sh <item-id>

@@ -99,6 +99,7 @@ orchestrator/
 │   ├── status.sh                   # Comprehensive status report
 │   ├── add-work.py                 # Create a work item (locked, schema-validated)
 │   ├── check-schema-conformance.py # Assert nothing has drifted from the item schema
+│   ├── finalize-plan.py            # Apply plan-time prep, gate promotion on readiness
 │   ├── discover-work.py            # Work discovery (Linear, GitHub, Jira, markdown)
 │   ├── generate-plan.sh            # Generate a plan from the item and its source detail
 │   ├── migrate-plans.sh            # Migrate inline plans to markdown files
@@ -145,9 +146,12 @@ Discover → Plan → Queue → Activate → Execute → Review → Complete
 ```
 
 1. **Discover** — The scheduler polls configured adapters and adds new items in `planning`
-2. **Plan** — A plan is generated from the item and its imported detail, then reviewed; a
-   completed plan promotes the item to `queued`
-3. **Queue** — The item waits for approval and a free concurrency slot
+2. **Plan** — A plan is generated from the item and its imported detail. The same call
+   chooses the repository and names the branch, so preparation happens once, with full
+   context. `scripts/finalize-plan.py` then applies them and checks readiness
+3. **Queue** — An item reaches `queued` only when it is activatable but for plan approval.
+   One that cannot be prepared stays in `planning` with its reasons on
+   `runtime.blocked_reasons`, shown on the card
 4. **Activate** — Worktree created, worker session spawned, delegator started
 5. **Execute** — Worker implements the plan; delegator monitors and reviews
 6. **Suspend** *(optional)* — Pause execution, kill session but preserve worktree for user review

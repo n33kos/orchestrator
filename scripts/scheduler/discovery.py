@@ -16,7 +16,6 @@ from scripts.lib import linear_api, sources
 from scripts.lib.queue import locked_queue
 from scripts.scheduler.config import Config
 from scripts.scheduler.events import emit_event
-from scripts.scheduler.readiness import ACTIVATABLE_STATUSES, suggest_branch
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
@@ -66,106 +65,6 @@ def discover_work(cfg: Config, dry_run: bool) -> None:
         emit_event("discovery.item_added", f"Discovered {entry}")
 
 
-CLAUDE_BIN = os.path.expanduser("~/.local/bin/claude")
-ROUTING_CONTEXT_CHARS = 4000
-
-
-def _routing_prompt(cfg: Config, item: dict, context: str) -> str:
-    catalogue = []
-    for key, repo in sorted(cfg.repositories.items()):
-        if key == "_defaults":
-            continue
-        line = f"- {key}: {repo.path}"
-        if repo.description:
-            line += f" ({repo.description})"
-        catalogue.append(line)
-
-    return (
-        "Pick which repository this work item belongs to.\n\n"
-        "Repositories:\n"
-        + "\n".join(catalogue)
-        + f"\n\nWork item title: {item['title']}\n\n"
-        + (f"Work item details:\n{context[:ROUTING_CONTEXT_CHARS]}\n\n" if context else "")
-        + "Answer with exactly one repository key from the list above, and nothing else. "
-        "If the item does not clearly belong to any of them, answer UNKNOWN."
-    )
-
-
-def route_unrouted_items(cfg: Config, dry_run: bool) -> None:
-    """Infer a repo for items that arrived without one.
-
-    Discovery cannot always determine a repository from labels alone, so rather
-    than defaulting to a guess, unrouted items are resolved here, before plan
-    generation, using the item's own title and imported detail.
-    """
-    with locked_queue() as ctx:
-        items = list(ctx["data"].get("items", []))
-
-    valid_keys = {key for key in cfg.repositories if key != "_defaults"}
-    resolved: dict[str, str] = {}
-    attempted: list[str] = []
-
-    for item in items:
-        if item["status"] not in ("queued", "planning"):
-            continue
-        if item.get("repo_key") or (item.get("environment") or {}).get("repo"):
-            continue
-        # One attempt per item. Without this an unroutable item costs a model call
-        # on every scheduler cycle, forever.
-        if (item.get("runtime") or {}).get("routing_attempted"):
-            continue
-
-        context = ""
-        context_path = (item.get("integration") or {}).get("context_file")
-        if context_path and Path(context_path).exists():
-            context = Path(context_path).read_text()
-
-        if dry_run:
-            print(f"[scheduler] Would infer a repo for {item['id']}")
-            continue
-
-        attempted.append(item["id"])
-
-        try:
-            result = subprocess.run(
-                [CLAUDE_BIN, "--print", "--model", "sonnet", _routing_prompt(cfg, item, context)],
-                capture_output=True,
-                text=True,
-                timeout=90,
-                env={**EXEC_ENV, "CLAUDECODE": ""},
-            )
-        except subprocess.TimeoutExpired:
-            print(f"[scheduler] Repo inference timed out for {item['id']}", file=sys.stderr)
-            continue
-
-        answer = result.stdout.strip().split()[-1].strip("`.,") if result.stdout.strip() else ""
-
-        if result.returncode != 0 or answer not in valid_keys:
-            print(f"[scheduler] Could not infer a repo for {item['id']} (got {answer!r})")
-            emit_event(
-                "discovery.routing_failed",
-                f"Could not infer a repo for {item['title']}",
-                item_id=item["id"],
-                severity="warn",
-            )
-            continue
-
-        resolved[item["id"]] = answer
-        print(f"[scheduler] Routed {item['id']} to '{answer}'")
-        emit_event("discovery.routed", f"Routed {item['title']} to {answer}", item_id=item["id"])
-
-    if not attempted:
-        return
-
-    with locked_queue(write=True) as ctx:
-        for item in ctx["data"].get("items", []):
-            if item["id"] not in attempted:
-                continue
-            if item["id"] in resolved:
-                item["repo_key"] = resolved[item["id"]]
-            else:
-                item.setdefault("runtime", {})["routing_attempted"] = True
-            ctx["modified"] = True
 
 
 def _completed_blockers(identifiers: list[str]) -> set[str]:
@@ -251,46 +150,6 @@ def sync_blocked_by(cfg: Config, dry_run: bool) -> None:
                 print(f"[scheduler] {item['id']} blocked_by: {updates[item['id']] or 'nothing'}")
                 ctx["modified"] = True
 
-
-def assign_missing_branches(cfg: Config, dry_run: bool) -> None:
-    """Give discovered items a branch, since a tracker does not supply one.
-
-    Only items that came from work discovery are named automatically. A hand-created
-    item without a branch is a human omission, and readiness reports it as one rather
-    than having the system guess at intent.
-    """
-    with locked_queue() as ctx:
-        items = list(ctx["data"].get("items", []))
-
-    assigned: dict[str, str] = {}
-    for item in items:
-        if item["status"] not in ACTIVATABLE_STATUSES:
-            continue
-        if (item.get("environment") or {}).get("branch"):
-            continue
-        if not (item.get("integration") or {}).get("identifier"):
-            continue
-
-        branch = suggest_branch(cfg, item)
-        if dry_run:
-            print(f"[scheduler] Would set {item['id']} branch to '{branch}'")
-            continue
-        assigned[item["id"]] = branch
-
-    if not assigned:
-        return
-
-    with locked_queue(write=True) as ctx:
-        for item in ctx["data"].get("items", []):
-            if item["id"] in assigned:
-                item["environment"]["branch"] = assigned[item["id"]]
-                print(f"[scheduler] {item['id']} branch set to '{assigned[item['id']]}'")
-                emit_event(
-                    "discovery.branch_assigned",
-                    f"Branch {assigned[item['id']]} assigned to {item['title']}",
-                    item_id=item["id"],
-                )
-                ctx["modified"] = True
 
 
 def _writeback_for(adapter_name: str) -> dict:

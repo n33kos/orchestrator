@@ -68,6 +68,15 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
   const hasSession = !!item.environment?.session_id
   const hasDelegator = item.worker?.delegator_enabled
   const hasBlockingDeps = item.blocked_by.length > 0
+  // Why this item is not advancing, recorded by the scheduler each cycle. Shown on the
+  // card itself: a stall the user has to open a panel to discover is a silent stall.
+  const recordedReasons =
+    item.status === 'queued' || item.status === 'planning'
+      ? item.runtime?.blocked_reasons ?? []
+      : []
+  const awaitingApprovalOnly =
+    recordedReasons.length === 1 && recordedReasons[0] === 'plan is not approved'
+  const stallReasons = awaitingApprovalOnly ? [] : recordedReasons
   const isStack = item.worker?.commit_strategy === 'graphite_stack'
   const stackSteps = item.worker?.stack_steps ?? []
   const stackCompletedCount = stackSteps.filter(s => s.completed).length
@@ -273,6 +282,19 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
           </span>
         </div>
       </div>
+
+      {stallReasons.length > 0 && (
+        <div className={styles.StallNotice}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <span>
+            <strong>Not advancing:</strong> {stallReasons.join('; ')}
+          </span>
+        </div>
+      )}
 
       {!expanded && (
         <div className={styles.Meta}>
