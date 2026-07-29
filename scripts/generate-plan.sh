@@ -97,14 +97,18 @@ if [[ ( -z "$REPO_KEY" || "$REPO_KEY" == "None" ) && ( -z "$ENV_REPO" || "$ENV_R
     NEEDS_REPO=true
 fi
 
+# The catalogue states each repository's configured strategy, so the planning call can
+# see what a repository actually supports rather than guessing.
 REPO_CATALOGUE="$(python3 -c "
 import json, sys
 repos = json.loads(sys.argv[1])
 for key, repo in sorted(repos.items()):
     if key == '_defaults':
         continue
+    strategy = repo.get('commit_strategy', 'branch_and_pr')
     desc = repo.get('description') or ''
-    print(f\"- {key}: {desc}\" if desc else f\"- {key}\")
+    suffix = f' — {desc}' if desc else ''
+    print(f'- {key} [configured strategy: {strategy}]{suffix}')
 " "$REPOSITORIES_JSON")"
 
 # Source context is the imported ticket body and discussion, when the item came
@@ -147,10 +151,31 @@ Begin your output with a metadata block in exactly this form, then the plan:
 ---
 repo_key: <one repository key from the list below${NEEDS_REPO:+, required}>
 branch_slug: <3 to 5 lowercase words, hyphen separated, naming this work>
+commit_strategy: <omit unless overriding; see below>
+strategy_reason: <one line, required only if you set commit_strategy>
+stack_steps: <required only for graphite_stack; see format below>
 ---
 
 Repositories:
 $REPO_CATALOGUE
+
+About commit_strategy: each repository has a configured strategy that reflects how that
+repository actually works. Leave commit_strategy out and the configured strategy is used.
+That is the right answer almost always.
+
+Only set it when the work genuinely demands a different shape, and say why in
+strategy_reason. The one case that justifies an override is a change large enough that it
+should land as a sequence of dependent pull requests rather than one: set
+commit_strategy: graphite_stack and list the steps. Conversely, if a repository is
+configured for a stack but this work is a single self-contained change, set
+commit_strategy: branch_and_pr.
+
+Do not propose a strategy that a repository cannot support. A repository configured
+commit_to_main commits directly and has no pull request flow, so it can never take
+branch_and_pr or graphite_stack; leave commit_strategy out for those.
+
+Format for stack_steps, on one line, steps ordered, separated by two semicolons:
+  branch-suffix|what this step does ;; branch-suffix|what this step does
 
 Then generate a plan document with:
 1. A title header matching the work item title
@@ -210,11 +235,15 @@ for line in match.group(1).splitlines():
     key, sep, value = line.partition(':')
     if sep:
         fields[key.strip()] = value.strip().strip('<>')
-print(fields.get('repo_key', ''))
-print(fields.get('branch_slug', ''))
+for key in ('repo_key', 'branch_slug', 'commit_strategy', 'strategy_reason', 'stack_steps'):
+    value = fields.get(key, '')
+    print('' if value.lower() in ('omit', 'none', 'n/a') else value)
 ")"
 PLAN_REPO_KEY="$(printf '%s' "$PLAN_META" | sed -n 1p)"
 PLAN_BRANCH_SLUG="$(printf '%s' "$PLAN_META" | sed -n 2p)"
+PLAN_STRATEGY="$(printf '%s' "$PLAN_META" | sed -n 3p)"
+PLAN_STRATEGY_REASON="$(printf '%s' "$PLAN_META" | sed -n 4p)"
+PLAN_STACK_STEPS="$(printf '%s' "$PLAN_META" | sed -n 5p)"
 
 PLAN_BODY="$(printf '%s' "$PLAN_OUTPUT" | python3 -c "
 import re, sys
@@ -284,7 +313,9 @@ with locked_queue(write=True) as ctx:
 
 # Finish preparing the item and promote it only if it is genuinely activatable.
 python3 "$SCRIPT_DIR/finalize-plan.py" "$ITEM_ID" \
-    --repo-key "$PLAN_REPO_KEY" --branch-slug "$PLAN_BRANCH_SLUG"
+    --repo-key "$PLAN_REPO_KEY" --branch-slug "$PLAN_BRANCH_SLUG" \
+    --commit-strategy "$PLAN_STRATEGY" --strategy-reason "$PLAN_STRATEGY_REASON" \
+    --stack-steps "$PLAN_STACK_STEPS"
 
 echo ""
 echo "Plan saved."

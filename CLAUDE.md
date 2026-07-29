@@ -141,6 +141,15 @@ Delegators are **not** persistent sessions. They are stateless `claude --print` 
   `queued` only if nothing but approval is outstanding. An item that cannot be prepared
   stays in `planning` with its reasons recorded. Never promote an item to `queued` by hand
   without running that gate.
+- **Repository configuration wins.** A repository's configured `commit_strategy` describes
+  what that repository can actually do, so it is the default and it is enforced in code,
+  not left to a prompt. Planning may propose an override, but `finalize-plan.py` honours
+  only a change in the shape of the work: `branch_and_pr` to `graphite_stack` when a change
+  should land as dependent PRs, or back again when it should not. A `commit_to_main`
+  repository can never be moved off it, because it has no pull request flow, and a
+  repository that expects pull requests can never be dropped to committing straight to
+  main, because that skips review. A `graphite_stack` override without at least two steps
+  is refused. An honoured override records its justification in `runtime.strategy_reason`.
 - **Ticket creation discipline.** Every ticket created in this repo MUST be verified end-to-end before being declared ready. After writing the queue item and plan file, run:
   ```bash
   scripts/verify-ticket.sh <item-id>

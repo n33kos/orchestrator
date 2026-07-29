@@ -92,7 +92,8 @@
         "directives": { "type": ["object", "null"] },
         "ready_for_review": { "type": ["boolean", "null"] },
         "blocked_reasons": { "type": ["array", "null"] },
-        "routing_attempted": { "type": ["boolean", "null"] }
+        "routing_attempted": { "type": ["boolean", "null"] },
+        "strategy_reason": { "type": ["string", "null"] }
       }
     }
   }

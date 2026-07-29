@@ -33,12 +33,79 @@ from scripts.scheduler.readiness import (  # noqa: E402
 
 APPROVAL_REASON = "plan is not approved"
 
+# A repository's configured strategy reflects what it can actually do, so an override is
+# only honoured where it changes the shape of the work, never its capabilities. A
+# commit_to_main repository has no pull request flow and can never be moved off it, and a
+# repository that expects pull requests can never be dropped to committing straight to
+# main, which would skip review. What remains is the decomposition decision.
+PERMITTED_OVERRIDES = {
+    ("branch_and_pr", "graphite_stack"),
+    ("graphite_stack", "branch_and_pr"),
+}
+
+
+def parse_stack_steps(raw: str) -> list[dict]:
+    """Parse `suffix|description ;; suffix|description` into stack steps."""
+    steps = []
+    for position, chunk in enumerate(part for part in raw.split(";;") if part.strip()):
+        suffix, _, description = chunk.partition("|")
+        suffix = suffix.strip().strip("-")
+        if not suffix:
+            continue
+        steps.append({
+            "position": position + 1,
+            "branch_suffix": suffix,
+            "description": description.strip() or suffix.replace("-", " "),
+            "completed": False,
+        })
+    return steps
+
+
+def apply_strategy(
+    item: dict,
+    configured: str,
+    proposed: str,
+    reason: str,
+    raw_steps: str,
+) -> None:
+    """Honour a strategy override only where it is permitted and coherent."""
+    worker = item.setdefault("worker", {})
+    if not proposed or proposed == configured:
+        worker["commit_strategy"] = configured
+        return
+
+    if (configured, proposed) not in PERMITTED_OVERRIDES:
+        print(
+            f"  keeping configured strategy '{configured}': "
+            f"'{proposed}' is not a permitted override for this repository"
+        )
+        worker["commit_strategy"] = configured
+        return
+
+    if proposed == "graphite_stack":
+        steps = parse_stack_steps(raw_steps)
+        if len(steps) < 2:
+            print(f"  keeping '{configured}': graphite_stack needs at least two steps")
+            worker["commit_strategy"] = configured
+            return
+        worker["stack_steps"] = steps
+        print(f"  stack of {len(steps)} steps: {', '.join(s['branch_suffix'] for s in steps)}")
+    else:
+        worker.pop("stack_steps", None)
+
+    worker["commit_strategy"] = proposed
+    item.setdefault("runtime", {})["strategy_reason"] = reason or "no reason given"
+    print(f"  commit_strategy overridden to '{proposed}': {reason or 'no reason given'}")
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Finalize an item's preparation")
     parser.add_argument("item_id")
     parser.add_argument("--repo-key", default="", help="Repository chosen during planning")
     parser.add_argument("--branch-slug", default="", help="Short branch slug chosen during planning")
+    parser.add_argument("--commit-strategy", default="", help="Strategy proposed during planning")
+    parser.add_argument("--strategy-reason", default="", help="Why the override is warranted")
+    parser.add_argument("--stack-steps", default="", help="suffix|description ;; suffix|description")
     args = parser.parse_args()
 
     cfg = load_config(str(PROJECT_ROOT))
@@ -72,6 +139,17 @@ def main() -> int:
             else:
                 env["branch"] = suggest_branch(cfg, item)
             print(f"  branch set to '{env['branch']}'")
+
+        # Strategy is decided after the repository is known, since the repository is what
+        # constrains it.
+        configured = cfg.resolve_repo(item.get("repo_key")).commit_strategy
+        apply_strategy(
+            item,
+            configured,
+            args.commit_strategy.strip(),
+            args.strategy_reason.strip(),
+            args.stack_steps,
+        )
 
         reasons = [
             reason
