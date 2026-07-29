@@ -496,9 +496,11 @@ export function App() {
         orchestratorPaused={orchestratorPaused}
         onPauseToggle={handlePauseToggle}
       />
+      <div className={styles.TabBarRegion}>
+        <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+      </div>
       <main ref={mainRef} id="main-content" className={`${styles.Main}${viewMode === 'kanban' && activeTab === 'projects' ? ` ${styles.MainNoScroll}` : ''}`}>
         <ErrorBoundary fallbackLabel="The main content area crashed. Try refreshing the page.">
-        <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
         {activeTab === 'scheduler-log' ? (
           <SchedulerLog />
         ) : activeTab === 'analytics' ? (
