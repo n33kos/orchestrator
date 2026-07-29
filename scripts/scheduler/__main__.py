@@ -14,6 +14,7 @@ import os
 import shutil
 import signal
 import sys
+import traceback
 import time
 from pathlib import Path
 
@@ -133,6 +134,29 @@ def remove_pid():
         pass
 
 
+def run_step(name, func, *args) -> None:
+    """Run one scheduler step, surviving its failure.
+
+    A step that raises used to take the whole process down, and launchd would restart
+    it silently, so the cycle was simply lost and the reason went only to stderr. One
+    step failing is not a reason to stop reconciling everything else.
+    """
+    try:
+        func(*args)
+    except Exception as err:
+        print(f"[scheduler] STEP FAILED: {name}: {err}", file=sys.stderr)
+        print(f"[scheduler] STEP FAILED: {name}: {err}")
+        traceback.print_exc(file=sys.stderr)
+        try:
+            emit_event(
+                "scheduler.step_failed",
+                f"Scheduler step '{name}' failed: {err}",
+                severity="error",
+            )
+        except Exception:
+            pass
+
+
 def main():
     global _config_changed, _shutdown
 
@@ -165,22 +189,22 @@ def main():
             # Fall through to main loop if not --once
 
         if args.once:
-            check_services(cfg)
-            recover_sessions(cfg)
-            recover_delegators(cfg, args.dry_run)
-            trigger_delegator_cycles(cfg, args.dry_run)
-            process_worker_completions(cfg, args.dry_run)
-            teardown_merged(cfg, args.dry_run)
-            check_planning_timeouts(cfg)
-            discover_work(cfg, args.dry_run)
-            sync_blocked_by(cfg, args.dry_run)
-            generate_plans(cfg, args.dry_run)
-            reconcile_state(cfg, args.dry_run)
-            discover_pr_urls(cfg, args.dry_run)
-            check_and_activate(cfg, args.dry_run)
-            announce_imports(cfg, args.dry_run)
-            sync_integrations(cfg, args.dry_run)
-            update_spend(cfg)
+            run_step("check_services", check_services, cfg)
+            run_step("recover_sessions", recover_sessions, cfg)
+            run_step("recover_delegators", recover_delegators, cfg, args.dry_run)
+            run_step("trigger_delegator_cycles", trigger_delegator_cycles, cfg, args.dry_run)
+            run_step("process_worker_completions", process_worker_completions, cfg, args.dry_run)
+            run_step("teardown_merged", teardown_merged, cfg, args.dry_run)
+            run_step("check_planning_timeouts", check_planning_timeouts, cfg)
+            run_step("discover_work", discover_work, cfg, args.dry_run)
+            run_step("sync_blocked_by", sync_blocked_by, cfg, args.dry_run)
+            run_step("generate_plans", generate_plans, cfg, args.dry_run)
+            run_step("reconcile_state", reconcile_state, cfg, args.dry_run)
+            run_step("discover_pr_urls", discover_pr_urls, cfg, args.dry_run)
+            run_step("check_and_activate", check_and_activate, cfg, args.dry_run)
+            run_step("announce_imports", announce_imports, cfg, args.dry_run)
+            run_step("sync_integrations", sync_integrations, cfg, args.dry_run)
+            run_step("update_spend", update_spend, cfg)
             return
 
         # Continuous mode
@@ -207,36 +231,36 @@ def main():
                 // cfg.poll_interval,
             )
 
-            check_services(cfg)
-            recover_sessions(cfg)
-            recover_delegators(cfg, args.dry_run)
+            run_step("check_services", check_services, cfg)
+            run_step("recover_sessions", recover_sessions, cfg)
+            run_step("recover_delegators", recover_delegators, cfg, args.dry_run)
 
             is_delegator_cycle = cycle % delegator_trigger_every == 0
             if is_delegator_cycle:
                 print(f"[scheduler] Cycle {cycle}: reconciliation + delegator monitoring")
-                trigger_delegator_cycles(cfg, args.dry_run)
+                run_step("trigger_delegator_cycles", trigger_delegator_cycles, cfg, args.dry_run)
             else:
                 cycles_until_delegator = delegator_trigger_every - (cycle % delegator_trigger_every)
                 print(f"[scheduler] Cycle {cycle}: reconciliation (next delegator in {cycles_until_delegator} cycles)")
 
-            process_worker_completions(cfg, args.dry_run)
-            teardown_merged(cfg, args.dry_run)
-            check_planning_timeouts(cfg)
-            discover_work(cfg, args.dry_run)
-            sync_blocked_by(cfg, args.dry_run)
-            generate_plans(cfg, args.dry_run)
-            reconcile_state(cfg, args.dry_run)
-            discover_pr_urls(cfg, args.dry_run)
-            check_and_activate(cfg, args.dry_run)
-            announce_imports(cfg, args.dry_run)
-            sync_integrations(cfg, args.dry_run)
-            update_spend(cfg)
+            run_step("process_worker_completions", process_worker_completions, cfg, args.dry_run)
+            run_step("teardown_merged", teardown_merged, cfg, args.dry_run)
+            run_step("check_planning_timeouts", check_planning_timeouts, cfg)
+            run_step("discover_work", discover_work, cfg, args.dry_run)
+            run_step("sync_blocked_by", sync_blocked_by, cfg, args.dry_run)
+            run_step("generate_plans", generate_plans, cfg, args.dry_run)
+            run_step("reconcile_state", reconcile_state, cfg, args.dry_run)
+            run_step("discover_pr_urls", discover_pr_urls, cfg, args.dry_run)
+            run_step("check_and_activate", check_and_activate, cfg, args.dry_run)
+            run_step("announce_imports", announce_imports, cfg, args.dry_run)
+            run_step("sync_integrations", sync_integrations, cfg, args.dry_run)
+            run_step("update_spend", update_spend, cfg)
 
             cycle += 1
             if cycle % cfg.cleanup_every == 0:
-                cleanup_completed(cfg)
-                rotate_event_log(cfg)
-                rotate_scheduler_log()
+                run_step("cleanup_completed", cleanup_completed, cfg)
+                run_step("rotate_event_log", rotate_event_log, cfg)
+                run_step("rotate_scheduler_log", rotate_scheduler_log)
 
             print(f"[scheduler] Next check in {cfg.poll_interval}s...")
 

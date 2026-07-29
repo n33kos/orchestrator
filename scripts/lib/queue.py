@@ -67,26 +67,53 @@ def locked_queue(queue_path: Optional[str] = None, write: bool = False):
         with open(path) as f:
             data = json.load(f)
 
+        try:
+            from lib.validate_queue import validate_item
+        except ImportError:
+            from scripts.lib.validate_queue import validate_item
+
+        # Violations that already exist on disk are recorded before the caller can
+        # touch anything, so a write can be judged on what it introduces rather than
+        # on the state it inherited. Without this, one legacy item makes every
+        # subsequent write fail, for every writer, permanently.
+        inherited: set[str] = set()
+        if write:
+            for _it in data.get("items", []):
+                inherited.update(validate_item(_it))
+
         result = {"data": data, "modified": False}
         yield result
 
         if write and result.get("modified", False):
             # Schema-enforce the write boundary: an invalid status, an unknown
-            # structured key, or a wrong-typed field can never be persisted —
-            # this is what stops non-deterministic writers (the delegator) from
-            # corrupting the queue. Aborts the write atomically on any violation.
-            try:
-                from lib.validate_queue import validate_item
-            except ImportError:
-                from scripts.lib.validate_queue import validate_item
-            violations = []
+            # structured key, or a wrong-typed field can never be persisted — this is
+            # what stops non-deterministic writers (the delegator) from corrupting the
+            # queue. Only newly introduced violations abort the write.
+            violations = set()
             for _it in result["data"].get("items", []):
-                violations.extend(validate_item(_it))
-            if violations:
+                violations.update(validate_item(_it))
+
+            introduced = violations - inherited
+            if introduced:
                 raise ValueError(
-                    "Refusing to write queue.json — schema violations:\n  "
-                    + "\n  ".join(violations)
+                    "Refusing to write queue.json — this write introduces schema "
+                    "violations:\n  " + "\n  ".join(sorted(introduced))
                 )
+
+            carried = violations & inherited
+            if carried:
+                # Loud but not fatal. These items were already invalid, so blocking the
+                # write would strand the whole system on someone else's bad data.
+                print(
+                    "[queue] WARNING: writing with pre-existing schema violations:\n  "
+                    + "\n  ".join(sorted(carried)),
+                    file=sys.stderr,
+                )
+                print(
+                    f"[queue] WARNING: {len(carried)} pre-existing schema violation(s); "
+                    "run scripts/check-schema-conformance.py"
+                )
+
             with open(path, "w") as f:
                 json.dump(result["data"], f, indent=2)
                 f.write("\n")

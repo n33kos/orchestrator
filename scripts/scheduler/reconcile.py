@@ -626,13 +626,14 @@ def reconcile_state(cfg: Config, dry_run: bool) -> None:
                             ["python3", "-m", "lib.queue", "update", item_id, f"environment.session_id={existing}"],
                             cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
                         )
+                        session_id = existing
                     elif dry_run:
                         print(f"[reconcile] Would spawn worker for {item_id} at {worktree_path}")
                     else:
                         _worker_missing_since.pop(item_id, None)
                         print(f"[reconcile] Spawning missing worker session for {item_id} at {worktree_path}")
                         emit_event("reconcile.spawn_worker", f"Spawning missing worker for {item_id}", item_id=item_id, severity="warn")
-                        _spawn_worker(cfg, item_id, worktree_path, session_name)
+                        session_id = _spawn_worker(cfg, item_id, worktree_path, session_name) or session_id
                 elif needs_respawn:
                     _worker_missing_since.pop(item_id, None)
                     if dry_run:
@@ -645,7 +646,7 @@ def reconcile_state(cfg: Config, dry_run: bool) -> None:
                         except Exception:
                             pass
                         time.sleep(2)
-                        _spawn_worker(cfg, item_id, worktree_path, session_name)
+                        session_id = _spawn_worker(cfg, item_id, worktree_path, session_name) or session_id
             else:
                 _worker_missing_since.pop(item_id, None)
 
@@ -656,9 +657,12 @@ def reconcile_state(cfg: Config, dry_run: bool) -> None:
             # so a respawn or restart (which never clears the flag) can't re-send.
             # Spawning is decoupled from briefing (see _spawn_worker), so this is
             # the single trigger for the brief across all state transitions.
-            session_alive_for_item = (
-                _normalize_session_id(session_id) in live_sessions
-                if session_id else False
+            normalized_for_brief = _normalize_session_id(session_id) if session_id else ""
+            session_alive_for_item = bool(normalized_for_brief) and (
+                normalized_for_brief in live_sessions
+                # live_sessions was captured before this pass spawned or rediscovered
+                # anything, so confirm against vmux directly for an id it did not have.
+                or _find_session_by_cwd(cfg, worktree_path) == normalized_for_brief
             )
             instructions_delivered = bool(env.get("task_instructions_delivered"))
             if (
@@ -824,7 +828,7 @@ def _find_session_by_cwd(cfg: Config, worktree_path: str) -> str | None:
     return None
 
 
-def _spawn_worker(cfg: Config, item_id: str, worktree_path: str, session_name: str) -> None:
+def _spawn_worker(cfg: Config, item_id: str, worktree_path: str, session_name: str) -> str:
     """Spawn (or re-establish) a vmux worker session and record its id.
 
     This is pure infrastructure: it never sends the initial task brief. Briefing
@@ -835,32 +839,55 @@ def _spawn_worker(cfg: Config, item_id: str, worktree_path: str, session_name: s
     """
     if os.path.realpath(worktree_path) == os.path.realpath(PROJECT_ROOT):
         print(f"[reconcile] REFUSING to spawn worker for {item_id} at orchestrator root ({worktree_path})", file=sys.stderr)
-        return
+        return ""
+
+    spawn_failure = ""
     try:
         spawn_args = [cfg.tool_vmux, "spawn", worktree_path]
         if session_name:
             spawn_args.extend(["--name", session_name])
         result = subprocess.run(spawn_args, capture_output=True, text=True, timeout=30)
         if result.returncode != 0:
-            print(f"[reconcile] WARNING: vmux spawn failed for {item_id}: {result.stderr}", file=sys.stderr)
-            return
-
-        time.sleep(2)
-        new_id = _find_session_by_cwd(cfg, worktree_path)
-        if not new_id:
-            new_id = hashlib.sha256(worktree_path.encode()).hexdigest()[:12]
-            print(f"[reconcile] WARNING: Could not find session by CWD, using computed ID {new_id}", file=sys.stderr)
-
-        # Record the new session id only. Briefing is not this function's job.
-        subprocess.run(
-            ["python3", "-m", "lib.queue", "update", item_id,
-             f"environment.session_id={new_id}"],
-            cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
-        )
-        print(f"[reconcile] Worker spawned for {item_id} (session: {new_id})")
-        _set_session_hue(item_id, new_id)
+            spawn_failure = (result.stderr or "").strip() or f"exit {result.returncode}"
     except Exception as e:
-        print(f"[reconcile] WARNING: Failed to spawn worker for {item_id}: {e}", file=sys.stderr)
+        spawn_failure = str(e)
+
+    # A failed or timed-out spawn command does not mean no session exists. vmux can
+    # take longer than the timeout and still finish the job, so the session list is
+    # the authority on what happened, not the exit code.
+    time.sleep(2)
+    new_id = _find_session_by_cwd(cfg, worktree_path)
+
+    if spawn_failure:
+        if new_id:
+            print(
+                f"[reconcile] vmux spawn reported failure for {item_id} "
+                f"({spawn_failure}), but session {new_id} exists — recording it"
+            )
+        else:
+            print(f"[reconcile] WARNING: vmux spawn failed for {item_id}: {spawn_failure}", file=sys.stderr)
+            print(f"[reconcile] vmux spawn failed for {item_id} and no session appeared: {spawn_failure}")
+            emit_event(
+                "reconcile.spawn_failed",
+                f"Could not spawn a worker for {item_id}: {spawn_failure}",
+                item_id=item_id,
+                severity="error",
+            )
+            return ""
+
+    if not new_id:
+        new_id = hashlib.sha256(worktree_path.encode()).hexdigest()[:12]
+        print(f"[reconcile] WARNING: Could not find session by CWD, using computed ID {new_id}", file=sys.stderr)
+
+    # Record the new session id only. Briefing is not this function's job.
+    subprocess.run(
+        ["python3", "-m", "lib.queue", "update", item_id,
+         f"environment.session_id={new_id}"],
+        cwd=SCRIPTS_DIR, capture_output=True, timeout=10,
+    )
+    print(f"[reconcile] Worker spawned for {item_id} (session: {new_id})")
+    _set_session_hue(item_id, new_id)
+    return new_id
 
 
 def parse_vmux_sessions(output: str) -> list[dict[str, str]]:
