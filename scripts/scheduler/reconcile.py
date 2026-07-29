@@ -20,6 +20,7 @@ from pathlib import Path
 from scripts.lib.queue import locked_queue
 from scripts.scheduler.config import Config
 from scripts.scheduler.events import emit_event
+from scripts.scheduler.readiness import ACTIVATABLE_STATUSES, activation_blockers
 
 PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
 SCRIPTS_DIR = os.path.join(PROJECT_ROOT, "scripts")
@@ -50,6 +51,27 @@ def _normalize_session_id(raw_id: str) -> str:
     return raw_id
 
 
+def record_blocked_reasons(
+    withheld: list[tuple[str, str, list[str]]],
+    ready: list[dict],
+) -> None:
+    """Persist why each item is not advancing, so the dashboard can show it."""
+    reasons_by_id = {item_id: reasons for item_id, _, reasons in withheld}
+    ready_ids = {item["id"] for item in ready}
+
+    with locked_queue(write=True) as ctx:
+        for item in ctx["data"]["items"]:
+            runtime = item.setdefault("runtime", {})
+            desired = reasons_by_id.get(item["id"])
+            if desired is not None:
+                if runtime.get("blocked_reasons") != desired:
+                    runtime["blocked_reasons"] = desired
+                    ctx["modified"] = True
+            elif item["id"] in ready_ids and runtime.get("blocked_reasons"):
+                runtime["blocked_reasons"] = []
+                ctx["modified"] = True
+
+
 def check_and_activate(cfg: Config, dry_run: bool) -> None:
     """Check for available slots and auto-activate highest priority items."""
     pause_file = os.path.expanduser("~/.claude/orchestrator/paused")
@@ -65,28 +87,20 @@ def check_and_activate(cfg: Config, dry_run: bool) -> None:
         data = ctx["data"]
 
     active_items = [i for i in data["items"] if i["status"] == "active"]
+    items_by_id = {item["id"]: item for item in data["items"]}
 
+    # Readiness is decided in one place and always explains itself, so a stalled item
+    # can be diagnosed from the log instead of by reading the scheduler's source.
     ready = []
+    withheld: list[tuple[str, str, list[str]]] = []
     for i in data["items"]:
-        if i["status"] not in ("queued", "planning"):
+        if i["status"] not in ACTIVATABLE_STATUSES:
             continue
-        env = i.get("environment") or {}
-        has_branch = bool(env.get("branch"))
-        has_repo = bool(env.get("repo"))
-        if not (has_branch or has_repo):
-            continue
-        # Skip if any blocked_by dependency is not completed
-        blocked_by = i.get("blocked_by", [])
-        if blocked_by:
-            all_items_by_id = {item["id"]: item for item in data["items"]}
-            if any(all_items_by_id.get(dep_id, {}).get("status") != "completed" for dep_id in blocked_by):
-                continue
-        if cfg.require_approved_plan:
-            plan = i.get("plan") or {}
-            plan_approved = plan.get("approved", False) if isinstance(plan, dict) else False
-            if not plan_approved:
-                continue
-        ready.append(i)
+        reasons = activation_blockers(cfg, i, items_by_id)
+        if reasons:
+            withheld.append((i["id"], i.get("title", ""), reasons))
+        else:
+            ready.append(i)
 
     ready.sort(key=lambda x: x["priority"])
     slots = max(0, cfg.max_active - len(active_items))
@@ -95,6 +109,11 @@ def check_and_activate(cfg: Config, dry_run: bool) -> None:
         f"[scheduler] Active: {len(active_items)}/{cfg.max_active} | "
         f"Ready: {len(ready)} | Slots: {slots}"
     )
+
+    record_blocked_reasons(withheld, ready)
+
+    for item_id, title, reasons in withheld:
+        print(f"[scheduler] Not ready: {item_id} ({title[:50]}) — {'; '.join(reasons)}")
 
     if not ready:
         print("[scheduler] No items ready for activation")

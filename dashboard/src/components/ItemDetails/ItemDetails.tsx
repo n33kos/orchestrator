@@ -299,6 +299,24 @@ export function ItemDetails({
       onClick={(e) => e.stopPropagation()}
     >
       {/* Dependencies / Blocked By */}
+      {!!item.runtime?.blocked_reasons?.length &&
+        item.status !== "active" &&
+        item.status !== "completed" && (
+          <div className={styles.Section}>
+            <div className={styles.SectionHeader}>
+              <span className={styles.SectionLabel}>Not advancing because</span>
+            </div>
+            <div className={styles.DepList}>
+              {item.runtime.blocked_reasons.map((reason) => (
+                <div key={reason} className={styles.DepItem}>
+                  <span className={styles.DepDot} />
+                  <span className={styles.DepText}>{reason}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
       {item.blocked_by.length > 0 && (
         <div className={styles.Section}>
           <div className={styles.SectionHeader}>

@@ -45,6 +45,7 @@ export interface WorkItemPlan {
 }
 
 export interface WorkItemRuntime {
+  blocked_reasons?: string[] | null
   delegator_status: string | null
   spend: Record<string, unknown> | null
   last_activity: string | null

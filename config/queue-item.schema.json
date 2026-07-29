@@ -90,7 +90,9 @@
         "stack_prs": { "type": ["array", "string", "null"] },
         "completion_message": { "type": ["string", "null"] },
         "directives": { "type": ["object", "null"] },
-        "ready_for_review": { "type": ["boolean", "null"] }
+        "ready_for_review": { "type": ["boolean", "null"] },
+        "blocked_reasons": { "type": ["array", "null"] },
+        "routing_attempted": { "type": ["boolean", "null"] }
       }
     }
   }

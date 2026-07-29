@@ -16,6 +16,7 @@ from scripts.lib import linear_api, sources
 from scripts.lib.queue import locked_queue
 from scripts.scheduler.config import Config
 from scripts.scheduler.events import emit_event
+from scripts.scheduler.readiness import ACTIVATABLE_STATUSES, suggest_branch
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
@@ -248,6 +249,47 @@ def sync_blocked_by(cfg: Config, dry_run: bool) -> None:
             if item["id"] in updates:
                 item["blocked_by"] = updates[item["id"]]
                 print(f"[scheduler] {item['id']} blocked_by: {updates[item['id']] or 'nothing'}")
+                ctx["modified"] = True
+
+
+def assign_missing_branches(cfg: Config, dry_run: bool) -> None:
+    """Give discovered items a branch, since a tracker does not supply one.
+
+    Only items that came from work discovery are named automatically. A hand-created
+    item without a branch is a human omission, and readiness reports it as one rather
+    than having the system guess at intent.
+    """
+    with locked_queue() as ctx:
+        items = list(ctx["data"].get("items", []))
+
+    assigned: dict[str, str] = {}
+    for item in items:
+        if item["status"] not in ACTIVATABLE_STATUSES:
+            continue
+        if (item.get("environment") or {}).get("branch"):
+            continue
+        if not (item.get("integration") or {}).get("identifier"):
+            continue
+
+        branch = suggest_branch(cfg, item)
+        if dry_run:
+            print(f"[scheduler] Would set {item['id']} branch to '{branch}'")
+            continue
+        assigned[item["id"]] = branch
+
+    if not assigned:
+        return
+
+    with locked_queue(write=True) as ctx:
+        for item in ctx["data"].get("items", []):
+            if item["id"] in assigned:
+                item["environment"]["branch"] = assigned[item["id"]]
+                print(f"[scheduler] {item['id']} branch set to '{assigned[item['id']]}'")
+                emit_event(
+                    "discovery.branch_assigned",
+                    f"Branch {assigned[item['id']]} assigned to {item['title']}",
+                    item_id=item["id"],
+                )
                 ctx["modified"] = True
 
 
