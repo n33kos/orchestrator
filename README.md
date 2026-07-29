@@ -68,7 +68,6 @@ orchestrator/
 ├── CLAUDE.md              # Claude Code instructions for the orchestrator agent
 ├── README.md              # This file
 ├── manifest.json          # Claude Code plugin manifest (9 skills)
-├── plan.md                # Implementation plan
 ├── config/
 │   ├── environment.yml            # Site-specific values (paths, tools, identity)
 │   ├── environment.local.yml      # Personal overrides (gitignored)
