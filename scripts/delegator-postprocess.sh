@@ -185,6 +185,40 @@ vmux = '$VMUX'
 dashboard_port = '$DASHBOARD_PORT'
 item_id = '$ITEM_ID'
 
+
+def coalesce_worker_messages(actions):
+    """Collapse a cycle's worker messages into one.
+
+    A cycle can return several message_worker actions, and sending each one
+    separately interrupts a worker repeatedly within a few seconds for what is a
+    single round of feedback. They are merged into one message, in order, so the
+    worker reads the cycle's guidance as a whole and its own turn is broken into
+    once rather than once per point.
+    """
+    texts = []
+    others = []
+    for action in actions:
+        if isinstance(action, dict) and action.get('type') == 'message_worker':
+            text = (action.get('text') or '').strip()
+            if text:
+                texts.append(text)
+        else:
+            others.append(action)
+
+    if not texts:
+        return others
+
+    if len(texts) == 1:
+        merged = texts[0]
+    else:
+        merged = '\n\n'.join(f'{i}. {t}' for i, t in enumerate(texts, 1))
+        print(f'  [action] Coalesced {len(texts)} worker messages into one')
+
+    return [{'type': 'message_worker', 'text': merged}] + others
+
+
+actions = coalesce_worker_messages(actions)
+
 for action in actions:
     action_type = action.get('type', '')
     try:
