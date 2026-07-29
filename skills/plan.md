@@ -5,7 +5,8 @@ user_invocable: true
 
 # Generate Plan
 
-Generate an implementation plan for a queued or planning-status work item.
+Generate an implementation plan for an item in `planning` or `queued` status.
+Items start in `planning` with no plan; a completed plan promotes them to `queued`.
 
 ## Default plan format — interactive HTML
 
@@ -45,7 +46,7 @@ Only fall back to markdown if the user explicitly asks for it (e.g., "make a mar
 
 ## Legacy auto-generation (markdown — deprecated)
 
-The old auto-gen path `bash ~/orchestrator/scripts/generate-plan.sh <item-id>` produces markdown. It still runs from the scheduler for items in `planning` status, but is being phased out. New plans authored manually should always use HTML via `present-html`.
+The auto-gen path `bash ~/orchestrator/scripts/generate-plan.sh <item-id>` produces markdown. The scheduler runs it for any item without a plan, feeding it the item's imported ticket body and discussion when the item came from work discovery. New plans authored manually should always use HTML via `present-html`.
 
 ## Plan File Format
 

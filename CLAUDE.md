@@ -20,9 +20,12 @@ Items without a `repo_key` use `_defaults`. Existing items with explicit `enviro
 
 Workflow for any agent (human or Claude) creating a new ticket:
 
-1. Allocate the next item ID and decide repo_key + branch.
+1. Decide repo_key + branch, then create the item with `scripts/add-work.py`, which
+   allocates the id from the shared counter and writes through the locking,
+   schema-validating helper. Never hand-assemble an item or write `queue.json` directly.
 2. Write the plan file at `~/Desktop/plans/<item-id>.md` (or `$CONFIG_ARTIFACTS_DIR/<item-id>.md`) — this is the only place ticket content lives. There is no `description` field on queue items.
-3. Add the queue entry with `plan.file` pointing at the plan path.
+3. Point `plan.file` at the plan path. Items are created in `planning`; a completed plan
+   is what promotes them to `queued`.
 4. Set `plan.approved=true` once the plan is reviewed.
 5. Run `scripts/verify-ticket.sh <item-id>` — every check must pass before the ticket is considered queued. If anything fails, fix it before declaring done.
 

@@ -98,8 +98,10 @@ orchestrator/
 │   ├── delegator-status.sh         # Delegator instance monitoring
 │   ├── health-check.sh             # Zombie/stall/dependency detection
 │   ├── status.sh                   # Comprehensive status report
+│   ├── add-work.py                 # Create a work item (locked, schema-validated)
+│   ├── check-schema-conformance.py # Assert nothing has drifted from the item schema
 │   ├── discover-work.py            # Work discovery (Linear, GitHub, Jira, markdown)
-│   ├── generate-plan.sh            # Auto-generate plan for queued item
+│   ├── generate-plan.sh            # Generate a plan from the item and its source detail
 │   ├── migrate-plans.sh            # Migrate inline plans to markdown files
 │   ├── sync-plan-metadata.sh       # Sync metadata headers in plan files
 │   ├── read-worker-transcript.py   # Read and summarize session transcripts
@@ -140,12 +142,13 @@ orchestrator/
 ## Work Stream Lifecycle
 
 ```
-Discover → Queue → Plan → Activate → Execute → Review → Complete
+Discover → Plan → Queue → Activate → Execute → Review → Complete
 ```
 
-1. **Discover** — Poller finds new work from configured sources
-2. **Queue** — Item added to priority queue with metadata
-3. **Plan** — Create and approve an implementation plan (stored as markdown in `~/.claude/orchestrator/plans/`)
+1. **Discover** — The scheduler polls configured adapters and adds new items in `planning`
+2. **Plan** — A plan is generated from the item and its imported detail, then reviewed; a
+   completed plan promotes the item to `queued`
+3. **Queue** — The item waits for approval and a free concurrency slot
 4. **Activate** — Worktree created, worker session spawned, delegator started
 5. **Execute** — Worker implements the plan; delegator monitors and reviews
 6. **Suspend** *(optional)* — Pause execution, kill session but preserve worktree for user review
@@ -155,45 +158,59 @@ Discover → Queue → Plan → Activate → Execute → Review → Complete
 
 ## Queue Schema
 
-Work items are stored in `~/.claude/orchestrator/queue.json`:
+Work items live in `~/.claude/orchestrator/queue.json`. The item shape is defined once,
+in `config/queue-item.schema.json`, and enforced at the write boundary by
+`scripts/lib/validate_queue.py`. Validation runs across every item on write, so a
+single malformed item blocks all later writes, including the scheduler's.
+
+`knowledge/queue-schema.md` documents every field. A shortened item:
 
 ```json
 {
-  "version": 1,
-  "items": [
-    {
-      "id": "ws-001",
-      "source": "manual",
-      "description": "Short description of the work",
-
-      "priority": 100,
-      "status": "queued",
-      "branch": "branch-name",
-      "session_id": null,
-      "delegator_enabled": true,
-      "blocked_by": ["ws-000"],
-      "pr_url": null,
-      "metadata": {
-        "plan_file": "~/.claude/orchestrator/plans/ws-001.md",
-        "plan": {
-          "summary": "...",
-          "approved": true,
-          "approved_at": "2026-01-01T00:00:00Z"
-        },
-        "repo_path": "/path/to/target/repo"
-      }
-    }
-  ]
+  "id": "ws-001",
+  "source": "manual",
+  "source_ref": "CLI manual entry",
+  "repo_key": "babylist-web",
+  "title": "Short description of the work",
+  "priority": 3,
+  "status": "planning",
+  "blocked_by": ["ws-000"],
+  "created_at": "2026-01-01T00:00:00Z",
+  "activated_at": null,
+  "completed_at": null,
+  "environment": { "repo": null, "use_worktree": true, "branch": "branch-name", "worktree_path": null, "session_id": null },
+  "worker": { "commit_strategy": "branch_and_pr", "delegator_enabled": true },
+  "plan": { "file": "~/.claude/orchestrator/plans/ws-001.md", "summary": "...", "approved": false, "approved_at": null },
+  "runtime": { "delegator_status": null, "pr_url": null }
 }
 ```
 
-**Key fields:**
-- `blocked_by` — Array of item IDs that must complete before this item can activate. The scheduler resolves dependencies automatically.
-- `delegator_enabled` — Per-item toggle for delegator quality assurance.
-- `metadata.plan_file` — Path to the markdown plan file (single source of truth for worker context).
-- `metadata.plan.approved` — Items with `require_approved_plan` enabled won't activate without approval.
+**Key points:**
+- There is no `description` field. Ticket content lives in the plan file at `plan.file`,
+  which is the single source of truth for worker context.
+- `blocked_by` holds items that must complete first. An entry is normally a queue id, but
+  an imported item whose blocker has not been imported holds the source tracker's
+  identifier instead. Any entry the queue cannot resolve counts as unsatisfied, so it
+  blocks rather than letting work start early.
+- `plan.approved` gates activation when `require_approved_plan` is enabled.
+- `integration` is present only on discovered items and links back to the source issue.
+- `repo_key` selects a repository from `config/environment.yml`. An item with neither a
+  `repo_key` nor an `environment.repo` refuses to activate rather than guessing.
 
-**Statuses:** `queued` → `planning` → `active` → `review` → `completed`
+**Statuses:** `planning` → `queued` → `active` → `review` → `completed`, plus `cancelled`.
+Items start in `planning` with no plan; completing the plan is what promotes them to
+`queued`, where they wait for approval and a free concurrency slot.
+
+### Never write the queue directly
+
+Python callers use `scripts/lib/queue.py`, which locks and validates. Anything outside
+Python pipes a whole document to `python3 -m lib.queue write`, which does the same. This
+keeps validation in one place instead of being restated in another language, where it
+would drift. After changing the schema, any item writer, or any dashboard item type, run:
+
+```bash
+python3 scripts/check-schema-conformance.py
+```
 
 ## Scheduler
 
@@ -318,6 +335,16 @@ Supported adapter types:
 Each adapter carries a `config` block (the source-specific filter), a `defaults`
 block applied to imported items, and a `writeback` block that maps orchestrator
 statuses onto source-tracker statuses.
+
+Imported items are routed to a repository by issue label via `repo_label_map`, falling
+back to the adapter's `repo_key`. Anything still unrouted is resolved before plan
+generation by inferring the repository from the item itself, using the `description`
+field on each repo in `config/environment.yml`. Nothing is assumed: an item that cannot
+be routed refuses to activate.
+
+Blocking relations come across too. An imported item's blockers become `blocked_by`
+entries, held as source identifiers until those blockers are themselves imported, so a
+partially imported chain still sequences correctly.
 
 Credentials come from the process environment, falling back to
 `~/.claude/orchestrator/.env`. The scheduler runs under launchd, which does not

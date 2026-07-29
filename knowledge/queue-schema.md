@@ -77,7 +77,7 @@ Queue file: `~/.claude/orchestrator/queue.json`
 | `source_ref` | string | Human-readable source reference |
 | `title` | string | Display name |
 | `priority` | number | Priority (1 = highest) |
-| `status` | string | `planning`, `queued`, `active`, `review`, `completed` |
+| `status` | string | `planning`, `queued`, `active`, `review`, `completed`, `cancelled` |
 | `blocked_by` | string[] | Items that must complete first. A queue id, or a source-tracker identifier when the blocker has not been imported. An unrecognized entry counts as unsatisfied, so it blocks. |
 | `created_at` | ISO string | Creation timestamp |
 | `activated_at` | ISO string \| null | When the item was activated |
@@ -149,12 +149,14 @@ planning → queued → active → review → completed
 Items are created in `planning` with no plan. Completing the plan is what promotes an
 item to `queued`, where it waits for approval and an open concurrency slot.
 
-Valid transitions:
-- `planning` → `queued`, `active`
-- `queued` → `planning`, `active`
-- `active` → `review`, `completed`
-- `review` → `active`, `completed`, `queued`
+Valid transitions, as enforced by `dashboard/src/utils/status-transitions.ts`:
+
+- `planning` → `active`, `queued`, `cancelled`
+- `queued` → `planning`, `active`, `cancelled`
+- `active` → `review`, `completed`, `cancelled`
+- `review` → `active`, `completed`, `queued`, `cancelled`
 - `completed` → `queued`
+- `cancelled` → `queued`
 
 ## Commit Strategy Values
 
