@@ -37,6 +37,7 @@ from scripts.scheduler.discovery import (
     sync_integrations,
 )
 from scripts.scheduler.spend import update_spend
+from scripts.scheduler.directive_runs import supervise_directive_runs
 from scripts.scheduler.delegator import (
     check_services,
     recover_delegators,
@@ -205,6 +206,7 @@ def main():
             run_step("announce_imports", announce_imports, cfg, args.dry_run)
             run_step("sync_integrations", sync_integrations, cfg, args.dry_run)
             run_step("update_spend", update_spend, cfg)
+            run_step("supervise_directive_runs", supervise_directive_runs, cfg, args.dry_run)
             return
 
         # Continuous mode
@@ -255,6 +257,10 @@ def main():
             run_step("announce_imports", announce_imports, cfg, args.dry_run)
             run_step("sync_integrations", sync_integrations, cfg, args.dry_run)
             run_step("update_spend", update_spend, cfg)
+            # Runs every tick, not only on delegator cycles: a runaway directive
+            # must be stopped on the poll interval, not the much slower
+            # delegator interval.
+            run_step("supervise_directive_runs", supervise_directive_runs, cfg, args.dry_run)
 
             cycle += 1
             if cycle % cfg.cleanup_every == 0:

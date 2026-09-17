@@ -156,6 +156,11 @@ class Config:
         # Delegator Directives (loaded from delegator/directives/<status>/*.md)
         self.directives: dict[str, list[dict]] = {"active": [], "review": []}
 
+        # Directive run budgets. A directive run is a detached subprocess, so it
+        # needs a wall-clock limit and a cost limit that the scheduler enforces.
+        self.directive_timeout_minutes: int = 30
+        self.directive_max_item_usd: float = 0.0
+
         # Delegator
         self.delegator_enabled: bool = True
         self.delegator_communication: str = "text"
@@ -360,6 +365,17 @@ def load_config(project_root: Optional[str] = None) -> Config:
     cfg.design_keywords = values.get(
         "project.design_keywords", "design-system,design,ui-kit"
     )
+
+    # Directive run budgets
+    cfg.directive_timeout_minutes = cfg._int(
+        values.get("directives.timeout_minutes", "30"), 30
+    )
+    try:
+        cfg.directive_max_item_usd = float(
+            values.get("directives.max_item_usd", "0") or 0
+        )
+    except (TypeError, ValueError):
+        cfg.directive_max_item_usd = 0.0
 
     # Delegator Directives
     from scripts.scheduler.directives import load_directives

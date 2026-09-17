@@ -2,7 +2,8 @@
 name: visual-smoke-check
 enabled: true
 required: false
-max_retries: 0
+max_retries: 2
+timeout_minutes: 25
 depends_on: null
 ---
 
@@ -29,6 +30,23 @@ This directive depends on two skills. If either is missing or broken, the direct
 - The directive does **not** call `trigger_review_transition` and does **not** bump status `review → active`.
 - The skill's pixel-diff signal is "did the branch introduce a visible change vs the base." It is not a judgment about whether a change is intentional, correct, or matches Figma. Those judgments belong to the human reviewer.
 - If a server was started by the directive to satisfy the smoke check, it's torn down at end of cycle. The directive never leaves servers running for the user to clean up. Servers that were already running before the directive started are left untouched — `ensure-dev-server` reports them as `already_running` with no teardown handle, and the directive respects that.
+
+---
+
+## How this directive is launched
+
+The delegator launches this directive through `run-directive.sh`, and **must** pass the worktree as `--cwd`:
+
+```bash
+bash ~/orchestrator/scripts/run-directive.sh \
+  --cwd <worktree_path> --timeout-minutes 25 \
+  <item-id> visual-smoke-check \
+  claude -p "<the pipeline prompt>" --permission-mode bypassPermissions &
+```
+
+Every path in the steps below is relative to the worktree. Without `--cwd` the run inherits the delegator's own directory, the Playwright sandbox is created under `~/.claude/orchestrator/delegators/<item-id>/`, the `mv` in step 5 finds nothing, and the run finishes having produced no artifact while reporting no error. Do not launch this directive without `--cwd`.
+
+The prompt must also state the worktree path explicitly and instruct the run to `cd` there before any capture, so a mis-launch fails loudly instead of writing to the wrong place.
 
 ---
 
@@ -194,6 +212,8 @@ Populate `totals`, `routes_checked`, and `findings` directly from `coverage.json
 ### 7. Cleanup
 
 Runs unconditionally — success path, skill-failure path, and step-2 partial-failure path all funnel through here. The directive must never leave behind a server it started.
+
+A run that the scheduler stopped (`status: "timed_out"` or `status: "killed"` in its status file) never reaches this step, because the process is gone. The servers it started are recorded in `runtime.directives.visual-smoke-check.servers_started`, and the next cycle's `ensure-dev-server` probe reports whether they are still up. Do not assume a stopped run cleaned up after itself.
 
 1. **Tear down servers the directive started.** For each entry in the `servers_started` list captured in step 2, run its `teardown_command` (the shell command `ensure-dev-server` returned). Teardown scripts are idempotent — safe to run even if the process is already gone.
 2. **Leave pre-existing servers alone.** Servers that `ensure-dev-server` reported as `already_running` were never added to `servers_started`. Do not touch them.

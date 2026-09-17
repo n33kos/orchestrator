@@ -196,27 +196,51 @@ When directives are present:
 
 ### Directive Status Files
 
-When evaluating a directive, FIRST check for a status file at `~/.claude/orchestrator/delegators/<item_id>/directive-<directive_name>.status.json`. The status file contains `status`, `pid`, `exit_code`, and `output_path` fields.
+Never inspect a directive's processes yourself. Read its state with one command:
 
-- **If status is `"running"` and the PID is alive** (`kill -0 <pid>` succeeds): report the directive as still running and take no action on it.
-- **If status is `"completed"` with `exit_code` 0**: read the output file at `output_path` to evaluate results. Proceed with the directive's evaluation instructions.
-- **If status is `"completed"` with non-zero `exit_code`, or `"failed"`**: handle according to the directive's retry logic (increment retries, re-launch if retries remain, or mark as failed).
-- **If no status file exists and the directive needs to run**: launch it via the directive wrapper as a background process.
+```bash
+python3 ~/orchestrator/scripts/directive-control.py status <item_id> <directive_name>
+```
+
+That reports `status`, `alive`, `runtime_minutes`, `seconds_since_heartbeat`, `output_bytes`, `output_path`, and `stopped_reason`. Use `list <item_id>` to see every run on the item, and `tail <item_id> <directive_name> [lines]` to read recent output from a run that is still going.
+
+- **`alive` is true**: the run is live. Report its runtime and output size, and take no action on it. Do NOT relaunch it. The scheduler enforces the time and cost budget; you do not.
+- **`status` is `completed` with `exit_code` 0**: read `output_path` and proceed with the directive's evaluation instructions.
+- **`status` is `failed` with a non-zero `exit_code`**: apply the directive's retry logic (increment retries, relaunch if retries remain, otherwise mark failed).
+- **`status` is `timed_out` or `killed`**: the scheduler or the user stopped this run, and `stopped_reason` says why. Record it, do NOT relaunch it on this cycle, and surface the reason in your report. A repeatedly timed-out directive is a problem for the user to decide on, not something to retry around.
+- **No status file and the directive needs to run**: launch it as described below.
 
 ### Launching Directives
 
 To START a directive process, pass the command and its arguments as separate tokens (no quoting around the whole command):
 ```bash
-bash ~/orchestrator/scripts/run-directive.sh <item_id> <directive_name> <cmd> <arg1> <arg2> ... &
+bash ~/orchestrator/scripts/run-directive.sh \
+  --cwd <working_directory> --timeout-minutes <n> \
+  <item_id> <directive_name> <cmd> <arg1> <arg2> ... &
 ```
+
+**`--cwd` is mandatory for any directive whose command writes files or resolves relative paths.** Pass the item's worktree path (`environment.worktree_path`, or `environment.repo` for a non-worktree item). Without it the command inherits the delegator's own directory, so every relative output path lands in `~/.claude/orchestrator/delegators/<item_id>/` instead of the repository, and the directive's own file reads find nothing. That failure is silent: the run appears to work and produces no artifact.
+
+Pass `--timeout-minutes` from the directive's frontmatter `timeout_minutes` when it has one. Omit it to accept the configured default.
+
 For example:
 ```bash
-bash ~/orchestrator/scripts/run-directive.sh ws-011 exhibit-report \
+bash ~/orchestrator/scripts/run-directive.sh \
+  --cwd /Users/me/babylist-web-my-branch --timeout-minutes 25 \
+  ws-011 exhibit-report \
   exhibit https://github.com/owner/repo/pull/123 --output ~/Desktop/plans/exhibit-ws-011.html &
 ```
 The `&` backgrounds the process so the delegator returns immediately. After starting, update the queue item's directive status to `running` via `update_queue_metadata`.
 
-`run-directive.sh` runs the command with preserved argv (no `eval`, no shell parsing), so quoting is only required around individual arguments that contain spaces — same rules as any other shell invocation.
+`run-directive.sh` runs the command with preserved argv (no `eval`, no shell parsing), so quoting is only required around individual arguments that contain spaces — same rules as any other shell invocation. It puts the command in its own process group and heartbeats its status file, which is what lets the scheduler stop a runaway run and everything it started.
+
+### Stopping a Directive
+
+```bash
+python3 ~/orchestrator/scripts/directive-control.py stop <item_id> <directive_name> "<reason>"
+```
+
+Use this only when the directive's own instructions tell you to, or when the user asks. The scheduler already stops runs that exceed the configured time or cost budget, and it reports the stop to the worker session. Do not stop a run merely because it is taking a while.
 
 **NEVER run directive commands (council, exhibit, etc.) directly.** Always use `run-directive.sh` which creates the status file for tracking.
 

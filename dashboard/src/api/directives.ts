@@ -1,9 +1,12 @@
+import { execFile } from 'child_process'
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
 import type { ViteDevServer } from 'vite'
+import { readBody } from './helpers'
 
 const PROJECT_ROOT = join(homedir(), 'orchestrator')
+const CONTROL_SCRIPT = join(PROJECT_ROOT, 'scripts', 'directive-control.py')
 
 interface DirectiveSummary {
   name: string
@@ -87,8 +90,114 @@ function loadAll(): Record<string, DirectiveSummary[]> {
   return out
 }
 
+/** Shell out to the one command that owns directive runs, so the dashboard,
+ *  the worker session, and a human at a terminal all take the same path. */
+function control(
+  args: string[],
+  done: (err: Error | null, stdout: string, stderr: string) => void,
+) {
+  execFile(
+    'python3',
+    [CONTROL_SCRIPT, ...args],
+    { timeout: 30000, env: { ...process.env, HOME: homedir() } },
+    (err, stdout, stderr) => done(err, stdout, stderr),
+  )
+}
+
 export function registerDirectiveRoutes(server: ViteDevServer) {
-  server.middlewares.use('/api/directives', (req, res) => {
+  // GET /api/directives/runs?item=<id> — live and finished runs for one item.
+  server.middlewares.use('/api/directives/runs', (req, res) => {
+    if (req.method !== 'GET') {
+      res.statusCode = 405
+      res.end('Method not allowed')
+      return
+    }
+    res.setHeader('Content-Type', 'application/json')
+    const url = new URL(req.url || '', 'http://localhost')
+    const itemId = url.searchParams.get('item')
+    if (!itemId) {
+      res.statusCode = 400
+      res.end(JSON.stringify({ error: 'item query parameter is required' }))
+      return
+    }
+    control(['list', itemId, '--json'], (err, stdout) => {
+      if (err) {
+        res.end(JSON.stringify({ runs: [] }))
+        return
+      }
+      try {
+        res.end(JSON.stringify(JSON.parse(stdout)))
+      } catch {
+        res.end(JSON.stringify({ runs: [] }))
+      }
+    })
+  })
+
+  // POST /api/directives/stop — stop one live run. Body: { itemId, directive, reason }
+  server.middlewares.use('/api/directives/stop', async (req, res) => {
+    if (req.method !== 'POST') {
+      res.statusCode = 405
+      res.end('Method not allowed')
+      return
+    }
+    res.setHeader('Content-Type', 'application/json')
+    try {
+      const body = JSON.parse(await readBody(req))
+      if (!body.itemId || !body.directive) {
+        res.statusCode = 400
+        res.end(JSON.stringify({ error: 'itemId and directive are required' }))
+        return
+      }
+      const reason = body.reason || 'stopped from the dashboard'
+      control(['stop', body.itemId, body.directive, reason], (err, stdout, stderr) => {
+        if (err) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: stderr || String(err) }))
+          return
+        }
+        try {
+          res.end(JSON.stringify(JSON.parse(stdout)))
+        } catch {
+          res.end(JSON.stringify({ ok: true, output: stdout }))
+        }
+      })
+    } catch (err) {
+      res.statusCode = 500
+      res.end(JSON.stringify({ error: String(err) }))
+    }
+  })
+
+  // GET /api/directives/output?item=<id>&directive=<name>&lines=<n>
+  server.middlewares.use('/api/directives/output', (req, res) => {
+    if (req.method !== 'GET') {
+      res.statusCode = 405
+      res.end('Method not allowed')
+      return
+    }
+    res.setHeader('Content-Type', 'application/json')
+    const url = new URL(req.url || '', 'http://localhost')
+    const itemId = url.searchParams.get('item')
+    const directive = url.searchParams.get('directive')
+    const lines = url.searchParams.get('lines') || '200'
+    if (!itemId || !directive) {
+      res.statusCode = 400
+      res.end(JSON.stringify({ error: 'item and directive query parameters are required' }))
+      return
+    }
+    control(['tail', itemId, directive, lines], (err, stdout) => {
+      if (err) {
+        res.end(JSON.stringify({ output: '' }))
+        return
+      }
+      res.end(JSON.stringify({ output: stdout }))
+    })
+  })
+
+  server.middlewares.use('/api/directives', (req, res, next) => {
+    if (req.url && req.url !== '/' && req.url !== '') {
+      next()
+      return
+    }
     if (req.method !== 'GET') {
       res.statusCode = 405
       res.end('Method not allowed')

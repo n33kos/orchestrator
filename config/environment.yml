@@ -106,7 +106,14 @@ discovery:
 #   instructions — Natural language instructions for the delegator (from markdown body)
 #   required     — If true, must pass/complete before the item can transition to the next status
 #   max_retries  — Maximum times to retry if required and failing (0 = unlimited)
+# timeout_minutes — wall-clock limit for one directive run; the scheduler stops
+#                   a run that exceeds it and records why. Per-directive
+#                   frontmatter `timeout_minutes` overrides this.
+# max_item_usd    — stop every live directive run on an item once its recorded
+#                   spend reaches this ceiling. 0 disables the check.
 directives:
+  timeout_minutes: 25
+  max_item_usd: 100.0
   active: []
   review: []
 

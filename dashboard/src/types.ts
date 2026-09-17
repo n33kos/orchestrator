@@ -44,6 +44,31 @@ export interface WorkItemPlan {
   approved_at: string | null
 }
 
+/** One supervised directive run, as recorded by the scheduler. */
+export interface DirectiveRun {
+  directive: string
+  status: 'running' | 'completed' | 'failed' | 'killed' | 'timed_out' | 'unknown'
+  alive: boolean
+  pid: number | null
+  pgid: number | null
+  cwd: string | null
+  started_at: string | null
+  runtime_seconds: number
+  runtime_minutes: number
+  seconds_since_heartbeat: number
+  output_bytes: number
+  output_path: string | null
+  exit_code: number | null
+  stopped_reason: string | null
+  timeout_minutes: number | null
+}
+
+export interface DirectiveRunState {
+  runs: DirectiveRun[]
+  announced: string[]
+  updated_at: string
+}
+
 export interface WorkItemRuntime {
   blocked_reasons?: string[] | null
   delegator_status: string | null
@@ -52,6 +77,7 @@ export interface WorkItemRuntime {
   pr_url: string | null
   stack_prs: unknown[] | null
   completion_message: string | null
+  directive_runs?: DirectiveRunState | null
 }
 
 export interface WorkItem {

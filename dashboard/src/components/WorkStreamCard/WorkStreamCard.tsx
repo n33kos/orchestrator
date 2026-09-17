@@ -77,6 +77,12 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
   const awaitingApprovalOnly =
     recordedReasons.length === 1 && recordedReasons[0] === 'plan is not approved'
   const stallReasons = awaitingApprovalOnly ? [] : recordedReasons
+  // A directive run is a detached subprocess that spends money against this
+  // item, so a live one is named on the card rather than only inside the panel.
+  const liveDirectiveRuns = (item.runtime?.directive_runs?.runs ?? []).filter(r => r.alive)
+  const stoppedDirectiveRuns = (item.runtime?.directive_runs?.runs ?? []).filter(
+    r => r.status === 'timed_out' || r.status === 'killed',
+  )
   const isStack = item.worker?.commit_strategy === 'graphite_stack'
   const stackSteps = item.worker?.stack_steps ?? []
   const stackCompletedCount = stackSteps.filter(s => s.completed).length
@@ -292,6 +298,34 @@ export function WorkStreamCard({ item, index = 0, position, totalCount, isDraggi
           </svg>
           <span>
             <strong>Not advancing:</strong> {stallReasons.join('; ')}
+          </span>
+        </div>
+      )}
+
+      {liveDirectiveRuns.length > 0 && (
+        <div className={styles.DirectiveNotice}>
+          <span className={styles.DirectiveDot} />
+          <span>
+            <strong>Running:</strong>{' '}
+            {liveDirectiveRuns
+              .map(r => `${r.directive} (${r.runtime_minutes} min)`)
+              .join(', ')}
+          </span>
+        </div>
+      )}
+
+      {liveDirectiveRuns.length === 0 && stoppedDirectiveRuns.length > 0 && (
+        <div className={styles.DirectiveNoticeStopped}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="15" y1="9" x2="9" y2="15" />
+            <line x1="9" y1="9" x2="15" y2="15" />
+          </svg>
+          <span>
+            <strong>Directive stopped:</strong>{' '}
+            {stoppedDirectiveRuns
+              .map(r => `${r.directive} — ${r.stopped_reason ?? r.status}`)
+              .join('; ')}
           </span>
         </div>
       )}

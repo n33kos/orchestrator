@@ -7,6 +7,7 @@ import { ActivityLog } from "../ActivityLog/ActivityLog.tsx";
 import { MessageComposer } from "../MessageComposer/MessageComposer.tsx";
 import { InlineEdit } from "../InlineEdit/InlineEdit.tsx";
 import { ItemNotes } from "../ItemNotes/ItemNotes.tsx";
+import { DirectiveRuns } from "../DirectiveRuns/DirectiveRuns.tsx";
 import { timeAgo, formatDate } from "../../utils/time.ts";
 import { usePrStatus, usePrStack } from "../../hooks/usePrStatus.ts";
 import type { StackPr } from "../../hooks/usePrStatus.ts";
@@ -1265,6 +1266,14 @@ export function ItemDetails({
           </div>
         )}
       </div>
+
+      {/* Directive Runs */}
+      {(item.runtime?.directive_runs?.runs?.length ?? 0) > 0 && (
+        <div className={styles.Section}>
+          <span className={styles.SectionLabel}>Directive Runs</span>
+          <DirectiveRuns item={item} />
+        </div>
+      )}
 
       {/* Session Status */}
       {linkedSession && (

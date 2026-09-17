@@ -1157,3 +1157,60 @@
     font-weight: 600;
   }
 }
+
+.DirectiveNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0 0 10px;
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-primary, #3b6ea5) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-primary, #3b6ea5) 40%, transparent);
+  color: var(--color-text);
+  font-size: 12px;
+  line-height: 1.45;
+
+  strong {
+    font-weight: 600;
+  }
+}
+
+.DirectiveDot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--color-primary, #3b6ea5);
+  animation: directivePulse 2s infinite;
+}
+
+@keyframes directivePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.DirectiveNoticeStopped {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0 0 10px;
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-warning, #b4833a) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-warning, #b4833a) 45%, transparent);
+  color: var(--color-text);
+  font-size: 12px;
+  line-height: 1.45;
+
+  svg {
+    flex: 0 0 auto;
+    margin-top: 1px;
+    color: var(--color-warning, #b4833a);
+  }
+
+  strong {
+    font-weight: 600;
+  }
+}

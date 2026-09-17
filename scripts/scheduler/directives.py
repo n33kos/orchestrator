@@ -49,11 +49,15 @@ def _parse_frontmatter(content: str) -> tuple[dict, str]:
             if len(kv) == 2:
                 key = kv[0].strip()
                 val = kv[1].strip()
-                # Type coercion
+                # Type coercion. `null`/`none`/empty become a real None so a
+                # field like `depends_on: null` reads as "no dependency" rather
+                # than a dependency on a directive literally named "null".
                 if val.lower() in ("true", "yes"):
                     frontmatter[key] = True
                 elif val.lower() in ("false", "no"):
                     frontmatter[key] = False
+                elif val == "" or val.lower() in ("null", "none", "~"):
+                    frontmatter[key] = None
                 else:
                     try:
                         frontmatter[key] = int(val)
