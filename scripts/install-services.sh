@@ -38,7 +38,9 @@ detect_shim_paths() {
     # The alias file may store the version as "24.11.0" or "v24.11.0"; the
     # actual install path always uses the "v" prefix. Normalize before
     # checking. Fall back to whichever node binary is on the user's
-    # interactive PATH if the alias lookup misses.
+    # interactive PATH if the alias lookup misses. The resolved version is
+    # published through a stable symlink so a later node upgrade only needs
+    # the symlink repointed, not every installed plist rewritten.
     if [[ -d "$HOME/.nvm" ]]; then
         local nvm_bin=""
         local nvm_default="$HOME/.nvm/alias/default"
@@ -46,17 +48,20 @@ detect_shim_paths() {
             local ver
             ver=$(cat "$nvm_default")
             [[ "$ver" != v* ]] && ver="v$ver"
-            [[ -d "$HOME/.nvm/versions/node/$ver/bin" ]] && nvm_bin="$HOME/.nvm/versions/node/$ver/bin"
+            [[ -d "$HOME/.nvm/versions/node/$ver/bin" ]] && nvm_bin="$HOME/.nvm/versions/node/$ver"
         fi
         # Fallback: resolve node from the current shell PATH and use its bin dir.
         if [[ -z "$nvm_bin" ]]; then
             local node_path
             node_path="$(command -v node 2>/dev/null || true)"
             if [[ -n "$node_path" && "$node_path" == *"/.nvm/"* ]]; then
-                nvm_bin="$(dirname "$node_path")"
+                nvm_bin="$(dirname "$(dirname "$node_path")")"
             fi
         fi
-        [[ -n "$nvm_bin" && -d "$nvm_bin" ]] && paths+=("$nvm_bin")
+        if [[ -n "$nvm_bin" && -d "$nvm_bin/bin" ]]; then
+            ln -sfn "$nvm_bin" "$HOME/.nvm/default"
+            paths+=("$HOME/.nvm/default/bin")
+        fi
     fi
 
     # chruby — no shims, but check for default ruby
