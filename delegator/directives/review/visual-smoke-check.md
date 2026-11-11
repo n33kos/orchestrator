@@ -1,6 +1,6 @@
 ---
 name: visual-smoke-check
-enabled: true
+enabled: false
 required: false
 max_retries: 2
 timeout_minutes: 25

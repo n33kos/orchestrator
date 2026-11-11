@@ -142,8 +142,10 @@ fi
 NEW_COMMITS_RAW=""
 DIFF_STAT=""
 DIFF_CONTENT=""
+HEAD_HASH=""
 
 if [[ -n "$GIT_REPO_PATH" && -d "$GIT_REPO_PATH" ]]; then
+    HEAD_HASH="$(cd "$GIT_REPO_PATH" && git rev-parse HEAD 2>/dev/null)" || HEAD_HASH=""
     if [[ -n "$LAST_SEEN_HASH" ]]; then
         NEW_COMMITS_RAW="$(cd "$GIT_REPO_PATH" && git log --oneline "${LAST_SEEN_HASH}..HEAD" 2>/dev/null)" || NEW_COMMITS_RAW=""
         DIFF_STAT="$(cd "$GIT_REPO_PATH" && git diff --stat "${LAST_SEEN_HASH}..HEAD" 2>/dev/null)" || DIFF_STAT=""
@@ -254,6 +256,7 @@ printf '%s\0' \
     "$OUTPUT_FILE" \
     "$PER_PR_CI_JSON" \
     "$PROJECT_ROOT" \
+    "$HEAD_HASH" \
 | python3 -c '
 import json, sys
 fields = sys.stdin.buffer.read().split(b"\0")
@@ -263,7 +266,7 @@ keys = [
     "activity_summary", "new_commits_raw", "diff_stat", "diff_content",
     "pr_json", "ci_checks_raw", "merge_status_json", "previous_state",
     "conversation_recent", "item_json", "output_file",
-    "per_pr_ci_json", "project_root",
+    "per_pr_ci_json", "project_root", "head_hash",
 ]
 data = {k: fields[i].decode("utf-8", errors="replace") if i < len(fields) else "" for i, k in enumerate(keys)}
 json.dump(data, sys.stdout)
@@ -271,6 +274,7 @@ json.dump(data, sys.stdout)
 
 # Step 12b: Process the single payload file into the final output.
 python3 - "$PAYLOAD_FILE" << 'PYEOF'
+import hashlib
 import json
 import os
 import re
@@ -477,6 +481,7 @@ payload = {
     },
     "conversation_recent": conversation_recent,
     "commits": {
+        "head_hash": raw.get("head_hash", ""),
         "new_commits": new_commits,
         "diff_stat": diff_stat,
         "diff_content": diff_content,
@@ -499,6 +504,28 @@ payload = {
     },
     "previous_state": previous_state,
 }
+
+# A cycle only deserves a model call when something about the item actually moved.
+# The fingerprint is every fact the triage rules branch on; when it matches the
+# previous cycle, the situation is unchanged no matter how it was classified last
+# time, and re-escalating it buys nothing.
+fingerprint_parts = [
+    raw.get("head_hash", ""),
+    str(pr_number or ""),
+    pr_state,
+    str(ci_total), str(ci_passing), str(ci_failing),
+    "idle" if idle_check.startswith("IDLE") else "active",
+    str(mergeable),
+    str(merge_state_status or ""),
+    item_context.get("status", ""),
+]
+state_fingerprint = hashlib.sha256("|".join(fingerprint_parts).encode()).hexdigest()[:16]
+previous_fingerprint = previous_state.get("state_fingerprint", "")
+payload["state_fingerprint"] = state_fingerprint
+payload["state_changed"] = state_fingerprint != previous_fingerprint
+payload["cycles_unchanged"] = (
+    0 if payload["state_changed"] else previous_state.get("cycles_unchanged", 0) + 1
+)
 
 # Load directives for the item's current status using the shared loader.
 # Only include if worker.directives_enabled is true (or not set — defaults to true).
@@ -532,6 +559,21 @@ if project_root and item_status and directives_enabled:
 if directives:
     payload["directives"] = directives
     payload["directive_runtime"] = runtime_directives
+    # A directive changing state is a change in the item, so fold the directive
+    # statuses into the fingerprint rather than letting a pending directive look
+    # identical to a completed one.
+    directive_states = "|".join(
+        f"{name}:{(info or {}).get('status', '')}:{(info or {}).get('retries', 0)}"
+        for name, info in sorted(runtime_directives.items())
+    )
+    state_fingerprint = hashlib.sha256(
+        (state_fingerprint + "|" + directive_states).encode()
+    ).hexdigest()[:16]
+    payload["state_fingerprint"] = state_fingerprint
+    payload["state_changed"] = state_fingerprint != previous_fingerprint
+    payload["cycles_unchanged"] = (
+        0 if payload["state_changed"] else previous_state.get("cycles_unchanged", 0) + 1
+    )
 
 with open(output_file, "w") as f:
     json.dump(payload, f, indent=2)

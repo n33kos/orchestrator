@@ -15,7 +15,9 @@ export function registerPlanRoutes(server: ViteDevServer) {
       const scriptPath = join(__dirname, '..', '..', '..', 'scripts', 'generate-plan.sh')
       const args = [body.itemId]
       if (body.autoApprove) args.push('--auto-approve')
-      execFile('bash', [scriptPath, ...args], { timeout: 60000, env: { ...process.env, HOME: homedir() } }, (err, stdout, stderr) => {
+      // Planning reads the target repository on a large model, so it takes minutes.
+      // A one-minute ceiling killed the call before it could finish.
+      execFile('bash', [scriptPath, ...args], { timeout: 900000, maxBuffer: 10 * 1024 * 1024, env: { ...process.env, HOME: homedir() } }, (err, stdout, stderr) => {
         res.setHeader('Content-Type', 'application/json')
         if (err) {
           res.statusCode = 500

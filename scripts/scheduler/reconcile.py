@@ -338,13 +338,64 @@ def _set_session_hue(item_id: str, session_id: str) -> None:
         pass  # Non-critical — don't fail activation over cosmetic hue
 
 
+PLAN_RUNS_DIR = Path.home() / ".claude" / "orchestrator" / "plan-runs"
+
+# Plan generation now runs in the background on a large model, so a batch of
+# freshly imported tickets would otherwise start one session per ticket in the
+# same cycle. Cap how many run at once.
+MAX_CONCURRENT_PLAN_RUNS = 3
+
+
+def _plan_run_is_alive(item_id: str) -> bool:
+    """Whether a previously started plan generation is still running."""
+    pid_file = PLAN_RUNS_DIR / f"{item_id}.pid"
+    if not pid_file.exists():
+        return False
+    try:
+        pid = int(pid_file.read_text().split(":")[0].strip())
+        os.kill(pid, 0)
+        return True
+    except PermissionError:
+        return True
+    except (ValueError, ProcessLookupError, OSError):
+        pid_file.unlink(missing_ok=True)
+        return False
+
+
+def _collect_plan_run_output(item_id: str) -> None:
+    """Print and clear the log a finished plan generation left behind."""
+    log_file = PLAN_RUNS_DIR / f"{item_id}.log"
+    if not log_file.exists():
+        return
+    try:
+        for line in log_file.read_text().strip().split("\n"):
+            if line.strip():
+                print(f"  {line}")
+    except OSError:
+        pass
+    log_file.unlink(missing_ok=True)
+
+
 def generate_plans(cfg: Config, dry_run: bool) -> None:
-    """Auto-generate plans for queued projects that don't have one."""
+    """Auto-generate plans for queued projects that don't have one.
+
+    Plan generation runs in the background. It reads the repository it is planning
+    against on a large model, which takes minutes, and a batch of imported tickets
+    would otherwise hold the scheduler loop for as long as it took to plan all of
+    them one after another.
+    """
     if not cfg.auto_activate:
         return
 
     with locked_queue() as ctx:
         data = ctx["data"]
+
+    PLAN_RUNS_DIR.mkdir(parents=True, exist_ok=True)
+
+    live_runs = sum(
+        1 for pid_file in PLAN_RUNS_DIR.glob("*.pid")
+        if _plan_run_is_alive(pid_file.stem)
+    )
 
     for item in data["items"]:
         plan = item.get("plan") or {}
@@ -353,21 +404,41 @@ def generate_plans(cfg: Config, dry_run: bool) -> None:
             item_id, item_title = item["id"], item["title"]
             if dry_run:
                 print(f"[scheduler] Would generate plan for: {item_id} — {item_title}")
-            else:
-                print(f"[scheduler] Generating plan for: {item_id} — {item_title}")
-                args = ["bash", os.path.join(SCRIPTS_DIR, "generate-plan.sh"), item_id]
-                if cfg.auto_approve_plans:
-                    args.append("--auto-approve")
-                try:
-                    result = subprocess.run(args, capture_output=True, text=True, timeout=60, env=EXEC_ENV)
-                    if result.stdout:
-                        for line in result.stdout.strip().split("\n"):
-                            print(f"  {line}")
-                    if result.returncode != 0:
-                        print(f"[scheduler] ERROR: Failed to generate plan for {item_id}", file=sys.stderr)
-                        emit_event("scheduler.error", f"Failed to generate plan for {item_id}", item_id=item_id, severity="error")
-                except subprocess.TimeoutExpired:
-                    pass
+                continue
+
+            if _plan_run_is_alive(item_id):
+                print(f"[scheduler] Plan generation already running for {item_id} — skipping")
+                continue
+
+            _collect_plan_run_output(item_id)
+
+            if live_runs >= MAX_CONCURRENT_PLAN_RUNS:
+                print(
+                    f"[scheduler] {live_runs} plan generations already running — "
+                    f"{item_id} waits for the next cycle"
+                )
+                continue
+
+            print(f"[scheduler] Generating plan for: {item_id} — {item_title}")
+            args = ["bash", os.path.join(SCRIPTS_DIR, "generate-plan.sh"), item_id]
+            if cfg.auto_approve_plans:
+                args.append("--auto-approve")
+            try:
+                log_file = PLAN_RUNS_DIR / f"{item_id}.log"
+                lf = open(log_file, "w")
+                proc = subprocess.Popen(
+                    args, stdout=lf, stderr=subprocess.STDOUT, env=EXEC_ENV,
+                )
+                (PLAN_RUNS_DIR / f"{item_id}.pid").write_text(
+                    f"{proc.pid}:{datetime.now(timezone.utc).isoformat()}"
+                )
+                live_runs += 1
+                print(f"[scheduler] Plan generation started for {item_id} (PID {proc.pid})")
+            except Exception as e:
+                print(f"[scheduler] ERROR: Failed to start plan generation for {item_id}: {e}",
+                      file=sys.stderr)
+                emit_event("scheduler.error", f"Failed to generate plan for {item_id}",
+                           item_id=item_id, severity="error")
 
 
 def check_planning_timeouts(cfg: Config) -> None:

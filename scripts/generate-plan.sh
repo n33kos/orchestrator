@@ -123,6 +123,41 @@ if [[ -n "$CONTEXT_FILE" && "$CONTEXT_FILE" != "None" ]]; then
     fi
 fi
 
+SOURCE_REF_LINE=""
+SOURCE_REF="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" integration.source_ref 2>/dev/null)" || true
+if [[ -n "$SOURCE_REF" && "$SOURCE_REF" != "None" ]]; then
+    SOURCE_REF_LINE="Source: $SOURCE_REF"
+fi
+
+# The same authorization the worker gets in its task message, written into the plan
+# file as well. The plan file is what the worker re-reads when it loses the thread,
+# and a worker that forgets it may push will stop and wait for a human who is not
+# there.
+PLAN_TARGET_STRATEGY="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" worker.commit_strategy 2>/dev/null)" || true
+if [[ -z "$PLAN_TARGET_STRATEGY" || "$PLAN_TARGET_STRATEGY" == "None" ]]; then
+    PLAN_TARGET_STRATEGY="$(python3 -c "
+import json, sys
+repos = json.loads(sys.argv[1])
+repo = repos.get(sys.argv[2]) or repos.get('_defaults', {})
+print(repo.get('commit_strategy', 'branch_and_pr'))
+" "$REPOSITORIES_JSON" "$REPO_KEY" 2>/dev/null || echo "branch_and_pr")"
+fi
+
+if [[ "$PLAN_TARGET_STRATEGY" == "commit_to_main" ]]; then
+    WORKER_AUTHORIZATION="You are running as an automated software factory. No human will answer a question
+mid-run. You are authorized to commit and push to main for this repository without
+asking. Do not stop to request permission to push."
+else
+    WORKER_AUTHORIZATION="You are running as an automated software factory. No human will answer a question
+mid-run. You are authorized, and expected, to push your branch and open a DRAFT pull
+request immediately once the first working change is in place. Do not ask first.
+
+You are also authorized to push every follow-up commit to that same draft PR, including
+fixes for CI failures and anything the delegator asks you to change. Keep the draft PR
+up to date; it is the artifact the user reviews. Leave it in draft. Do not mark it ready
+for review and do not merge it."
+fi
+
 echo "Generating plan for: $ITEM_TITLE ($ITEM_ID)"
 echo "  Repo: $TARGET_REPO"
 echo "  Plans dir: $PLANS_DIR"
@@ -146,6 +181,10 @@ it rather than inventing scope.
 $SOURCE_CONTEXT
 --- END SOURCE CONTEXT ---
 }
+You are running inside the repository the work targets, so read the code before you
+plan against it. Open the files the work touches, confirm the patterns already in use,
+and name real paths in the steps. Do not plan against what you assume the code looks like.
+
 Begin your output with a metadata block in exactly this form, then the plan:
 
 ---
@@ -207,14 +246,29 @@ Any additional context or considerations.
 PLAN_EOF
 )"
 
-# Generate the plan using Claude CLI in non-interactive mode
-echo "Calling Claude (sonnet) to generate plan..."
+# Generate the plan using Claude CLI in non-interactive mode.
+#
+# The call runs inside the repository the work targets. A plan is only as good as
+# the code it was written against, and a planning call that cannot open the files
+# it is planning changes to is guessing. When the repository is not yet known the
+# planning call is also the thing that picks it, so there is nothing to cd into.
+PLAN_CWD="$PROJECT_ROOT"
+if [[ "$NEEDS_REPO" != "true" && -n "$TARGET_REPO" && -d "$TARGET_REPO" ]]; then
+    PLAN_CWD="$TARGET_REPO"
+fi
+
+echo "Calling Claude (opus) to generate plan..."
+echo "  Working directory: $PLAN_CWD"
 CLAUDE_BIN="${HOME}/.local/bin/claude"
 # Unset CLAUDECODE to allow invocation from within a Claude Code session
 unset CLAUDECODE 2>/dev/null || true
 LOGS_DIR="$HOME/.claude/orchestrator/logs"
 mkdir -p "$LOGS_DIR"
-PLAN_OUTPUT="$("$CLAUDE_BIN" --print --model sonnet "$PLAN_PROMPT" 2>"$LOGS_DIR/claude-plan-stderr.log")" || {
+PLAN_OUTPUT="$(cd "$PLAN_CWD" && "$CLAUDE_BIN" --print --model opus \
+    --dangerously-skip-permissions \
+    --settings '{"hooks":{}}' \
+    --strict-mcp-config \
+    "$PLAN_PROMPT" 2>"$LOGS_DIR/claude-plan-stderr.log")" || {
     echo "ERROR: Claude CLI invocation failed" >&2
     cat "$LOGS_DIR/claude-plan-stderr.log" >&2 2>/dev/null
     exit 1
@@ -251,9 +305,20 @@ text = sys.stdin.read()
 print(re.sub(r'^\s*---\s*\n.*?\n\s*---\s*\n?', '', text, count=1, flags=re.DOTALL).lstrip())
 ")"
 
-# Write plan to file
+# Write plan to file. The plan file is the only thing the worker ever reads, so the
+# ticket's own description and discussion are carried into it verbatim. A planning
+# call that compresses a ticket into a checklist throws away every detail it did not
+# think to keep, and the worker has no way to go back for them.
 PLAN_FILE="$PLANS_DIR/${ITEM_ID}.md"
-printf '%s\n' "$PLAN_BODY" > "$PLAN_FILE"
+{
+    printf '%s\n' "$PLAN_BODY"
+    printf '\n## Execution rules\n\n%s\n' "$WORKER_AUTHORIZATION"
+    if [[ -n "$SOURCE_CONTEXT" ]]; then
+        printf '\n---\n\n## Source ticket (verbatim)\n\n'
+        printf '%s\n' "$SOURCE_REF_LINE"
+        printf '\n%s\n' "$SOURCE_CONTEXT"
+    fi
+} > "$PLAN_FILE"
 echo "  Plan written to: $PLAN_FILE"
 
 # Also generate a lightweight JSON summary for the queue metadata (backward compat)

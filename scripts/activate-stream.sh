@@ -349,6 +349,30 @@ echo "Step 2b: Sending task instructions to worker..."
 PLAN_FILE="$(cd "$SCRIPT_DIR" && $QUEUE_PY get "$ITEM_ID" plan.file)"
 PLAN_FILE="${PLAN_FILE/#\~/$HOME}"
 
+# A worker session inherits the operator's own Claude Code instructions, which tell
+# it to ask a human before pushing. Nobody is there to answer, so without this the
+# worker finishes the code and then waits forever, and the delegator spends the rest
+# of the item nudging a session that is blocked on permission it will never get.
+# The draft PR is the review artifact, so reaching it is part of the task.
+if [[ "$COMMIT_STRATEGY" == "commit_to_main" ]]; then
+    AUTHORIZATION="## Authorization
+
+You are running as an automated software factory. No human will answer a question
+mid-run. You are authorized to commit and push to main for this repository without
+asking. Do not stop to request permission to push."
+else
+    AUTHORIZATION="## Authorization
+
+You are running as an automated software factory. No human will answer a question
+mid-run. You are authorized, and expected, to push your branch and open a DRAFT pull
+request immediately once the first working change is in place. Do not ask first.
+
+You are also authorized to push every follow-up commit to that same draft PR, including
+fixes for CI failures and anything the delegator asks you to change. Keep the draft PR
+up to date; it is the artifact the user reviews. Leave it in draft. Do not mark it ready
+for review and do not merge it."
+fi
+
 if [[ "$COMMIT_STRATEGY" == "graphite_stack" ]]; then
     # Build stack workflow instructions with step details
     STACK_INSTRUCTIONS="$(cd "$SCRIPT_DIR" && python3 -c "
@@ -372,7 +396,7 @@ for s in sorted(steps, key=lambda x: x.get('position', 0)):
     lines.append(f'After implementing, run: \`gt create {full_branch} --message \"{desc}\"\`')
     lines.append('')
 lines.append('### After all steps are complete:')
-lines.append('1. Run \`gt submit --stack\` to push all branches and create PRs')
+lines.append('1. Run \`gt submit --stack --draft\` to push all branches and open draft PRs')
 lines.append('2. Report completion')
 print('\n'.join(lines))
 " <<< "$ITEM_JSON")"
@@ -383,6 +407,8 @@ Read your full implementation plan and task context at: $PLAN_FILE
 
 Branch prefix: $ITEM_BRANCH
 Status: Activating now — this is a Graphite stack. Follow the plan steps in order.
+
+$AUTHORIZATION
 $STACK_INSTRUCTIONS"
 else
     TASK_MESSAGE="[Task Assignment] $ITEM_TITLE
@@ -390,7 +416,9 @@ else
 Read your full implementation plan and task context at: $PLAN_FILE
 
 Branch: $ITEM_BRANCH
-Status: Activating now — follow the plan steps in order."
+Status: Activating now — follow the plan steps in order.
+
+$AUTHORIZATION"
 fi
 
 # Single send attempt. If it fails, the reconcile loop will retry next cycle —

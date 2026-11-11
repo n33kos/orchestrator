@@ -146,12 +146,15 @@ query OrchestratorIssues($filter: IssueFilter, $first: Int!, $withComments: Bool
       updatedAt
       state { id name type }
       team { id key name }
-      project { id name }
+      project { id name description }
       assignee { id displayName }
       labels { nodes { name } }
+      parent { identifier title description }
+      children { nodes { identifier title state { type } } }
+      attachments { nodes { title subtitle url } }
       inverseRelations { nodes { type issue { identifier state { type } } } }
-      comments(first: 30) @include(if: $withComments) {
-        nodes { body createdAt user { displayName } }
+      comments(first: 100) @include(if: $withComments) {
+        nodes { body createdAt user { displayName } botActor { name } parent { id } }
       }
     }
   }

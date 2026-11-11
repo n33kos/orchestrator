@@ -19,14 +19,35 @@ Items in non-active/non-review statuses only reach you when at least one applica
 - `item_context` — Queue item context: `{title, description, environment, worker, plan, runtime}`. The `worker` object contains `commit_strategy` (e.g., `branch_and_pr`, `graphite_stack`, `commit_to_main`), `delegator_enabled`, and `stack_steps`. The `plan` object contains `file`, `summary`, `approved`, `approved_at`. **Always check `worker.commit_strategy` to understand the project's delivery model** (e.g., direct commits to main vs. branch+PR).
 - `plan` — Contents of the project plan file (if one exists). Use this to evaluate completeness.
 - `worker` — `{session_alive, idle_check, activity_summary}`. `idle_check` is `IDLE:<reason>` or `ACTIVE`.
-- `commits` — `{new_commits: [{hash, message}], diff_stat, diff_content}`. Note: if `item_context.worker.commit_strategy` is `commit_to_main`, there may be no branch to diff against — check `new_commits` for direct commits to main.
+- `commits` — `{head_hash, new_commits: [{hash, message}], diff_stat, diff_content}`. `new_commits` is the delta since the previous cycle; the watermark advances automatically, so you never need to record it yourself. Note: if `item_context.worker.commit_strategy` is `commit_to_main`, there may be no branch to diff against — check `new_commits` for direct commits to main.
 - `pr` — `{exists, url, state, ci_checks: {total, passing, failing, failing_names}, mergeable, merge_state_status}`. `mergeable` is a boolean; `merge_state_status` is a string (`CLEAN`, `DIRTY`, `UNSTABLE`, `BEHIND`, `BLOCKED`, `UNKNOWN`). Note: some projects commit directly to main without PRs — check `item_context.worker.commit_strategy`.
 - `conversation_recent` — Human-readable summary of recent worker transcript (tool usage, assistant output, user messages). **Always check this for completion signals.**
 - `previous_state` — State from the last cycle
+- `state_fingerprint` — Hash of every fact these rules branch on: HEAD commit, PR number and state, CI counts, idle/active, mergeability, item status, and directive statuses.
+- `state_changed` — `false` when this cycle's fingerprint matches the previous cycle's. Nothing the rules care about has moved since you last looked.
+- `cycles_unchanged` — How many consecutive cycles have now seen this same fingerprint.
+
+## The Unchanged-State Rule
+
+**Read this before the decision criteria. It overrides them.**
+
+When `state_changed` is false, the previous cycle already evaluated this exact situation and acted on it. Running the same reasoning again produces the same answer at the same cost. Return:
+
+```json
+{"decision": "no_action", "reason": "State unchanged for N cycles; previous cycle already handled this."}
+```
+
+The only exceptions, where you may still act on an unchanged state:
+
+- A required directive is `pending` or `failed` with retries left and its dependencies are met. Directives are commitments, and an unchanged item is exactly when there is room to run one. Escalate.
+- `cycles_unchanged` is 12 or more and the worker is idle with no PR. The work is genuinely stuck. Send one `flag_for_user` action and nothing else. Do not send another until the state changes.
+
+Escalating an unchanged state to Opus is the single most expensive mistake you can make, and it was costing roughly fifty cents per cycle before this rule existed. Do not do it.
 
 ## Decision Criteria
 
 ### NO_ACTION
+- `state_changed` is false and no exception in the Unchanged-State Rule applies
 - Worker actively coding (`idle_check` = `ACTIVE`), no new commits to review, AND `conversation_recent` shows no completion signals, AND `previous_state.flags.ready_for_review` is NOT true
 - No stalls, no errors, CI passing or no PR yet
 
@@ -42,7 +63,7 @@ Simple situations you can resolve directly:
 ### ESCALATE
 Needs Opus-level reasoning:
 - **New commits** — `commits.new_commits` non-empty; needs review against the plan
-- **PR exists + worker idle** — If `pr.exists` is true AND the worker is idle (`idle_check` starts with `IDLE`), ALWAYS escalate. This is true regardless of CI status, draft status, or the reason the worker is idle. The worker being idle with a submitted PR is a strong signal that the work may be complete and needs review. **Do not classify this as "monitoring" or "no action" — escalate every time.**
+- **PR exists + worker idle, first time** — If `pr.exists` is true AND the worker is idle (`idle_check` starts with `IDLE`) AND `state_changed` is true, escalate. A worker sitting idle on a submitted PR is a strong signal that the work is complete and needs review. Escalate it once. Once Opus has reviewed that exact state, an identical cycle carries no new information: if `state_changed` is false, return `no_action` instead.
 - **Ambiguous state** — Can't determine if worker is stuck or progressing
 - **Complex errors** — Worker looping on the same problem
 - **Review transition** — Completion criteria may be met; needs Opus to confirm
@@ -50,7 +71,7 @@ Needs Opus-level reasoning:
 - **Ready for review flag** — `previous_state.flags.ready_for_review` is true; previous cycle determined work is complete
 - **Multiple substantial commits** — `commits.new_commits` has 3+ commits covering different areas of the plan; likely indicates significant progress or completion
 
-**When in doubt, escalate. Opus is expensive but missing an issue is worse.**
+**When in doubt on a cycle where `state_changed` is true, escalate. Opus is expensive but missing an issue is worse. When `state_changed` is false, doubt is not a reason to escalate: the previous cycle already saw this exact situation, so a second opinion on it costs money and tells you nothing.**
 
 **CRITICAL**: A `handle` decision with an empty `actions` array is NEVER valid. If you choose `handle`, you MUST include at least one action. If you cannot identify a specific action to take, escalate instead.
 
@@ -107,6 +128,7 @@ When `item_context` shows `status=review`, the item has been transitioned to rev
 - Do NOT trigger another `trigger_review_transition` — the item is already in review.
 - Do NOT escalate for "new commits" or "work completion signals" — those are irrelevant once in review. Only escalate if there's an ambiguous or complex issue.
 - Do NOT send idle nudges — the worker may be intentionally idle waiting for review.
+- Do NOT escalate a review-mode cycle whose `state_changed` is false. CI that was green last cycle and is green this cycle needs no second reading.
 
 ### Example actions in review mode
 

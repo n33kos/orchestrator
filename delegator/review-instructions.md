@@ -16,6 +16,7 @@ Same payload as triage:
 - `pr` — `{exists, url, state, ci_checks, mergeable, merge_state_status}`. `mergeable` is a boolean; `merge_state_status` is a string (`CLEAN`, `DIRTY`, `UNSTABLE`, `BEHIND`, `BLOCKED`, `UNKNOWN`). May not exist for no-branch projects.
 - `conversation_recent` — Summary of recent worker transcript. Check for completion signals.
 - `previous_state` — State from the last cycle
+- `state_changed` / `cycles_unchanged` — Whether anything the triage rules branch on has moved since the previous cycle, and how long it has been still. Triage should not escalate an unchanged state; if one reaches you anyway, say so in your reason and keep the response short.
 - `triage_escalation` — (optional) `{reason, context}` from the Haiku triage agent explaining WHY it escalated to you and what to focus on. **Check this first** to understand the triage agent's concern before analyzing the full payload.
 
 ## Code Review Standards

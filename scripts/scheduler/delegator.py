@@ -381,9 +381,30 @@ def trigger_delegator_cycles(cfg: Config, dry_run: bool) -> None:
                     CYCLE_JSON="$DELEGATOR_DIR/cycle-$ITEM_ID.json"
                     [ -f "$CYCLE_JSON" ] || exit 1
 
-                    # Triage via Haiku
                     TRIAGE_OUTPUT="$DELEGATOR_DIR/triage-$ITEM_ID.json"
                     TRIAGE_INSTRUCTIONS="$PROJECT_ROOT/delegator/triage-instructions.md"
+
+                    # A cycle where nothing about the item moved has nothing for a
+                    # model to decide, so it is settled here instead of being paid
+                    # for twice over. One cycle in six is still sent to triage, so a
+                    # long quiet stretch is not completely unobserved.
+                    STATE_CHANGED=$("$SCRIPT_DIR/extract-json-field.sh" "$CYCLE_JSON" "state_changed" "True" 2>/dev/null || echo "True")
+                    CYCLES_UNCHANGED=$("$SCRIPT_DIR/extract-json-field.sh" "$CYCLE_JSON" "cycles_unchanged" "0" 2>/dev/null || echo "0")
+                    case "$STATE_CHANGED" in
+                        false|False)
+                            if [ "$((CYCLES_UNCHANGED % 6))" -ne 0 ]; then
+                                echo "  [triage] Nothing changed since last cycle (${{CYCLES_UNCHANGED}} quiet cycles) — skipping model call"
+                                printf '%s' '{{"decision":"no_action","reason":"State unchanged since the previous cycle; no model call made.","actions":[],"state_updates":{{}}}}' > "$TRIAGE_OUTPUT"
+                                cp "$CYCLE_JSON" "$DELEGATOR_DIR/last-cycle-payload.json"
+                                cp "$TRIAGE_OUTPUT" "$DELEGATOR_DIR/last-triage-output.json"
+                                "$SCRIPT_DIR/delegator-postprocess.sh" "$ITEM_ID" "$TRIAGE_OUTPUT" --model none 2>&1 | sed 's/^/  [postprocess] /' || true
+                                rm -f "$CYCLE_JSON"
+                                exit 0
+                            fi
+                            ;;
+                    esac
+
+                    # Triage via Haiku
 
                     echo "  [triage] Invoking Haiku for $ITEM_ID..."
                     claude --print --model haiku \

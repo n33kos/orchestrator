@@ -342,3 +342,53 @@ class DefensiveItemShapeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StateFingerprintTests(unittest.TestCase):
+    """The cycle gate: an unchanged item must be recognisable without a model call."""
+
+    def test_payload_carries_fingerprint_and_change_flag(self):
+        sb = PreprocessSandbox(_make_item(item_id="ws-fp"))
+        try:
+            payload = sb.run()
+        finally:
+            sb.cleanup()
+
+        self.assertIn("state_fingerprint", payload)
+        self.assertTrue(payload["state_fingerprint"])
+        self.assertTrue(payload["state_changed"])
+        self.assertEqual(payload["cycles_unchanged"], 0)
+
+    def test_matching_previous_fingerprint_reports_no_change(self):
+        sb = PreprocessSandbox(_make_item(item_id="ws-fp2"))
+        try:
+            first = sb.run()
+
+            state_file = (
+                Path(sb.tmphome) / ".claude" / "orchestrator" / "delegators"
+                / "ws-fp2" / "state.json"
+            )
+            state = json.loads(state_file.read_text())
+            state["state_fingerprint"] = first["state_fingerprint"]
+            state["cycles_unchanged"] = 0
+            state_file.write_text(json.dumps(state))
+
+            second = sb.run()
+        finally:
+            sb.cleanup()
+
+        self.assertEqual(second["state_fingerprint"], first["state_fingerprint"])
+        self.assertFalse(second["state_changed"])
+        self.assertEqual(second["cycles_unchanged"], 1)
+
+    def test_changed_status_produces_a_different_fingerprint(self):
+        sb_a = PreprocessSandbox(_make_item(item_id="ws-fp3", status="active"))
+        sb_b = PreprocessSandbox(_make_item(item_id="ws-fp3", status="review"))
+        try:
+            active = sb_a.run()
+            review = sb_b.run()
+        finally:
+            sb_a.cleanup()
+            sb_b.cleanup()
+
+        self.assertNotEqual(active["state_fingerprint"], review["state_fingerprint"])

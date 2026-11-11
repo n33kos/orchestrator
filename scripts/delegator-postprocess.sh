@@ -107,8 +107,26 @@ DECISION="$(echo "$CLAUDE_JSON" | python3 -c "import json,sys; print(json.load(s
 
 echo "[postprocess] $ITEM_ID: decision=$DECISION model=$MODEL"
 
+# The commit watermark and the state fingerprint are facts about the cycle, not
+# judgements, so they are recorded here rather than left to the model. When the
+# model omitted last_seen_hash, preprocess fell back to re-reporting the last 20
+# commits every cycle and every cycle escalated as if the work were new.
+CYCLE_FACTS="$(python3 -c "
+import json, sys
+try:
+    with open('$CYCLE_FILE') as f:
+        cycle = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    cycle = {}
+print(json.dumps({
+    'head_hash': (cycle.get('commits') or {}).get('head_hash', ''),
+    'state_fingerprint': cycle.get('state_fingerprint', ''),
+    'cycles_unchanged': cycle.get('cycles_unchanged', 0),
+}))
+")"
+
 # Update state file FIRST (before actions), so state is persisted even if an action causes issues
-echo "$CLAUDE_JSON" | python3 -c "
+echo "$CLAUDE_JSON" | CYCLE_FACTS="$CYCLE_FACTS" python3 -c "
 import json, sys, os
 from datetime import datetime, timezone
 
@@ -143,6 +161,18 @@ for key, value in state_updates.items():
         obj[parts[-1]].extend(value)
     else:
         obj[parts[-1]] = value
+
+# Record the cycle's own facts after the model's state_updates, so a stale or
+# absent value from the model cannot hold the watermark back.
+try:
+    facts = json.loads(os.environ.get('CYCLE_FACTS', '{}'))
+except (json.JSONDecodeError, ValueError):
+    facts = {}
+if facts.get('head_hash'):
+    state.setdefault('commits', {})['last_seen_hash'] = facts['head_hash']
+if facts.get('state_fingerprint'):
+    state['state_fingerprint'] = facts['state_fingerprint']
+state['cycles_unchanged'] = facts.get('cycles_unchanged', 0)
 
 # Update health
 state.setdefault('health', {})

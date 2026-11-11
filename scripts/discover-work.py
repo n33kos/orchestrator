@@ -254,22 +254,67 @@ def render_linear_context(issue: dict) -> str:
         lines.append(" | ".join(meta))
         lines.append("")
 
+    project_description = ((issue.get("project") or {}).get("description") or "").strip()
+    if project_description:
+        lines.append("## Project")
+        lines.append("")
+        lines.append(project_description)
+        lines.append("")
+
+    parent = issue.get("parent") or {}
+    if parent:
+        lines.append(f"## Parent issue: {parent.get('identifier', '')} — {parent.get('title', '')}")
+        lines.append("")
+        parent_description = (parent.get("description") or "").strip()
+        lines.append(parent_description or "_(no description on the parent issue)_")
+        lines.append("")
+
     description = (issue.get("description") or "").strip()
     lines.append("## Description")
     lines.append("")
     lines.append(description or "_(no description on the issue)_")
+
+    children = ((issue.get("children") or {}).get("nodes")) or []
+    if children:
+        lines.append("")
+        lines.append("## Sub-issues")
+        lines.append("")
+        for child in children:
+            state = ((child.get("state") or {}).get("type")) or "?"
+            lines.append(f"- {child.get('identifier', '')} [{state}] {child.get('title', '')}")
+
+    # Designs and specs are attached to a Linear issue rather than written into its
+    # body, so an import that keeps only the body silently drops the design link the
+    # ticket is about.
+    attachments = ((issue.get("attachments") or {}).get("nodes")) or []
+    if attachments:
+        lines.append("")
+        lines.append("## Attachments")
+        lines.append("")
+        for attachment in attachments:
+            title = (attachment.get("title") or "").strip() or "attachment"
+            subtitle = (attachment.get("subtitle") or "").strip()
+            url = (attachment.get("url") or "").strip()
+            suffix = f" — {subtitle}" if subtitle else ""
+            lines.append(f"- [{title}]({url}){suffix}")
 
     comments = ((issue.get("comments") or {}).get("nodes")) or []
     if comments:
         lines.append("")
         lines.append("## Discussion")
         for comment in comments:
-            author = (comment.get("user") or {}).get("displayName", "unknown")
+            author = (
+                (comment.get("user") or {}).get("displayName")
+                or (comment.get("botActor") or {}).get("name")
+                or "unknown"
+            )
             body = (comment.get("body") or "").strip()
             if not body:
                 continue
+            reply = " (reply)" if comment.get("parent") else ""
+            created = (comment.get("createdAt") or "")[:10]
             lines.append("")
-            lines.append(f"**{author}**")
+            lines.append(f"**{author}**{reply} {created}".rstrip())
             lines.append("")
             lines.append(body)
 
