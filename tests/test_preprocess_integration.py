@@ -35,6 +35,18 @@ def _load_project_directives_for_status(status: str) -> list[dict]:
     return all_dirs.get(status, [])
 
 
+def _enable_every_directive(status: str) -> dict:
+    """Per-item overrides that turn on every directive the project ships.
+
+    The directives a checkout ships are enabled or disabled to suit the work in
+    front of the user, so a test that asserts on directive handling cannot rely
+    on any of them being on. Turning them all on through the same override path
+    an item uses keeps these tests about the preprocess rather than about which
+    toggles happen to be set today.
+    """
+    return {d["name"]: True for d in _load_project_directives_for_status(status)}
+
+
 class PreprocessSandbox:
     """Helper that builds a sandbox HOME with a configurable queue item."""
 
@@ -119,9 +131,10 @@ class PayloadStructureTests(unittest.TestCase):
     """Baseline contract: every payload has the expected top-level keys."""
 
     def test_active_payload_has_directive_keys_when_directives_exist(self):
-        if not _load_project_directives_for_status("active"):
+        overrides = _enable_every_directive("active")
+        if not overrides:
             self.skipTest("No active directives on disk; skip.")
-        sb = PreprocessSandbox(_make_item(status="active"))
+        sb = PreprocessSandbox(_make_item(status="active", directive_overrides=overrides))
         try:
             payload = sb.run()
         finally:
@@ -159,9 +172,12 @@ class DirectivesGlobalToggleTests(unittest.TestCase):
         self.assertNotIn("directive_runtime", payload)
 
     def test_enabled_explicitly_true_includes_directives_when_present(self):
-        if not _load_project_directives_for_status("active"):
+        overrides = _enable_every_directive("active")
+        if not overrides:
             self.skipTest("No active directives on disk; skip.")
-        sb = PreprocessSandbox(_make_item(directives_enabled=True))
+        sb = PreprocessSandbox(
+            _make_item(directives_enabled=True, directive_overrides=overrides)
+        )
         try:
             payload = sb.run()
         finally:
@@ -191,7 +207,9 @@ class StatusBasedLoadingTests(unittest.TestCase):
         if not active_dirs:
             self.skipTest("No active directives configured; skip.")
 
-        sb = PreprocessSandbox(_make_item(status="active"))
+        sb = PreprocessSandbox(
+            _make_item(status="active", directive_overrides=_enable_every_directive("active"))
+        )
         try:
             payload = sb.run()
         finally:
@@ -264,7 +282,9 @@ class RuntimeStateTests(unittest.TestCase):
         if not active_dirs:
             self.skipTest("No active directives; skip.")
 
-        sb = PreprocessSandbox(_make_item())
+        sb = PreprocessSandbox(
+            _make_item(directive_overrides=_enable_every_directive("active"))
+        )
         try:
             payload = sb.run()
         finally:
@@ -282,7 +302,7 @@ class RuntimeStateTests(unittest.TestCase):
             self.skipTest("No active directives; skip.")
 
         target = active_dirs[0]["name"]
-        item = _make_item()
+        item = _make_item(directive_overrides=_enable_every_directive("active"))
         item["runtime"]["directives"] = {
             target: {
                 "status": "running",
