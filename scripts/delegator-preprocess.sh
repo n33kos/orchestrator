@@ -349,24 +349,50 @@ try:
 except (json.JSONDecodeError, ValueError):
     pass
 
+# gh pr checks reports a status word per check. Only the words in PENDING_CI
+# are still moving; everything else is a final verdict. A skipped check is
+# final and will never become anything else, so counting it as pending leaves
+# a PR permanently short of all-clear.
+SETTLED_OK_CI = {"pass", "passed", "success", "successful", "skipping", "skipped", "neutral"}
+FAILED_CI = {
+    "fail", "failed", "failure", "failing", "error", "cancelled", "canceled",
+    "timed_out", "timed out", "action_required", "startup_failure",
+}
+
+
+def classify_ci_status(word):
+    word = word.strip().lower()
+    if word in SETTLED_OK_CI:
+        return "passing"
+    if word in FAILED_CI:
+        return "failing"
+    return "pending"
+
+
 def parse_ci_checks(raw_text):
     """Parse gh pr checks output into structured counts."""
     total = 0
     passing = 0
     failing = 0
+    pending = 0
     failing_names_list = []
     for line in raw_text.strip().splitlines():
-        line = line.strip()
-        if not line:
+        line = line.rstrip()
+        if not line.strip():
             continue
+        fields = re.split(r'\t|\s{2,}', line.strip())
+        name = fields[0] if fields else line.strip()
+        status_word = fields[1] if len(fields) > 1 else ""
+        verdict = classify_ci_status(status_word)
         total += 1
-        if re.search(r'\bpass\b', line, re.IGNORECASE):
+        if verdict == "passing":
             passing += 1
-        elif re.search(r'\bfail\b', line, re.IGNORECASE):
+        elif verdict == "failing":
             failing += 1
-            name = re.split(r'\t|\s{2,}', line)[0]
             failing_names_list.append(name)
-    return total, passing, failing, failing_names_list
+        else:
+            pending += 1
+    return total, passing, failing, failing_names_list, pending
 
 def parse_merge_status(raw_text):
     """Parse gh pr view merge status JSON."""
@@ -383,6 +409,7 @@ per_pr_ci = []
 ci_total = 0
 ci_passing = 0
 ci_failing = 0
+ci_pending = 0
 failing_names = []
 mergeable = None
 merge_state_status = None
@@ -400,16 +427,18 @@ if per_pr_entries:
         pr_num = entry.get("number")
         pr_ci_raw = entry.get("ci_raw", "")
         pr_merge_raw = entry.get("merge_raw", "")
-        t, p, f, fn = parse_ci_checks(pr_ci_raw)
+        t, p, f, fn, pend = parse_ci_checks(pr_ci_raw)
         ci_total += t
         ci_passing += p
         ci_failing += f
+        ci_pending += pend
         failing_names.extend(fn)
         per_pr_ci.append({
             "number": pr_num,
             "total": t,
             "passing": p,
             "failing": f,
+            "pending": pend,
             "failing_names": fn,
             "no_checks": t == 0,
         })
@@ -429,7 +458,7 @@ if per_pr_entries:
         merge_state_status = "MERGEABLE"
 else:
     # Standard single-PR path
-    ci_total, ci_passing, ci_failing, failing_names = parse_ci_checks(ci_checks_raw)
+    ci_total, ci_passing, ci_failing, failing_names, ci_pending = parse_ci_checks(ci_checks_raw)
     mergeable, merge_state_status = parse_merge_status(merge_status_raw)
 
 # Parse previous state
@@ -495,6 +524,7 @@ payload = {
             "total": ci_total,
             "passing": ci_passing,
             "failing": ci_failing,
+            "pending": ci_pending,
             "failing_names": failing_names,
             "some_prs_missing_checks": any(e.get("no_checks") for e in per_pr_ci) if per_pr_ci else (ci_total == 0 and pr_exists),
             "per_pr": per_pr_ci if per_pr_ci else None,
@@ -513,7 +543,7 @@ fingerprint_parts = [
     raw.get("head_hash", ""),
     str(pr_number or ""),
     pr_state,
-    str(ci_total), str(ci_passing), str(ci_failing),
+    str(ci_total), str(ci_passing), str(ci_failing), str(ci_pending),
     "idle" if idle_check.startswith("IDLE") else "active",
     str(mergeable),
     str(merge_state_status or ""),

@@ -13,7 +13,7 @@ Same payload as triage:
 - `plan` — Full implementation plan content (if one exists). Use this to evaluate plan adherence and completeness.
 - `worker` — `{session_alive, idle_check, activity_summary}`. Activity summary includes tool call histogram, recent conversation, and relay messages.
 - `commits` — `{new_commits, diff_stat, diff_content}`. Note: if `item_context.worker.commit_strategy` is `commit_to_main`, commits go directly to main.
-- `pr` — `{exists, url, state, ci_checks, mergeable, merge_state_status}`. `mergeable` is a boolean; `merge_state_status` is a string (`CLEAN`, `DIRTY`, `UNSTABLE`, `BEHIND`, `BLOCKED`, `UNKNOWN`). May not exist for no-branch projects.
+- `pr` — `{exists, url, state, ci_checks: {total, passing, failing, pending, failing_names}, mergeable, merge_state_status}`. A skipped or neutral check is a final result and counts as passing; only `pending` is still running. `mergeable` is a boolean; `merge_state_status` is a string (`CLEAN`, `DIRTY`, `UNSTABLE`, `BEHIND`, `BLOCKED`, `UNKNOWN`). May not exist for no-branch projects.
 - `conversation_recent` — Summary of recent worker transcript. Check for completion signals.
 - `previous_state` — State from the last cycle
 - `state_changed` / `cycles_unchanged` — Whether anything the triage rules branch on has moved since the previous cycle, and how long it has been still. Triage should not escalate an unchanged state; if one reaches you anyway, say so in your reason and keep the response short.
@@ -123,7 +123,7 @@ Populate all fields that changed or were observed this cycle:
 2. Issues in commits → feedback to worker, assessment = `needs_work`
 3. PR with merge conflicts (`mergeable` is false, or `merge_state_status` is `DIRTY` or `CONFLICTING`) → message worker to rebase onto main and resolve conflicts, assessment = `needs_work`. **Never assess as `approve` when the PR has merge conflicts.**
 4. PR with failing CI → request CI fix, assessment = `needs_work`
-5. PR with passing CI + no merge conflicts + worker idle → full PR review → `approve` / `needs_work` / `blocked`
+5. PR with passing CI + no merge conflicts + worker idle → full PR review → `approve` / `needs_work` / `blocked`. When the verdict is `approve`, also set `flags.ready_for_review` to true. The item moves to review on an `approve` assessment, so an approval you do not mean to act on is not an approval.
 6. Ambiguous worker state → analyze transcript → `needs_work` (stuck) / `blocked` (genuinely stuck) / `monitoring` (slow but progressing)
 7. **No-branch project** (`item_context.worker.commit_strategy` is `commit_to_main`): Worker commits directly to main, no PR expected. If worker signals completion (conversation_recent shows "done"/"complete"/idle after committing) OR `previous_state.flags.ready_for_review` is true → trigger `trigger_review_transition` and assess as `approve`. Review the commit diffs if available.
 8. **Ready-for-review flag set** — If `previous_state.flags.ready_for_review` is true, this means a prior cycle (or the user) has explicitly flagged the work as complete. Unless you find blocking issues in the code (including merge conflicts), assess as `approve` and trigger `trigger_review_transition`. Do NOT reset `ready_for_review` to false unless you find actual blocking issues.

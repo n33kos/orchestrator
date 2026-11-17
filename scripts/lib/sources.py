@@ -55,6 +55,13 @@ ADAPTER_SPECS: dict[str, dict[str, Any]] = {
                 [],
                 "Route by issue label, e.g. 'web=babylist-web, ios=ios'. First match wins. Falls back to the default repo key below; blank means the item must be routed by hand before it can activate.",
             ),
+            _field(
+                "directive_label_map",
+                "Directives by label",
+                "list",
+                [],
+                "Turn on directives by issue label, e.g. 'KR1.1 Semantic Tokens=component-review'. Every match applies.",
+            ),
             _field("include_comments", "Include comments as context", "boolean", True),
             _field("raw_filter", "Raw filter (JSON)", "textarea", "", "Advanced: a Linear IssueFilter object, merged over the fields above."),
             _LIMIT,
@@ -96,6 +103,7 @@ DEFAULT_ITEM_DEFAULTS: dict[str, Any] = {
     "priority": 3,
     "commit_strategy": "",
     "delegator_enabled": True,
+    "directive_overrides": {},
 }
 
 

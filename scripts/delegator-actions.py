@@ -118,9 +118,24 @@ def do_update_queue_metadata(action):
     print(f"  [action] Updated queue metadata: {[k for k, _ in flatten(metadata)]}")
 
 
+def current_status():
+    result = subprocess.run(
+        ["python3", "-m", "lib.queue", "get", ITEM_ID, "status"],
+        cwd=SCRIPT_DIR,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
 def do_trigger_review_transition(_action):
     # Only update queue status to review — do NOT suspend session or delegator.
     # Both stay alive so the delegator can monitor CI and the worker can receive commands.
+    status = current_status()
+    if status != "active":
+        print(f"  [action] Not moving {ITEM_ID} to review; status is {status or 'unknown'}")
+        return
     subprocess.run(
         ["python3", "-m", "lib.queue", "update", ITEM_ID, "status=review"],
         cwd=SCRIPT_DIR,
@@ -188,6 +203,17 @@ def main():
             handler(action)
         except Exception as exc:
             print(f"  [action] ERROR executing {action_type}: {exc}")
+
+    # An assessment of "approve" means the reviewer judged the work ready for the
+    # user. The transition is the consequence of that judgement, so it happens here
+    # rather than depending on the model also remembering to emit the action.
+    if data.get("assessment") == "approve":
+        already = any(a.get("type") == "trigger_review_transition" for a in actions)
+        if not already:
+            try:
+                do_trigger_review_transition({})
+            except Exception as exc:
+                print(f"  [action] ERROR moving to review after approve: {exc}")
 
 
 if __name__ == "__main__":

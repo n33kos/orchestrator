@@ -468,8 +468,26 @@ def poll_adapter(adapter: dict) -> list[dict]:
             item["repo_key"] = str(defaults.get("repo_key") or "")
         if defaults.get("priority") and item.get("priority") == 3:
             item["priority"] = int(defaults["priority"])
+        item["directive_overrides"] = {
+            **(defaults.get("directive_overrides") or {}),
+            **directives_from_labels(adapter["config"], item.get("labels") or []),
+        }
 
     return items
+
+
+def directives_from_labels(config: dict, labels: list[str]) -> dict[str, bool]:
+    """Turn on directives by issue label, e.g. 'design-review=component-review'.
+
+    Every matching entry applies, so one label can enable several directives.
+    """
+    present = {str(label).strip().lower() for label in labels}
+    enabled = {}
+    for entry in as_list(config.get("directive_label_map")):
+        label, _, directive = entry.partition("=")
+        if directive.strip() and label.strip().lower() in present:
+            enabled[directive.strip()] = True
+    return enabled
 
 
 def write_context(item_id: str, body: str) -> str | None:
@@ -518,6 +536,7 @@ def build_queue_item(item_id: str, discovered: dict) -> dict:
         "worker": {
             "commit_strategy": defaults.get("commit_strategy") or "branch_and_pr",
             "delegator_enabled": bool(defaults.get("delegator_enabled", True)),
+            "directive_overrides": dict(discovered.get("directive_overrides") or {}),
         },
         "plan": {
             "file": None,
